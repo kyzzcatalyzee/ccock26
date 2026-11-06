@@ -1,0 +1,9 @@
+Package: pawxed.ccock18
+Name: CCock26
+Version: 0.1.0
+Architecture: iphoneos-arm
+Description: iOS 26 style control center with a working media page and Add a Control
+Maintainer: zilvyn
+Author: pawxed (modified by zilvyn)
+Section: Tweaks
+Depends: firmware (>= 14.0), firmware (<< 17.4), ellekit, com.opa334.ccsupport, mobilesubstrate, preferenceloader
