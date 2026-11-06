@@ -196,16 +196,28 @@ static NSArray<NSString *> *PACCDogFacts(void) {
     UIViewController *collection = ModuleCollection(overlay);
     if (!collection.view) return;
 
-    BOOL hide = (gCurrentPage != 0);
-    CGFloat targetAlpha = hide ? 0.0 : 1.0;
+    // module container view -> identifier, so every module follows the page it was placed on
+    NSMutableDictionary<NSValue *, NSString *> *midByView = [NSMutableDictionary dictionary];
+    NSDictionary *containers = nil;
+    @try { containers = [(id)collection valueForKey:@"moduleContainerViewByIdentifier"]; }
+    @catch (__unused NSException *e) {}
+    [containers enumerateKeysAndObjectsUsingBlock:^(NSString *key, id value, BOOL *stop) {
+        UIView *cand = [value isKindOfClass:UIView.class] ? value
+                     : ([value respondsToSelector:@selector(view)] ? [value view] : nil);
+        if (cand) midByView[[NSValue valueWithNonretainedObject:cand]] = key;
+    }];
 
     NSMutableArray<UIView *> *targets = [NSMutableArray array];
+    NSMutableArray<NSNumber *> *alphas = [NSMutableArray array];
     NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:collection.view];
     while (queue.count) {
         UIView *v = queue.firstObject;
         [queue removeObjectAtIndex:0];
         if ([NSStringFromClass(v.class) isEqualToString:@"CCUIContentModuleContainerView"]) {
+            NSString *mid = midByView[[NSValue valueWithNonretainedObject:v]];
+            NSInteger page = mid.length ? PACCModulePageForIdentifier(mid) : 0;
             [targets addObject:v];
+            [alphas addObject:@(page == gCurrentPage ? 1.0 : 0.0)];
         }
         [queue addObjectsFromArray:v.subviews];
     }
@@ -216,10 +228,10 @@ static NSArray<NSString *> *PACCDogFacts(void) {
                                     UIViewAnimationOptionBeginFromCurrentState |
                                     UIViewAnimationOptionAllowUserInteraction
                          animations:^{
-            for (UIView *v in targets) v.alpha = targetAlpha;
+            for (NSUInteger i = 0; i < targets.count; i++) targets[i].alpha = alphas[i].doubleValue;
         } completion:nil];
     } else {
-        for (UIView *v in targets) v.alpha = targetAlpha;
+        for (NSUInteger i = 0; i < targets.count; i++) targets[i].alpha = alphas[i].doubleValue;
     }
 }
 
@@ -425,7 +437,7 @@ static NSArray<NSString *> *PACCDogFacts(void) {
         return;
     }
 
-    NSUInteger pageCount = gPromoPageEnabled ? 3 : 2;
+    NSUInteger pageCount = (gPromoPageEnabled ? 3 : 2) + PACCUserPageCount();
     if ((NSInteger)gCurrentPage >= (NSInteger)pageCount) {
         [self snapToFirstPageForOverlay:overlay];
     }

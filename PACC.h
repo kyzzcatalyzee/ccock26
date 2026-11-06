@@ -40,6 +40,8 @@ extern BOOL gEditModeActive;
 extern BOOL gCircularModulesEnabled;
 extern BOOL gPromoPageEnabled;
 void PACCLoadEditPrefs(void);
+NSUInteger PACCUserPageCount(void);
+NSInteger PACCModulePageForIdentifier(NSString *mid);
 
 CGFloat calculatedRadius(CGRect visibleRect, CGFloat radius);
 void LoadPrefs(void);

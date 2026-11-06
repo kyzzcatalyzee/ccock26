@@ -75,7 +75,7 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
         self.backgroundColor = UIColor.clearColor;
         self.userInteractionEnabled = YES;
         self.currentPage = 0;
-        self.pageCount = gPromoPageEnabled ? 3 : 2;
+        self.pageCount = (gPromoPageEnabled ? 3 : 2) + PACCUserPageCount();
         self.heldScale = 1.0;
         self.heldAlphaFactor = 1.0;
         self.jelloScaleX = 1.0;

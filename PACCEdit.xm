@@ -20,6 +20,7 @@ typedef struct { NSUInteger c, r, w, h; } PACRect;
 
 static NSUInteger kPACCols = 4;
 static NSUInteger kPACRows = 8;
+static NSUInteger kPACStride = 8;   // rows per page in the stored origin (visible rows + spacer rows)
 static NSUInteger gPACEditEpoch = 0;
 static CFTimeInterval gEditModeEnteredAt = 0;
 static NSInteger gPACLastPresentationState = 1;
@@ -53,6 +54,8 @@ static const NSInteger kPACProxyShadowTag  = 182007;
 static const NSInteger kPACAddTag          = 182008;
 static const NSInteger kPACPickerTag       = 182009;
 static const NSInteger kPACToastTag        = 182010;
+static const NSInteger kPACPageAddTag      = 182011;
+static const NSInteger kPACLayersTag       = 182012;
 
 static const void *kPACBorderKey   = &kPACBorderKey;
 static const void *kPACRemoveKey   = &kPACRemoveKey;
@@ -127,6 +130,33 @@ static void PACInitCachedClasses(void) {
     });
 }
 
+static NSUInteger gPACUserPages = 0;
+static BOOL gPACUserPagesLoaded = NO;
+static const NSUInteger kPACMaxPages = 6;
+
+static NSUInteger PACBasePageCount(void) { return gPromoPageEnabled ? 3 : 2; }
+
+static void PACEnsureUserPages(void) {
+    if (gPACUserPagesLoaded) return;
+    gPACUserPagesLoaded = YES;
+    CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditUserPages"), CFSTR("pawxed.ccock18.preferences"));
+    if (v && CFGetTypeID(v) == CFNumberGetTypeID()) gPACUserPages = [(__bridge NSNumber *)v unsignedIntegerValue];
+    if (v) CFRelease(v);
+    NSUInteger room = kPACMaxPages > PACBasePageCount() ? kPACMaxPages - PACBasePageCount() : 0;
+    if (gPACUserPages > room) gPACUserPages = room;
+}
+
+static void PACSaveUserPages(void) {
+    CFPreferencesSetAppValue(CFSTR("EditUserPages"), (__bridge CFPropertyListRef)@(gPACUserPages), CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+}
+
+// first index of the pages the user added (they come after the built-in pages)
+static BOOL PACIsUserPage(NSUInteger page) {
+    PACEnsureUserPages();
+    return page >= PACBasePageCount() && page < PACBasePageCount() + gPACUserPages;
+}
+
 static void PACEnsureStore(void) {
     if (!gEditOrigins) {
         CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridOrigins"), CFSTR("pawxed.ccock18.preferences"));
@@ -181,6 +211,10 @@ static void PACRefreshGridConstants(void) {
     BOOL landscape = PACIsLandscape();
     kPACCols = landscape ? 8 : 4;
     kPACRows = landscape ? 4 : 8;
+    {
+        CGFloat spanRows = landscape ? 0.0 : PageSpan() / (67.0 + 12.0);
+        kPACStride = MAX(kPACRows, (NSUInteger)llround(spanRows));
+    }
     kPACCell = 67.0;
     kPACgap  = 12.0;
     kPACStep = kPACCell + kPACgap;
@@ -423,8 +457,8 @@ static CGPoint PACGridBase(UIViewController *overlay) {
         if (o.count < 2) continue;
         NSUInteger c = o[0].unsignedIntegerValue;
         NSUInteger a = o[1].unsignedIntegerValue;
-        if (a / kPACRows != page) continue;
-        NSUInteger lr = a % kPACRows;
+        if (a / kPACStride != page) continue;
+        NSUInteger lr = a % kPACStride;
         CGRect f = PACVisibleFrame(m, overlay);
         if (CGRectIsEmpty(f)) continue;
         CGFloat x = CGRectGetMinX(f) - (CGFloat)c * kPACStep;
@@ -552,9 +586,7 @@ static BOOL PACModuleSupportsResizing(NSString *mid) {
     if (!mid.length) return NO;
     NSString *lower = mid.lowercaseString;
     if ([lower isEqualToString:@"com.apple.control-center.displaymodule"]) return NO;
-    if ([lower containsString:@"mediaremote.controlcenter"]) return NO;
-    if ([lower isEqualToString:@"com.apple.control-center.connectivitymodule"]) return NO;
-    if ([lower containsString:@"connectivitymodule"]) return NO;
+    if ([lower containsString:@"mediaremote.controlcenter.audio"]) return NO;
     NSArray<NSNumber *> *base = gEditBaseSizes[mid];
     if (!base) base = PACKnownBaseSize(mid);
     if (base.count < 2) return NO;
@@ -1452,27 +1484,32 @@ static BOOL PACPlaceNewModule(NSString *mid, NSUInteger w, NSUInteger h, UIViewC
         NSUInteger a = o[1].unsignedIntegerValue;
         NSUInteger ow = 1, oh = 1;
         PACEffectiveSize(other, &ow, &oh);
-        PACRect pr = {c, a % kPACRows, ow, oh};
-        NSNumber *pn = @(a / kPACRows);
+        PACRect pr = {c, a % kPACStride, ow, oh};
+        NSNumber *pn = @(a / kPACStride);
         NSMutableDictionary *map = pages[pn];
         if (!map) { map = [NSMutableDictionary dictionary]; pages[pn] = map; }
         map[other] = [NSValue value:&pr withObjCType:@encode(PACRect)];
     }
 
+    // Page 0 and the pages the user added can hold modules; the media / promo pages cannot.
     NSUInteger cur = (NSUInteger)MAX((NSInteger)0, gCurrentPage);
-    NSMutableArray<NSNumber *> *order = [NSMutableArray arrayWithObject:@(cur)];
-    for (NSUInteger p = 0; p < 8; p++) if (p != cur) [order addObject:@(p)];
+    NSMutableArray<NSNumber *> *order = [NSMutableArray array];
+    if (cur == 0 || PACIsUserPage(cur)) [order addObject:@(cur)];
+    if (![order containsObject:@0]) [order addObject:@0];
+    for (NSUInteger p = PACBasePageCount(); p < PACBasePageCount() + gPACUserPages; p++) {
+        if (![order containsObject:@(p)]) [order addObject:@(p)];
+    }
 
     for (NSNumber *pn in order) {
         NSUInteger p = pn.unsignedIntegerValue;
         NSUInteger maxRow = kPACRows >= h ? kPACRows - h : 0;
-        if (p == cur) {
+        if (p == cur && (NSInteger)p == gCurrentPage) {
             NSUInteger cap = PACVisibleRowCap(ov);
             if (cap + 1 >= h) maxRow = MIN(maxRow, cap + 1 - h);
         }
         NSUInteger oc = 0, orr = 0;
         if (PACFindFreeCellFor(pages[pn] ?: @{}, 0, 0, w, h, maxRow, &oc, &orr)) {
-            PACSetOrigin(mid, @[@(oc), @(p * kPACRows + orr)]);
+            PACSetOrigin(mid, @[@(oc), @(p * kPACStride + orr)]);
             PACInvalidateOtherOrientationOriginForModule(mid);
             if (outPage) *outPage = p;
             return YES;
@@ -1554,6 +1591,45 @@ static UIButton *PACMakeAddButton(void) {
     [b addSubview:icon];
     [b addSubview:label];
     return b;
+}
+
+static UIButton *PACMakeRoundButton(NSString *symbol, CGFloat side, CGFloat pointSize, NSInteger tag) {
+    UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
+    b.tag = tag;
+    b.bounds = CGRectMake(0, 0, side, side);
+    b.layer.cornerRadius = side * 0.5;
+    b.layer.masksToBounds = YES;
+
+    UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterialDark]];
+    blur.frame = b.bounds;
+    blur.userInteractionEnabled = NO;
+    [b addSubview:blur];
+
+    UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:UIImageSymbolWeightSemibold];
+    UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:symbol withConfiguration:cfg]];
+    icon.tintColor = UIColor.whiteColor;
+    icon.contentMode = UIViewContentModeCenter;
+    icon.frame = b.bounds;
+    icon.userInteractionEnabled = NO;
+    [b addSubview:icon];
+    return b;
+}
+
+// "+" under the page dots: adds a new page.
+static void PACPositionPageAddButton(UIViewController *ov) {
+    UIView *ind = [ov.view viewWithTag:kPageIndicatorTag];
+    UIView *plus = [ov.view viewWithTag:kPACPageAddTag];
+    if (!ind || !plus) return;
+    plus.center = CGPointMake(CGRectGetMidX(ind.frame), CGRectGetMaxY(ind.frame) + 30.0);
+}
+
+// Keeps the chrome of every module in step with the page the user is looking at while editing.
+static NSTimer *gPACPageWatch = nil;
+static NSInteger gPACLastPage = 0;
+
+static void PACStopPageWatch(void) {
+    [gPACPageWatch invalidate];
+    gPACPageWatch = nil;
 }
 
 #pragma mark Picker
@@ -1701,6 +1777,22 @@ static UIButton *PACMakeAddButton(void) {
 
 @end
 
+#pragma mark - Pages added by the user
+
+extern "C" NSUInteger PACCUserPageCount(void) {
+    PACEnsureUserPages();
+    return gPACUserPages;
+}
+
+// Page (0 based) a module belongs to, from its saved grid position.
+extern "C" NSInteger PACCModulePageForIdentifier(NSString *mid) {
+    if (!mid.length) return 0;
+    PACRefreshGridConstants();
+    NSArray<NSNumber *> *o = PACGetOrigin(mid);
+    if (o.count < 2) return 0;
+    return (NSInteger)(o[1].unsignedIntegerValue / kPACStride);
+}
+
 @interface PACEditShield : UIView
 @end
 
@@ -1783,7 +1875,10 @@ static void PACBringChromeToFront(UIViewController *ov) {
     }
     UIView *rp = [ov.view viewWithTag:kPACResetTag];
     if (rp) [ov.view bringSubviewToFront:rp];
-    { UIView *pacA = [ov.view viewWithTag:kPACAddTag]; if (pacA) [ov.view bringSubviewToFront:pacA];
+    { UIView *pacI = [ov.view viewWithTag:kPageIndicatorTag]; if (pacI && gEditModeActive) [ov.view bringSubviewToFront:pacI];
+      UIView *pacG = [ov.view viewWithTag:kPACPageAddTag]; if (pacG) [ov.view bringSubviewToFront:pacG];
+      UIView *pacL = [ov.view viewWithTag:kPACLayersTag]; if (pacL) [ov.view bringSubviewToFront:pacL];
+      UIView *pacA = [ov.view viewWithTag:kPACAddTag]; if (pacA) [ov.view bringSubviewToFront:pacA];
       UIView *pacP = [ov.view viewWithTag:kPACPickerTag]; if (pacP) [ov.view bringSubviewToFront:pacP]; }
 }
 
@@ -1865,6 +1960,27 @@ static void PACAnimateChromeRefresh(UIViewController *ov) {
     PACAnimateChromeRefreshExcluding(ov, nil);
 }
 
+static void PACStartPageWatch(UIViewController *ov) {
+    PACStopPageWatch();
+    gPACLastPage = gCurrentPage;
+    __weak UIViewController *weakOv = ov;
+    gPACPageWatch = [NSTimer scheduledTimerWithTimeInterval:0.2 repeats:YES block:^(NSTimer *t) {
+        UIViewController *o = weakOv;
+        if (!o || !gEditModeActive) { [t invalidate]; if (gPACPageWatch == t) gPACPageWatch = nil; return; }
+        if (gCurrentPage == gPACLastPage) return;
+        gPACLastPage = gCurrentPage;
+        PACAnimateChromeRefresh(o);
+        PACBringChromeToFront(o);
+        for (NSNumber *d in @[@0.35, @0.7]) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if (!gEditModeActive) return;
+                PACAnimateChromeRefresh(o);
+                PACBringChromeToFront(o);
+            });
+        }
+    }];
+}
+
 static void PACAdjustStatusBar(UIViewController *ov) {
     if (!ov) return;
     PACC *pacc = [PACC shared];
@@ -1903,7 +2019,10 @@ static void PACForceExitEdit(UIViewController *ov) {
     for (UIViewController *m in ModuleControllers(ov)) PACStripChrome(m);
     [[ov.view viewWithTag:kPACShieldTag] removeFromSuperview];
     [[ov.view viewWithTag:kPACResetTag] removeFromSuperview];
+    PACStopPageWatch();
     [[ov.view viewWithTag:kPACAddTag] removeFromSuperview];
+    [[ov.view viewWithTag:kPACLayersTag] removeFromSuperview];
+    [[ov.view viewWithTag:kPACPageAddTag] removeFromSuperview];
     [[ov.view viewWithTag:kPACPickerTag] removeFromSuperview];
     [[ov.view viewWithTag:kPACToastTag] removeFromSuperview];
     [[ov.view viewWithTag:kPACHintTag] removeFromSuperview];
@@ -1924,6 +2043,8 @@ static void PACForceExitEdit(UIViewController *ov) {
 - (void)removeTap:(UIButton *)b;
 - (void)resetTap:(UIButton *)b;
 - (void)addControlTap:(UIButton *)b;
+- (void)addPageTap:(UIButton *)b;
+- (void)layersTap:(UIButton *)b;
 - (void)addModule:(NSString *)mid overlay:(UIViewController *)ov;
 - (void)exitEditOn:(UIViewController *)ov;
 - (void)compactGridAfterRemoval:(UIViewController *)ov;
@@ -2080,9 +2201,46 @@ static void PACForceExitEdit(UIViewController *ov) {
     } completion:nil];
     [ov.view bringSubviewToFront:addButton];
 
+    UIButton *layers = (UIButton *)[ov.view viewWithTag:kPACLayersTag];
+    if (!layers) {
+        layers = PACMakeRoundButton(@"square.stack.3d.up.fill", 48.0, 20.0, kPACLayersTag);
+        [layers addTarget:self action:@selector(layersTap:) forControlEvents:UIControlEventTouchUpInside];
+        [ov.view addSubview:layers];
+    }
+    layers.center = CGPointMake(CGRectGetMinX(addButton.frame) - 14.0 - 24.0, addButton.center.y);
+    layers.alpha = 0.0;
+    layers.transform = CGAffineTransformMakeScale(0.7, 0.7);
+    [UIView animateWithDuration:0.65 delay:0.18 usingSpringWithDamping:0.58 initialSpringVelocity:0.7
+                        options:UIViewAnimationOptionAllowUserInteraction animations:^{
+        layers.alpha = 1.0;
+        layers.transform = CGAffineTransformIdentity;
+    } completion:nil];
+
+    // Page dots stay visible in edit mode so pages can be switched, with a "+" under them.
     UIView *ind = [ov.view viewWithTag:kPageIndicatorTag];
-    ind.userInteractionEnabled = NO;
-    [UIView animateWithDuration:0.2 animations:^{ ind.alpha = 0.0; }];
+    ind.hidden = NO;
+    ind.userInteractionEnabled = YES;
+    [UIView animateWithDuration:0.2 animations:^{ ind.alpha = 1.0; }];
+
+    UIButton *plus = (UIButton *)[ov.view viewWithTag:kPACPageAddTag];
+    if (!plus) {
+        plus = PACMakeRoundButton(@"plus", 34.0, 15.0, kPACPageAddTag);
+        [plus addTarget:self action:@selector(addPageTap:) forControlEvents:UIControlEventTouchUpInside];
+        [ov.view addSubview:plus];
+    }
+    PACPositionPageAddButton(ov);
+    plus.alpha = 0.0;
+    plus.transform = CGAffineTransformMakeScale(0.6, 0.6);
+    [UIView animateWithDuration:0.6 delay:0.2 usingSpringWithDamping:0.55 initialSpringVelocity:0.8
+                        options:UIViewAnimationOptionAllowUserInteraction animations:^{
+        plus.alpha = 1.0;
+        plus.transform = CGAffineTransformIdentity;
+    } completion:nil];
+    [ov.view bringSubviewToFront:ind];
+    [ov.view bringSubviewToFront:plus];
+    [ov.view bringSubviewToFront:layers];
+    [ov.view bringSubviewToFront:addButton];
+    PACStartPageWatch(ov);
 }
 
 - (void)shieldTap:(UITapGestureRecognizer *)g {
@@ -2158,6 +2316,13 @@ static void PACForceExitEdit(UIViewController *ov) {
     [[ov.view viewWithTag:kPACHintTag] removeFromSuperview];
     [[ov.view viewWithTag:kPACPickerTag] removeFromSuperview];
 
+    PACStopPageWatch();
+    for (NSNumber *tagNum in @[@(kPACLayersTag), @(kPACPageAddTag)]) {
+        UIView *extra = [ov.view viewWithTag:tagNum.integerValue];
+        extra.tag = 0;
+        [UIView animateWithDuration:0.2 animations:^{ extra.alpha = 0.0; extra.transform = CGAffineTransformMakeScale(0.8, 0.8); }
+                         completion:^(BOOL f) { [extra removeFromSuperview]; }];
+    }
     UIView *addOut = [ov.view viewWithTag:kPACAddTag];
     addOut.tag = 0;
     [UIView animateWithDuration:0.2 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{
@@ -2188,11 +2353,11 @@ static void PACForceExitEdit(UIViewController *ov) {
     if (oldO.count < 2) return NO;
     NSUInteger oldCol = oldO[0].unsignedIntegerValue;
     NSUInteger oldAbs = oldO[1].unsignedIntegerValue;
-    NSUInteger oldRow = oldAbs % kPACRows;
+    NSUInteger oldRow = oldAbs % kPACStride;
 
     NSUInteger oldW = 1, oldH = 1;
     PACEffectiveSize(mid, &oldW, &oldH);
-    if (oldCol == col && oldRow == row && (oldAbs / kPACRows) == page &&
+    if (oldCol == col && oldRow == row && (oldAbs / kPACStride) == page &&
         oldW == w && oldH == h) {
         return NO;
     }
@@ -2205,8 +2370,8 @@ static void PACForceExitEdit(UIViewController *ov) {
         if (o.count < 2) continue;
         NSUInteger oc = o[0].unsignedIntegerValue;
         NSUInteger oa = o[1].unsignedIntegerValue;
-        if (oa / kPACRows != page) continue;
-        NSUInteger orow = oa % kPACRows;
+        if (oa / kPACStride != page) continue;
+        NSUInteger orow = oa % kPACStride;
         NSUInteger ow = 1, oh = 1;
         PACEffectiveSize(oid, &ow, &oh);
         PACRect r = {oc, orow, ow, oh};
@@ -2251,7 +2416,7 @@ static void PACForceExitEdit(UIViewController *ov) {
     for (NSString *oid in placed) {
         PACRect r = {};
         [placed[oid] getValue:&r];
-        PACSetOrigin(oid, @[@(r.c), @(page * kPACRows + r.r)]);
+        PACSetOrigin(oid, @[@(r.c), @(page * kPACStride + r.r)]);
     }
     return YES;
 }
@@ -2467,12 +2632,12 @@ static void PACForceExitEdit(UIViewController *ov) {
         NSArray<NSNumber *> *o = PACGetOrigin(mid);
         if (o.count < 2) continue;
         NSUInteger abs = o[1].unsignedIntegerValue;
-        if (abs / kPACRows != page) continue;
+        if (abs / kPACStride != page) continue;
 
         NSUInteger w = 1, h = 1;
         PACEffectiveSize(mid, &w, &h);
         NSUInteger c = o[0].unsignedIntegerValue;
-        NSUInteger r = abs % kPACRows;
+        NSUInteger r = abs % kPACStride;
 
         PACRect rect = {c, r, w, h};
         placed[mid] = [NSValue value:&rect withObjCType:@encode(PACRect)];
@@ -2528,7 +2693,7 @@ static void PACForceExitEdit(UIViewController *ov) {
         PACRect rect = {(NSUInteger)bestC, (NSUInteger)bestR, w, h};
         placed[mid] = [NSValue value:&rect withObjCType:@encode(PACRect)];
         if (found) {
-            PACSetOrigin(mid, @[@(bestC), @(page * kPACRows + bestR)]);
+            PACSetOrigin(mid, @[@(bestC), @(page * kPACStride + bestR)]);
         }
     }
     PACSaveStore();
@@ -2633,6 +2798,47 @@ static void PACForceExitEdit(UIViewController *ov) {
     [picker presentAnimated];
 }
 
+- (void)addPageTap:(UIButton *)b {
+    if (!gEditModeActive) return;
+    UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+    if (!ov) return;
+    PACEnsureUserPages();
+    if (PACBasePageCount() + gPACUserPages >= kPACMaxPages) {
+        PACShowToast(ov, @"You can't add more pages");
+        return;
+    }
+    if (gHapticsEnabled) Haptic();
+    gPACUserPages++;
+    PACSaveUserPages();
+
+    [PACC.shared installPageIndicatorOnOverlay:ov];
+    PACPositionPageAddButton(ov);
+    UIView *ind = [ov.view viewWithTag:kPageIndicatorTag];
+    ind.hidden = NO;
+    ind.alpha = 1.0;
+    ind.userInteractionEnabled = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{ PACPositionPageAddButton(ov); });
+
+    NSUInteger newPage = PACBasePageCount() + gPACUserPages - 1;
+    CCAPageIndicator *indicator = (CCAPageIndicator *)ind;
+    [indicator setCurrentPage:newPage forOverlay:ov];
+    PACBringChromeToFront(ov);
+    PACShowToast(ov, @"Page added. Tap Add a Control to fill it");
+}
+
+- (void)layersTap:(UIButton *)b {
+    if (!gEditModeActive) return;
+    UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+    if (!ov) return;
+    PACEnsureUserPages();
+    NSUInteger total = PACBasePageCount() + gPACUserPages;
+    if (total < 2) return;
+    if (gHapticsEnabled) Haptic();
+    NSUInteger next = (NSUInteger)((gCurrentPage + 1) % (NSInteger)total);
+    CCAPageIndicator *indicator = (CCAPageIndicator *)[ov.view viewWithTag:kPageIndicatorTag];
+    [indicator setCurrentPage:next forOverlay:ov];
+}
+
 - (void)addModule:(NSString *)mid overlay:(UIViewController *)ov {
     if (!mid.length || !ov || !gEditModeActive) return;
     id prov = PACSettingsProvider();
@@ -2701,6 +2907,8 @@ static void PACForceExitEdit(UIViewController *ov) {
                 pop.transform = CGAffineTransformIdentity;
             } completion:nil];
             if (page != (NSUInteger)gCurrentPage) {
+                CCAPageIndicator *pager = (CCAPageIndicator *)[o.view viewWithTag:kPageIndicatorTag];
+                [pager setCurrentPage:page forOverlay:o];
                 PACShowToast(o, [NSString stringWithFormat:@"%@ added to page %lu", name, (unsigned long)(page + 1)]);
             }
         });
@@ -2743,7 +2951,7 @@ static void PACForceExitEdit(UIViewController *ov) {
             if (cur.count >= 2) {
                 NSUInteger cCol = cur[0].unsignedIntegerValue;
                 NSUInteger cAbs = cur[1].unsignedIntegerValue;
-                NSUInteger cRow = cAbs % kPACRows;
+                NSUInteger cRow = cAbs % kPACStride;
                 [self computeArrangementForMid:mid
                                            col:cCol
                                            row:cRow
@@ -2814,8 +3022,8 @@ static void PACForceExitEdit(UIViewController *ov) {
     if (o.count < 2) return;
     NSUInteger col = o[0].unsignedIntegerValue;
     NSUInteger absRow = o[1].unsignedIntegerValue;
-    NSUInteger page = absRow / kPACRows;
-    NSUInteger row = absRow % kPACRows;
+    NSUInteger page = absRow / kPACStride;
+    NSUInteger row = absRow % kPACStride;
     if (col + w > kPACCols) w = kPACCols - col;
     if (row + h > kPACRows) h = kPACRows - row;
     if (!PACSizeAllowed(w, h)) return;
@@ -2830,8 +3038,8 @@ static void PACForceExitEdit(UIViewController *ov) {
         if (oo.count < 2) continue;
         NSUInteger oc = oo[0].unsignedIntegerValue;
         NSUInteger oa = oo[1].unsignedIntegerValue;
-        if (oa / kPACRows != page) continue;
-        NSUInteger orow = oa % kPACRows;
+        if (oa / kPACStride != page) continue;
+        NSUInteger orow = oa % kPACStride;
         NSUInteger ow = 1, oh = 1;
         PACEffectiveSize(oid, &ow, &oh);
         PACRect r = {oc, orow, ow, oh};
@@ -2884,7 +3092,7 @@ static void PACForceExitEdit(UIViewController *ov) {
             for (NSString *oid in placed) {
                 PACRect r = {};
                 [placed[oid] getValue:&r];
-                PACSetOrigin(oid, @[@(r.c), @(page * kPACRows + r.r)]);
+                PACSetOrigin(oid, @[@(r.c), @(page * kPACStride + r.r)]);
             }
         }
     }
@@ -2896,7 +3104,7 @@ static void PACForceExitEdit(UIViewController *ov) {
         NSUInteger newCol = 0, newRow = 0;
         if (!PACFindFreeCellFor(placed, col, row, w, h, cMaxRow, &newCol, &newRow)) return;
         gEditSizes[mid]   = @[@(w), @(h)];
-        PACSetOrigin(mid, @[@(newCol), @(page * kPACRows + newRow)]);
+        PACSetOrigin(mid, @[@(newCol), @(page * kPACStride + newRow)]);
     }
 
     PACInvalidateOtherOrientationOriginForModule(mid);
