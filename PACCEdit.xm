@@ -1520,7 +1520,10 @@ static NSArray<NSString *> *PACAvailableModuleIdentifiers(void) {
     NSArray<NSString *> *enabled = PACProviderOrderedIdentifiers() ?: @[];
     NSMutableArray<NSString *> *result = [NSMutableArray array];
     for (NSString *mid in all) {
-        if ([enabled containsObject:mid]) continue;
+        // Connectivity and Music stay in the list even when already on the grid; picking one moves it to the first free spot
+        BOOL alwaysListed = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"] ||
+                            [mid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"];
+        if (!alwaysListed && [enabled containsObject:mid]) continue;
         if ([mid containsString:@"SilenceCalls"]) continue;
         [result addObject:mid];
     }
