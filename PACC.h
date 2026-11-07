@@ -72,6 +72,13 @@ UIImage *PACCBundledSymbol(NSString *name, UIColor *color, BOOL hierarchical);
 void PACCConfigureConnectivity(UIViewController *controller);
 CGRect PACCVisibleModuleBounds(UIViewController *overlay);
 
+// PACCBig.x: big Connectivity / Music layouts
+int PACCBigKind(NSString *mid);
+BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h);
+void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH);
+void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);
+BOOL PACCLIQIsActive(void);
+
 #ifdef __cplusplus
 }
 #endif

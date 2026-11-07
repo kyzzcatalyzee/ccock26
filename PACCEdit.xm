@@ -93,6 +93,7 @@ static void PACPresentationSize(NSString *mid, NSUInteger *w, NSUInteger *h);
 static BOOL PACModuleSupportsResizing(NSString *mid);
 static CCUILayoutSize PACResizeCandidate(NSString *mid, NSUInteger startW, NSUInteger startH, CGPoint translation);
 static BOOL PACSizeAllowed(NSUInteger w, NSUInteger h);
+static BOOL PACSizeAllowedFor(NSString *mid, NSUInteger w, NSUInteger h);
 static BOOL PACDragSizeAllowedForModule(NSString *mid, NSUInteger w, NSUInteger h);
 static NSString *PACPrettyNameForModule(UIViewController *m);
 static BOOL PACRectsOverlap(PACRect a, PACRect b);
@@ -449,7 +450,9 @@ static CGPoint PACGridBase(UIViewController *overlay) {
     PACRefreshGridConstants();
     PACEnsureStore();
     CGFloat bx = CGFLOAT_MAX, by = CGFLOAT_MAX;
-    NSUInteger page = (NSUInteger)gCurrentPage;
+    NSInteger page = MAX((NSInteger)0, gCurrentPage);
+    // Any module can tell where the grid starts, also one on another page (its frame already
+    // includes the page offset), so an empty page still knows where its rows are.
     for (UIViewController *m in ModuleControllers(overlay)) {
         NSString *mid = PACMid(m);
         if (!mid.length) continue;
@@ -457,8 +460,8 @@ static CGPoint PACGridBase(UIViewController *overlay) {
         if (o.count < 2) continue;
         NSUInteger c = o[0].unsignedIntegerValue;
         NSUInteger a = o[1].unsignedIntegerValue;
-        if (a / kPACStride != page) continue;
-        NSUInteger lr = a % kPACStride;
+        NSInteger lr = (NSInteger)a - page * (NSInteger)kPACStride;
+        if (lr < 0 || lr > (NSInteger)kPACStride * 2) continue;
         CGRect f = PACVisibleFrame(m, overlay);
         if (CGRectIsEmpty(f)) continue;
         CGFloat x = CGRectGetMinX(f) - (CGFloat)c * kPACStep;
@@ -607,8 +610,14 @@ static BOOL PACSizeAllowed(NSUInteger w, NSUInteger h) {
     return YES;
 }
 
+// Connectivity and Music have their own list of sizes (2x2, 4x4, 4x6 / 2x2, 4x2, 4x4, 4x6).
+static BOOL PACSizeAllowedFor(NSString *mid, NSUInteger w, NSUInteger h) {
+    if (PACCBigKind(mid)) return PACCBigSizeAllowed(mid, w, h) && w <= kPACCols && h <= kPACRows;
+    return PACSizeAllowed(w, h);
+}
+
 static BOOL PACDragSizeAllowedForModule(NSString *mid, NSUInteger w, NSUInteger h) {
-    if (PACSizeAllowed(w, h)) return YES;
+    if (PACSizeAllowedFor(mid, w, h)) return YES;
     if (PACModuleSupportsResizing(mid)) return NO;
     NSUInteger bw = 1, bh = 1;
     PACEffectiveSize(mid, &bw, &bh);
@@ -620,6 +629,12 @@ static CCUILayoutSize PACResizeCandidate(NSString *mid, NSUInteger startW, NSUIn
     NSInteger dr = (NSInteger)floor(translation.y / kPACStep + 0.5);
     NSInteger nw = MAX(1, MIN(4, (NSInteger)startW + dc));
     NSInteger nh = MAX(1, MIN(4, (NSInteger)startH + dr));
+    if (PACCBigKind(mid)) {
+        nh = MAX(1, MIN(6, (NSInteger)startH + dr));
+        NSUInteger sw = 2, sh = 2;
+        PACCBigSnapSize(mid, nw, nh, &sw, &sh);
+        return (CCUILayoutSize){sw, sh};
+    }
     return (CCUILayoutSize){(NSUInteger)nw, (NSUInteger)nh};
 }
 
@@ -904,6 +919,14 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
     CGFloat heightPt = (CGFloat)h * kPACCell + ((CGFloat)h - 1.0) * kPACgap;
     if (widthPt <= 0.0 || heightPt <= 0.0) return 22.0;
 
+    // LiquidAss rounds a squarish module with the radius of a 1x1 control and anything longer into a pill.
+    // Using the same numbers keeps its glass and our corners in step, so resizing back leaves no odd shape.
+    if (PACCLIQIsActive()) {
+        CGFloat mn = MIN(widthPt, heightPt), mx = MAX(widthPt, heightPt);
+        if (mx <= mn * 1.25) return floor(kPACCell * 0.5);
+        return floor(mn * 0.5);
+    }
+
     return calculatedRadius(CGRectMake(0.0, 0.0, widthPt, heightPt), 22.0);
 }
 
@@ -948,6 +971,11 @@ static BOOL PACModuleIsExpanded(UIViewController *m) {
 }
 
 static void PACSetRadius(CALayer *layer, CGFloat radius, BOOL animate) {
+    if (PACCLIQIsActive()) {
+        // LiquidAss follows the radius itself; an animated radius is what bends its glass.
+        animate = NO;
+        [layer removeAnimationForKey:@"pac.radius"];
+    }
     CGFloat from = radius;
     if (animate) {
         CALayer *pl = layer.presentationLayer;
@@ -968,6 +996,23 @@ static void PACSetRadius(CALayer *layer, CGFloat radius, BOOL animate) {
         a.timingFunction = PACResizeTiming(sp);
         [layer addAnimation:a forKey:@"pac.radius"];
     }
+}
+
+// Makes LiquidAss lay its glass out again for the module's current size.
+static void PACResyncGlass(UIViewController *m) {
+    if (!m.view || !PACCLIQIsActive()) return;
+    UIView *root = m.view.superview ?: m.view;
+    [UIView performWithoutAnimation:^{
+        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
+        NSUInteger n = 0;
+        while (q.count && n++ < 300) {
+            UIView *v = q.lastObject;
+            [q removeLastObject];
+            [v setNeedsLayout];
+            [q addObjectsFromArray:v.subviews];
+        }
+        [root layoutIfNeeded];
+    }];
 }
 
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
@@ -1056,6 +1101,11 @@ static void PACApplyRadiusToModule(UIViewController *m) {
                 NSString *cls = NSStringFromClass(v.class);
                 isPillName = [cls containsString:@"CCUIButtonModuleView"] ||
                              [cls containsString:@"CCUIContentModuleContentContainer"];
+            }
+            NSString *vcls = NSStringFromClass(v.class);
+            if ([vcls hasPrefix:@"LG"] || [vcls containsString:@"LiquidGlass"]) {
+                if (v.subviews.count) [queue addObjectsFromArray:v.subviews];
+                continue;
             }
             CGFloat vw = CGRectGetWidth(v.bounds);
             CGFloat vh = CGRectGetHeight(v.bounds);
@@ -1471,6 +1521,26 @@ static void PACLogMethods(Class cls) {
     PACLog(@"%@: %@", NSStringFromClass(cls), [names componentsJoinedByString:@", "]);
 }
 
+// First free cell of a page, reading row by row from the top left (so a new control lands at the start).
+static BOOL PACFirstFreeCell(NSDictionary<NSString *, NSValue *> *occupied, NSUInteger w, NSUInteger h,
+                             NSUInteger maxRow, NSUInteger *outCol, NSUInteger *outRow) {
+    if (w == 0 || h == 0 || w > kPACCols || h > kPACRows) return NO;
+    NSUInteger maxC = kPACCols - w;
+    for (NSUInteger r = 0; r <= maxRow; r++) {
+        for (NSUInteger c = 0; c <= maxC; c++) {
+            PACRect t = {c, r, w, h};
+            BOOL ok = YES;
+            for (NSValue *v in occupied.allValues) {
+                PACRect o = {};
+                [v getValue:&o];
+                if (PACRectsOverlap(t, o)) { ok = NO; break; }
+            }
+            if (ok) { *outCol = c; *outRow = r; return YES; }
+        }
+    }
+    return NO;
+}
+
 static BOOL PACPlaceNewModule(NSString *mid, NSUInteger w, NSUInteger h, UIViewController *ov, NSUInteger *outPage) {
     PACRefreshGridConstants();
     PACEnsureStore();
@@ -1478,6 +1548,7 @@ static BOOL PACPlaceNewModule(NSString *mid, NSUInteger w, NSUInteger h, UIViewC
     for (UIViewController *m in ModuleControllers(ov)) {
         NSString *other = PACMid(m);
         if (!other.length || [other isEqualToString:mid]) continue;
+        PACEnsureBaseSize(m, ov);
         NSArray<NSNumber *> *o = PACGetOrigin(other);
         if (o.count < 2) continue;
         NSUInteger c = o[0].unsignedIntegerValue;
@@ -1491,24 +1562,22 @@ static BOOL PACPlaceNewModule(NSString *mid, NSUInteger w, NSUInteger h, UIViewC
         map[other] = [NSValue value:&pr withObjCType:@encode(PACRect)];
     }
 
-    // Page 0 and the pages the user added can hold modules; the media / promo pages cannot.
-    NSUInteger cur = (NSUInteger)MAX((NSInteger)0, gCurrentPage);
-    NSMutableArray<NSNumber *> *order = [NSMutableArray array];
-    if (cur == 0 || PACIsUserPage(cur)) [order addObject:@(cur)];
-    if (![order containsObject:@0]) [order addObject:@0];
-    for (NSUInteger p = PACBasePageCount(); p < PACBasePageCount() + gPACUserPages; p++) {
-        if (![order containsObject:@(p)]) [order addObject:@(p)];
+    // Page 0 comes first; then the pages the user added. The media / promo pages cannot hold controls.
+    NSMutableArray<NSNumber *> *order = [NSMutableArray arrayWithObject:@0];
+    for (NSUInteger p = PACBasePageCount(); p < PACBasePageCount() + gPACUserPages; p++) [order addObject:@(p)];
+    NSInteger cur = gCurrentPage;
+    if (cur > 0 && PACIsUserPage((NSUInteger)cur)) {      // looking at a user page: fill that one first
+        [order removeObject:@(cur)];
+        [order insertObject:@(cur) atIndex:0];
     }
 
+    NSUInteger cap = PACVisibleRowCap(ov);
     for (NSNumber *pn in order) {
         NSUInteger p = pn.unsignedIntegerValue;
-        NSUInteger maxRow = kPACRows >= h ? kPACRows - h : 0;
-        if (p == cur && (NSInteger)p == gCurrentPage) {
-            NSUInteger cap = PACVisibleRowCap(ov);
-            if (cap + 1 >= h) maxRow = MIN(maxRow, cap + 1 - h);
-        }
+        NSUInteger maxRow = (cap + 1 >= h) ? cap + 1 - h : 0;
+        if (kPACRows >= h) maxRow = MIN(maxRow, kPACRows - h);
         NSUInteger oc = 0, orr = 0;
-        if (PACFindFreeCellFor(pages[pn] ?: @{}, 0, 0, w, h, maxRow, &oc, &orr)) {
+        if (PACFirstFreeCell(pages[pn] ?: @{}, w, h, maxRow, &oc, &orr)) {
             PACSetOrigin(mid, @[@(oc), @(p * kPACStride + orr)]);
             PACInvalidateOtherOrientationOriginForModule(mid);
             if (outPage) *outPage = p;
@@ -1960,6 +2029,91 @@ static void PACAnimateChromeRefresh(UIViewController *ov) {
     PACAnimateChromeRefreshExcluding(ov, nil);
 }
 
+// Every module on the page being shown must have its border, remove button and resize handle in the right spot,
+// whenever and however it got there (a control added to a new page, a page switch, a late layout).
+static void PACSyncChromeToPage(UIViewController *ov) {
+    if (!ov || !ov.view || !gEditModeActive || gPACPendingResizeID) return;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        NSString *mid = PACMid(m);
+        UIView *v = m.view;
+        if (!mid.length || !v) continue;
+        UIView *border = objc_getAssociatedObject(v, kPACBorderKey);
+        UIButton *rm = objc_getAssociatedObject(v, kPACRemoveKey);
+        UIButton *rz = objc_getAssociatedObject(v, kPACResizeKey);
+        BOOL onThisPage = (PACCModulePageForIdentifier(mid) == gCurrentPage);
+        if (!onThisPage) {
+            border.hidden = YES; rm.hidden = YES; rz.hidden = YES;
+            continue;
+        }
+        CGRect vis = PACVisibleFrame(m, ov);
+        if (CGRectIsEmpty(vis)) continue;
+        BOOL stale = !border || !rm || rm.hidden || border.hidden || rm.superview != ov.view ||
+                     fabs(rm.frame.origin.x - (vis.origin.x - 8.0)) > 2.0 ||
+                     fabs(rm.frame.origin.y - (vis.origin.y - 8.0)) > 2.0;
+        if (!stale && PACModuleSupportsResizing(mid) && (!rz || rz.hidden || rz.superview != ov.view)) stale = YES;
+        if (stale) PACApplyChrome(m, ov);
+    }
+    PACBringChromeToFront(ov);
+}
+
+// Pages the user added but left empty go away when editing ends (the later pages move up).
+static void PACPruneEmptyPages(UIViewController *ov) {
+    if (!ov || PACIsLandscape()) return;
+    PACEnsureUserPages();
+    PACEnsureStore();
+    PACRefreshGridConstants();
+    NSUInteger base = PACBasePageCount();
+    if (!gPACUserPages) return;
+
+    NSMutableSet<NSNumber *> *used = [NSMutableSet set];
+    for (UIViewController *m in ModuleControllers(ov)) {
+        NSString *mid = PACMid(m);
+        if (!mid.length) continue;
+        NSArray<NSNumber *> *o = PACGetOrigin(mid);
+        if (o.count >= 2) [used addObject:@(o[1].unsignedIntegerValue / kPACStride)];
+    }
+
+    NSInteger oldCur = gCurrentPage, newCur = gCurrentPage;
+    BOOL changed = NO;
+    for (NSUInteger p = base + gPACUserPages; p-- > base; ) {
+        if ([used containsObject:@(p)]) continue;
+        // move every control on a later page one page up
+        for (NSString *key in gEditOrigins.allKeys) {
+            if (![key hasPrefix:@"P|"]) continue;
+            NSArray<NSNumber *> *o = gEditOrigins[key];
+            if (o.count < 2) continue;
+            NSUInteger a = o[1].unsignedIntegerValue;
+            if (a / kPACStride > p) gEditOrigins[key] = @[o[0], @(a - kPACStride)];
+        }
+        NSMutableSet *shifted = [NSMutableSet set];
+        for (NSNumber *u in used) [shifted addObject:(u.unsignedIntegerValue > p ? @(u.unsignedIntegerValue - 1) : u)];
+        used = shifted;
+        if (newCur == (NSInteger)p) newCur = 0;
+        else if (newCur > (NSInteger)p) newCur--;
+        gPACUserPages--;
+        changed = YES;
+    }
+    if (!changed) return;
+    PACSaveStore();
+    PACSaveUserPages();
+
+    UIViewController *col = ModuleCollection(ov);
+    CGFloat span = PageSpan();
+    if (col.view) {
+        CATransform3D t = col.view.layer.sublayerTransform;
+        t.m42 += (CGFloat)(oldCur - newCur) * span;
+        col.view.layer.sublayerTransform = t;
+    }
+    gCurrentPage = newCur;
+    [PACC.shared installPageIndicatorOnOverlay:ov];
+    CCAPageIndicator *ind = (CCAPageIndicator *)[ov.view viewWithTag:kPageIndicatorTag];
+    ind.currentPage = (NSUInteger)newCur;
+    [ind layoutButtons];
+    [PACC.shared syncModuleVisibilityForOverlay:ov animated:NO];
+    id proxy = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"PACEditProxy"), NSSelectorFromString(@"shared"));
+    ((void (*)(id, SEL, id))objc_msgSend)(proxy, NSSelectorFromString(@"relayout:"), ov);
+}
+
 static void PACStartPageWatch(UIViewController *ov) {
     PACStopPageWatch();
     gPACLastPage = gCurrentPage;
@@ -1967,7 +2121,7 @@ static void PACStartPageWatch(UIViewController *ov) {
     gPACPageWatch = [NSTimer scheduledTimerWithTimeInterval:0.2 repeats:YES block:^(NSTimer *t) {
         UIViewController *o = weakOv;
         if (!o || !gEditModeActive) { [t invalidate]; if (gPACPageWatch == t) gPACPageWatch = nil; return; }
-        if (gCurrentPage == gPACLastPage) return;
+        if (gCurrentPage == gPACLastPage) { PACSyncChromeToPage(o); return; }
         gPACLastPage = gCurrentPage;
         PACAnimateChromeRefresh(o);
         PACBringChromeToFront(o);
@@ -2017,6 +2171,7 @@ static void PACForceExitEdit(UIViewController *ov) {
     gPACPendingResizeLastTouch = 0;
     if (!ov || !ov.view) return;
     for (UIViewController *m in ModuleControllers(ov)) PACStripChrome(m);
+    PACPruneEmptyPages(ov);
     [[ov.view viewWithTag:kPACShieldTag] removeFromSuperview];
     [[ov.view viewWithTag:kPACResetTag] removeFromSuperview];
     PACStopPageWatch();
@@ -2333,6 +2488,7 @@ static void PACForceExitEdit(UIViewController *ov) {
         [addOut removeFromSuperview];
     }];
 
+    PACPruneEmptyPages(ov);
     UIView *ind = [ov.view viewWithTag:kPageIndicatorTag];
     ind.userInteractionEnabled = YES;
     [UIView animateWithDuration:0.2 animations:^{ ind.alpha = 1.0; }];
@@ -2858,7 +3014,19 @@ static void PACForceExitEdit(UIViewController *ov) {
     [gEditSizes removeObjectForKey:mid];
 
     NSUInteger page = 0;
-    if (!PACPlaceNewModule(mid, w, h, ov, &page)) {
+    BOOL placed = PACPlaceNewModule(mid, w, h, ov, &page);
+    if (!placed) {
+        // every page is full: open a new one, like iOS does
+        PACEnsureUserPages();
+        if (PACBasePageCount() + gPACUserPages < kPACMaxPages) {
+            gPACUserPages++;
+            PACSaveUserPages();
+            [PACC.shared installPageIndicatorOnOverlay:ov];
+            PACPositionPageAddButton(ov);
+            placed = PACPlaceNewModule(mid, w, h, ov, &page);
+        }
+    }
+    if (!placed) {
         PACShowToast(ov, @"No room left for another control");
         PACLog(@"add %@: no free cell", mid);
         return;
@@ -2940,7 +3108,7 @@ static void PACForceExitEdit(UIViewController *ov) {
         NSUInteger sw = s[0].unsignedIntegerValue, sh = s[1].unsignedIntegerValue;
         CGPoint t = [g translationInView:ov.view];
         CCUILayoutSize next = PACResizeCandidate(mid, sw, sh, t);
-        if (!PACSizeAllowed(next.width, next.height)) {
+        if (!PACSizeAllowedFor(mid, next.width, next.height)) {
             next = gPACPendingResizeSize;
         }
         if (next.width != gPACPendingResizeSize.width ||
@@ -2971,7 +3139,7 @@ static void PACForceExitEdit(UIViewController *ov) {
         gPACPendingResizeID = nil;
         gPACPendingResizeSize = (CCUILayoutSize){0, 0};
         if (g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
-            PACSizeAllowed(p.width, p.height)) {
+            PACSizeAllowedFor(mid, p.width, p.height)) {
             [self commitResize:mid w:p.width h:p.height overlay:ov];
         }
         objc_setAssociatedObject(g, kPACStartSzKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -3009,6 +3177,7 @@ static void PACForceExitEdit(UIViewController *ov) {
             for (UIViewController *m in ModuleControllers(ov)) {
                 PACApplyRadiusToModule(m);
                 PACRefreshPresentation(m, ov);
+                PACResyncGlass(m);
             }
         });
     }
@@ -3016,7 +3185,7 @@ static void PACForceExitEdit(UIViewController *ov) {
 
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov {
     PACEnsureStore();
-    if (!PACSizeAllowed(w, h)) return;
+    if (!PACSizeAllowedFor(mid, w, h)) return;
 
     NSArray<NSNumber *> *o = PACGetOrigin(mid);
     if (o.count < 2) return;
@@ -3026,7 +3195,7 @@ static void PACForceExitEdit(UIViewController *ov) {
     NSUInteger row = absRow % kPACStride;
     if (col + w > kPACCols) w = kPACCols - col;
     if (row + h > kPACRows) h = kPACRows - row;
-    if (!PACSizeAllowed(w, h)) return;
+    if (!PACSizeAllowedFor(mid, w, h)) return;
 
     NSUInteger capR = PACVisibleRowCap(ov);
 
@@ -3362,7 +3531,13 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     PACEnsureStore();
     PACEnsureBaseSize(m, ov);
 
-    if (PACModuleIsExpanded(m)) return;
+    BOOL expandedNow = PACModuleIsExpanded(m);
+    if (PACCBigKind(mid)) {
+        NSUInteger bw = 1, bh = 1;
+        PACEffectiveSize(mid, &bw, &bh);
+        PACCBigStyle(m, mid, bw, bh, expandedNow);
+    }
+    if (expandedNow) return;
 
     NSUInteger curW = 1, curH = 1;
     PACPresentationSize(mid, &curW, &curH);
