@@ -159,6 +159,17 @@ static BOOL PACIsUserPage(NSUInteger page) {
 }
 
 static void PACEnsureStore(void) {
+    static BOOL metricsLoaded = NO;
+    if (!metricsLoaded) {
+        metricsLoaded = YES;
+        CFPropertyListRef c = CFPreferencesCopyAppValue(CFSTR("GridCell"), CFSTR("pawxed.ccock18.preferences"));
+        CFPropertyListRef g = CFPreferencesCopyAppValue(CFSTR("GridGap"),  CFSTR("pawxed.ccock18.preferences"));
+        if (c && g && CFGetTypeID(c) == CFNumberGetTypeID() && CFGetTypeID(g) == CFNumberGetTypeID()) {
+            PACCSetGridMetrics([(__bridge NSNumber *)c doubleValue], [(__bridge NSNumber *)g doubleValue]);
+        }
+        if (c) CFRelease(c);
+        if (g) CFRelease(g);
+    }
     if (!gEditOrigins) {
         CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridOrigins"), CFSTR("pawxed.ccock18.preferences"));
         gEditOrigins = [(__bridge NSDictionary *)v mutableCopy] ?: [NSMutableDictionary dictionary];
@@ -213,11 +224,11 @@ static void PACRefreshGridConstants(void) {
     kPACCols = landscape ? 8 : 4;
     kPACRows = landscape ? 4 : 8;
     {
-        CGFloat spanRows = landscape ? 0.0 : PageSpan() / (67.0 + 12.0);
+        CGFloat spanRows = landscape ? 0.0 : PageSpan() / (PACCGridCell() + PACCGridGap());
         kPACStride = MAX(kPACRows, (NSUInteger)llround(spanRows));
     }
-    kPACCell = 67.0;
-    kPACgap  = 12.0;
+    kPACCell = PACCGridCell();
+    kPACgap  = PACCGridGap();
     kPACStep = kPACCell + kPACgap;
 }
 
@@ -420,16 +431,88 @@ static NSString *PACMid(UIViewController *vc) {
     return nil;
 }
 
+// Where the module sits in the collection view's own coordinates (the layout position, before the page offset).
+// Built by adding up the view frames, so it does not matter how UIKit treats sublayerTransform in convertRect.
+static BOOL PACRawFrame(UIViewController *m, UIViewController *overlay, CGRect *out) {
+    UIViewController *col = ModuleCollection(overlay);
+    UIView *cv = col.view;
+    UIView *v = m.view;
+    if (!cv || !v) return NO;
+    CGRect r = v.bounds;
+    while (v && v != cv) {
+        UIView *sv = v.superview;
+        if (!sv) return NO;
+        CGPoint c = v.center;
+        CGRect b = v.bounds;
+        r.origin.x += c.x - b.size.width * 0.5 - b.origin.x;
+        r.origin.y += c.y - b.size.height * 0.5 - b.origin.y;
+        v = sv;
+    }
+    if (v != cv) return NO;
+    *out = r;
+    return YES;
+}
+
 static CGRect PACVisibleFrame(UIViewController *m, UIViewController *overlay) {
     if (!m.view || !overlay.view) return CGRectZero;
-    CGRect f = [m.view convertRect:m.view.bounds toView:overlay.view];
     UIViewController *col = ModuleCollection(overlay);
-    if (col.view) {
+    CGRect raw;
+    if (col.view && PACRawFrame(m, overlay, &raw)) {
         CATransform3D sub = col.view.layer.sublayerTransform;
-        f.origin.x += sub.m41;
-        f.origin.y += sub.m42;
+        raw.origin.x += sub.m41;
+        raw.origin.y += sub.m42;
+        return [col.view convertRect:raw toView:overlay.view];
     }
-    return f;
+    return [m.view convertRect:m.view.bounds toView:overlay.view];
+}
+
+// Reads the real cell size and gap from where the modules sit, so paging and the grid math fit this device.
+static void PACUpdateGridMetrics(UIViewController *ov) {
+    if (!ov || PACIsLandscape() || gPACPendingResizeID || gPageAnimating) return;
+    static CFTimeInterval last = 0;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (now - last < 0.5) return;
+    last = now;
+    PACEnsureStore();
+
+    CGFloat minX = CGFLOAT_MAX, maxX = -CGFLOAT_MAX, minY = CGFLOAT_MAX, maxY = -CGFLOAT_MAX, minW = CGFLOAT_MAX;
+    NSInteger cA = 0, cB = 0, rA = 0, rB = 0;
+    BOOL anyX = NO, anyY = NO;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        NSString *mid = PACMid(m);
+        NSArray<NSNumber *> *o = mid.length ? PACGetOrigin(mid) : nil;
+        CGRect raw;
+        if (o.count < 2 || !PACRawFrame(m, ov, &raw) || CGRectIsEmpty(raw)) continue;
+        NSInteger c = (NSInteger)o[0].unsignedIntegerValue, a = (NSInteger)o[1].unsignedIntegerValue;
+        if (raw.origin.x < minX) { minX = raw.origin.x; cA = c; anyX = YES; }
+        if (raw.origin.x > maxX) { maxX = raw.origin.x; cB = c; }
+        if (raw.origin.y < minY) { minY = raw.origin.y; rA = a; anyY = YES; }
+        if (raw.origin.y > maxY) { maxY = raw.origin.y; rB = a; }
+        minW = MIN(minW, raw.size.width);
+    }
+    if (!anyX || !anyY) return;
+    CGFloat stepX = (cB != cA) ? (maxX - minX) / (CGFloat)(cB - cA) : 0.0;
+    CGFloat stepY = (rB != rA) ? (maxY - minY) / (CGFloat)(rB - rA) : 0.0;
+    CGFloat step = 0.0;
+    if (stepX > 0.0 && stepY > 0.0) {
+        if (fabs(stepX - stepY) > 1.0) return;     // modules are still moving
+        step = (stepX + stepY) * 0.5;
+    } else {
+        step = MAX(stepX, stepY);
+    }
+    if (step < 55.0 || step > 130.0 || minW < 45.0 || minW > 120.0) return;
+    CGFloat cell = floor(minW * 2.0 + 0.5) / 2.0;
+    step = floor(step * 2.0 + 0.5) / 2.0;
+    CGFloat gap = step - cell;
+    if (gap < 4.0 || gap > 40.0) return;
+    if (fabs(cell - PACCGridCell()) < 0.4 && fabs(gap - PACCGridGap()) < 0.4) return;
+
+    PACCSetGridMetrics(cell, gap);
+    CFPreferencesSetAppValue(CFSTR("GridCell"), (__bridge CFPropertyListRef)@(cell), CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(CFSTR("GridGap"),  (__bridge CFPropertyListRef)@(gap),  CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+    PACRefreshGridConstants();
+    [ov.view setNeedsLayout];
 }
 
 static UIViewController *PACModuleAtPoint(CGPoint pt, UIViewController *overlay) {
@@ -1431,6 +1514,9 @@ static NSArray<NSString *> *PACAvailableModuleIdentifiers(void) {
             if (b.bundleIdentifier.length) [all addObject:b.bundleIdentifier];
         }
     }
+    // Connectivity and Music are fixed modules, so the settings provider never lists them as available.
+    [all addObject:@"com.apple.control-center.ConnectivityModule"];
+    [all addObject:@"com.apple.mediaremote.controlcenter.nowplaying"];
     NSArray<NSString *> *enabled = PACProviderOrderedIdentifiers() ?: @[];
     NSMutableArray<NSString *> *result = [NSMutableArray array];
     for (NSString *mid in all) {
@@ -1447,6 +1533,8 @@ static NSString *PACNameForIdentifier(NSString *mid) {
     if ([lower containsString:@"screencapture"]) return @"Screen Recording";
     if ([lower containsString:@"control-center.displaymodule"]) return @"Brightness";
     if ([lower containsString:@"controlcenter.audio"]) return @"Volume";
+    if ([lower containsString:@"connectivitymodule"]) return @"Connectivity";
+    if ([lower containsString:@"controlcenter.nowplaying"]) return @"Music Player";
 
     Class pm = NSClassFromString(@"CCSModuleProviderManager");
     if (pm && [pm respondsToSelector:NSSelectorFromString(@"sharedInstance")]) {
@@ -3877,6 +3965,10 @@ static void PACInstallGestures(UIViewController *ov) {
     if ([NSStringFromClass(self.class) containsString:@"ControlCenterOverlayViewController"]) {
         PACRefreshGridConstants();
         PACInstallGestures((UIViewController *)self);
+        UIViewController *selfOv = (UIViewController *)self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            PACUpdateGridMetrics(selfOv);
+        });
     }
 }
 
@@ -3909,6 +4001,7 @@ static void PACInstallGestures(UIViewController *ov) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIViewController *m2 = wm, *o2 = wo;
         if (!m2 || !o2) return;
+        PACUpdateGridMetrics(o2);
         PACApplyRadiusToModule(m2);
         PACRefreshPresentation(m2, o2);
     });

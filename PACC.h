@@ -73,6 +73,9 @@ void PACCConfigureConnectivity(UIViewController *controller);
 CGRect PACCVisibleModuleBounds(UIViewController *overlay);
 
 // PACCBig.x: big Connectivity / Music layouts
+void PACCSetGridMetrics(CGFloat cell, CGFloat gap);
+CGFloat PACCGridCell(void);
+CGFloat PACCGridGap(void);
 int PACCBigKind(NSString *mid);
 BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h);
 void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH);

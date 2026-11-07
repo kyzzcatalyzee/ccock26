@@ -82,13 +82,35 @@ void Haptic(void) {
     [g impactOccurred];
 }
 
+// The size of the control grid differs per device (a 67 pt cell on small phones, 74 pt on the Plus models).
+// PACCEdit measures the real layout and reports it here; until then a guess from the screen width is used.
+static CGFloat gPACCGridCell = 0.0;
+static CGFloat gPACCGridGap  = 0.0;
+
+void PACCSetGridMetrics(CGFloat cell, CGFloat gap) {
+    if (cell > 40.0 && cell < 120.0 && gap >= 4.0 && gap < 40.0) {
+        gPACCGridCell = cell;
+        gPACCGridGap  = gap;
+    }
+}
+
+CGFloat PACCGridCell(void) {
+    if (gPACCGridCell > 0.0) return gPACCGridCell;
+    return UIScreen.mainScreen.bounds.size.width >= 414.0 ? 74.0 : 67.0;
+}
+
+CGFloat PACCGridGap(void) {
+    if (gPACCGridGap > 0.0) return gPACCGridGap;
+    return UIScreen.mainScreen.bounds.size.width >= 414.0 ? 16.0 : 12.0;
+}
+
 CGFloat PageSpan(void) {
     CGSize size = UIScreen.mainScreen.bounds.size;
     BOOL landscape = size.width > size.height;
     CGFloat screenH = size.height;
 
     NSUInteger gridRows = landscape ? 4 : 8;
-    CGFloat step = 67.0 + 12.0;
+    CGFloat step = PACCGridCell() + PACCGridGap();
     CGFloat pageSpan = (CGFloat)gridRows * step;
 
     CGFloat extra = screenH - pageSpan;
