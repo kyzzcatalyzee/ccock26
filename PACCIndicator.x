@@ -145,6 +145,7 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
 
 - (void)didMoveToWindow {
     [super didMoveToWindow];
+    if (self.window) [self installSwipe];
     [self syncLandscapeState];
 }
 
@@ -249,14 +250,17 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 - (void)installSwipe {
     UIView *host = self.overlay.view;
     if (!host) return;
-    UIGestureRecognizer *old = objc_getAssociatedObject(host, kPACCSwipeKey);
-    if (old) [host removeGestureRecognizer:old];
+    // The panel's view ignores touches on its empty space (that is how tapping outside closes it), so a page with few
+    // controls had nothing under the finger. The recognizer lives on the window instead and sees every touch.
+    UIView *target = host.window ?: host.superview ?: host;
+    UIGestureRecognizer *old = objc_getAssociatedObject(self, kPACCSwipeKey);
+    if (old) [old.view removeGestureRecognizer:old];
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(swipePan:)];
     pan.maximumNumberOfTouches = 1;
     pan.cancelsTouchesInView = NO;
     pan.delegate = self;
-    [host addGestureRecognizer:pan];
-    objc_setAssociatedObject(host, kPACCSwipeKey, pan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [target addGestureRecognizer:pan];
+    objc_setAssociatedObject(self, kPACCSwipeKey, pan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(self, kPACCSwipeRecKey, pan, OBJC_ASSOCIATION_ASSIGN);
 }
 
