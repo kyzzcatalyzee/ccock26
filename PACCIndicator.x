@@ -391,6 +391,16 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     return YES;
 }
 
+// As in ControlCenter26: every other pan around the panel (Apple's scroll and close pans) waits until the page swipe has decided.
+// Asking the delegate does this from the very first touch, which binding them afterwards could not.
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gr shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)other {
+    if (gr != objc_getAssociatedObject(self, kPACCSwipeRecKey)) return NO;
+    if (![other isKindOfClass:UIPanGestureRecognizer.class] || other == gr) return NO;
+    UIView *host = self.overlay.view, *ov = other.view;
+    if (!host || !ov) return NO;
+    return [host isDescendantOfView:ov] || [ov isDescendantOfView:host];
+}
+
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
     return NO;      // exclusive, as in ControlCenter26: Apple's pans wait for the page swipe
 }
