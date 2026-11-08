@@ -370,6 +370,9 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 - (void)dealloc { [_timer invalidate]; }
 - (void)layoutSubviews { [super layoutSubviews]; [self refresh]; }
 - (void)refresh {
+    @try { [self refreshImpl]; } @catch (NSException *e) { NSLog(@"[CCock26] connectivity refresh: %@", e); }
+}
+- (void)refreshImpl {
     Class L = NSClassFromString(@"CCUILabeledRoundButton");
     if (!L || !self.apple) return;
     NSMutableArray *found = [NSMutableArray array];

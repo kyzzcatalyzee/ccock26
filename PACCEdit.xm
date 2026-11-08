@@ -1682,10 +1682,15 @@ static void PACCloneChromeToFront(UIViewController *ov) {
 void PACCSyncClones(UIViewController *ov, BOOL animated) {
     static BOOL busy = NO;
     if (busy || !ov || !ov.view) return;
+    PACEnsureClones();
     UIView *cv = ModuleCollection(ov).view;
     if (!cv) return;
+    if (!gPACClones.count) {                 // nothing to show: only clean up leftovers
+        for (UIView *sv in [cv.subviews copy]) if (sv.tag == kPACCloneTag) { PACRemoveCloneChrome(sv); [sv removeFromSuperview]; }
+        return;
+    }
     busy = YES;
-    PACEnsureClones();
+    @try {
 
     NSMutableDictionary<NSString *, UIView *> *have = [NSMutableDictionary dictionary];
     for (UIView *sv in [cv.subviews copy]) {
@@ -1775,6 +1780,9 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         }
     }
     if (gEditModeActive) PACCloneChromeToFront(ov);
+    } @catch (NSException *e) {
+        PACLog(@"clones: %@", e);
+    }
     busy = NO;
 }
 
