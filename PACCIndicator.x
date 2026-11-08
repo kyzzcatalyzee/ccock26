@@ -291,6 +291,14 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     else if (y < bottom) y = bottom + (y - bottom) * 0.35;
 
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
+        // keep the panel's own scroll view at rest, so Apple's pull-down-to-close never gets a drag to work with
+        for (UIView *sv in PACCOverlayScrollers(self.overlay)) {
+            if ([sv isKindOfClass:UIScrollView.class]) {
+                UIScrollView *u = (UIScrollView *)sv;
+                CGFloat rest0 = -u.adjustedContentInset.top;
+                if (u.contentOffset.y != rest0 && u.contentOffset.y < 0.0) u.contentOffset = CGPointMake(u.contentOffset.x, rest0);
+            }
+        }
         CGFloat stretch = MIN(0.045, fabs(vy) / 12000.0);        // the page stretches a little while it is dragged fast
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
