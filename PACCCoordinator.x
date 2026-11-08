@@ -193,7 +193,6 @@ BOOL gPACCRevealAll = NO;
 
 - (void)syncModuleVisibilityForOverlay:(UIViewController *)overlay animated:(BOOL)animated {
     PACCCrumb("syncModuleVisibility");
-    }
     PACCSyncClones(overlay, animated);
     BOOL notched = (CGRectGetHeight(UIScreen.mainScreen.bounds) >= 800.0);
     if (notched) return;
