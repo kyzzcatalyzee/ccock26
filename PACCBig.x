@@ -221,6 +221,7 @@ static NSString *PACBigTime(double t, BOOL negative) {
 @property (nonatomic, strong) UILabel *title;
 @property (nonatomic, strong) UILabel *sub;
 @property (nonatomic) BOOL isOn;
+@property (nonatomic) BOOL tall;                    // square card: icon on top, text at the bottom
 - (void)setOn:(BOOL)on;
 @end
 
@@ -287,7 +288,23 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat h = self.bounds.size.height, w = self.bounds.size.width;
+    if (_tall) {
+        self.layer.cornerRadius = MIN(36.0, h * 0.3);
+        CGFloat d = 44.0;
+        _icon.frame = CGRectMake(16.0, 16.0, d, d);
+        _icon.layer.cornerRadius = d * 0.5;
+        _icon.layer.masksToBounds = YES;
+        _icon.image = PACBigIconForKey(_key, d * 0.46);
+        _title.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
+        _sub.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
+        CGFloat tw = MAX(0, w - 32.0);
+        _sub.frame = CGRectMake(16.0, h - 16.0 - 17.0, tw, 17.0);
+        _title.frame = CGRectMake(16.0, h - 16.0 - 17.0 - 21.0, tw, 21.0);
+        return;
+    }
     self.layer.cornerRadius = MIN(h * 0.5, 36.0);
+    _title.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
+    _sub.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
     CGFloat d = MIN(h - 20.0, 52.0);
     CGFloat x = (h - d) * 0.5;
     _icon.frame = CGRectMake(x, (h - d) * 0.5, d, d);
@@ -301,7 +318,13 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 }
 - (void)setOn:(BOOL)on {
     _isOn = on;
-    _icon.backgroundColor = on ? PACBigOnColor(_key) : [UIColor colorWithWhite:1 alpha:0.2];
+    if (_tall) {
+        _icon.backgroundColor = on ? PACBigOnColor(_key) : [UIColor colorWithWhite:1 alpha:0.85];
+        _icon.tintColor = on ? UIColor.whiteColor : [UIColor colorWithWhite:0.42 alpha:1];
+    } else {
+        _icon.backgroundColor = on ? PACBigOnColor(_key) : [UIColor colorWithWhite:1 alpha:0.2];
+        _icon.tintColor = UIColor.whiteColor;
+    }
 }
 - (void)tapped {
     UIControl *round = self.target;
@@ -326,6 +349,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 
 @implementation PACBigConn {
     NSMutableDictionary<NSString *, PACBigCard *> *_cards;
+    NSTimer *_timer;
 }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
@@ -334,6 +358,17 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     }
     return self;
 }
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    [_timer invalidate]; _timer = nil;
+    if (self.window) {
+        __weak typeof(self) ws = self;
+        _timer = [NSTimer timerWithTimeInterval:0.6 repeats:YES block:^(NSTimer *t) { [ws refresh]; }];
+        [[NSRunLoop mainRunLoop] addTimer:_timer forMode:NSRunLoopCommonModes];
+    }
+}
+- (void)dealloc { [_timer invalidate]; }
+- (void)layoutSubviews { [super layoutSubviews]; [self refresh]; }
 - (void)refresh {
     Class L = NSClassFromString(@"CCUILabeledRoundButton");
     if (!L || !self.apple) return;
@@ -354,18 +389,36 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
         if (!byKey[k]) byKey[k] = b;
     }
     NSMutableArray<NSString *> *keys = [NSMutableArray array];
-    for (NSString *k in order) if (byKey[k]) [keys addObject:k];
+    if (!byKey.count) return;
+    // all six are always shown; one the device does not have (no Cellular or Hotspot) stays dimmed and cannot be pressed
+    for (NSString *k in order) [keys addObject:k];
     for (NSString *k in byKey) if (![keys containsObject:k]) [keys addObject:k];
-    if (!keys.count) return;
 
     CGSize S = self.bounds.size;
     if (S.width < 40 || S.height < 40) return;
-    NSUInteger rows = (keys.count + 1) / 2;
+    // iOS 26 look: Airplane Mode as a wide pill on top, square cards in two columns, Hotspot as a pill at the bottom
+    BOOL hasTop = [keys containsObject:@"air"], hasBottom = [keys containsObject:@"hotspot"];
+    NSMutableArray<NSString *> *cardKeys = [keys mutableCopy];
+    [cardKeys removeObject:@"air"]; [cardKeys removeObject:@"hotspot"];
+    NSUInteger cardRows = (cardKeys.count + 1) / 2;
+    NSUInteger pills = (hasTop ? 1 : 0) + (hasBottom ? 1 : 0);
     CGFloat gap = 12.0;
     CGFloat cw = (S.width - gap) / 2.0;
-    CGFloat ch = MIN(84.0, (S.height - gap * (rows - 1)) / rows);
-    CGFloat usedH = ch * rows + gap * (rows - 1);
+    CGFloat ph = MAX(52.0, MIN(70.0, S.height * 0.135));
+    NSUInteger totalRows = cardRows + pills;
+    CGFloat ch = cardRows ? (S.height - pills * ph - gap * (totalRows - 1)) / cardRows : 0;
+    ch = MIN(ch, 180.0);
+    if (ch < 60.0) { ph = 52.0; ch = MAX(52.0, cardRows ? (S.height - pills * ph - gap * (totalRows - 1)) / cardRows : 0); }
+    CGFloat usedH = ph * pills + ch * cardRows + gap * (totalRows - 1);
     CGFloat y0 = MAX(0, (S.height - usedH) * 0.5);
+    NSMutableDictionary<NSString *, NSValue *> *frames = [NSMutableDictionary dictionary];
+    CGFloat yy = y0;
+    if (hasTop) { frames[@"air"] = [NSValue valueWithCGRect:CGRectMake(0, yy, S.width, ph)]; yy += ph + gap; }
+    for (NSUInteger i = 0; i < cardKeys.count; i++) {
+        frames[cardKeys[i]] = [NSValue valueWithCGRect:CGRectMake((i % 2) * (cw + gap), yy + (i / 2) * (ch + gap), cw, ch)];
+    }
+    yy += cardRows ? cardRows * (ch + gap) : 0;
+    if (hasBottom) frames[@"hotspot"] = [NSValue valueWithCGRect:CGRectMake(0, yy, S.width, ph)];
 
     for (NSUInteger i = 0; i < keys.count; i++) {
         NSString *k = keys[i];
@@ -377,7 +430,10 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
             _cards[k] = card;
             [self addSubview:card];
         }
-        card.frame = CGRectMake((i % 2) * (cw + gap), y0 + (i / 2) * (ch + gap), cw, ch);
+        BOOL tall = !([k isEqualToString:@"air"] || [k isEqualToString:@"hotspot"]) && ch >= 100.0;
+        if (card.tall != tall) { card.tall = tall; [card setNeedsLayout]; }
+        NSValue *fv = frames[k];
+        if (fv) card.frame = fv.CGRectValue;
         id rb = PACBigKV(labeled, @"buttonView");
         UIControl *round = [rb isKindOfClass:UIControl.class] ? rb : nil;
         if (!round) {
@@ -395,9 +451,10 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
         BOOL on = round.isSelected;
         NSString *sub = PACBigKV(labeled, @"subtitle");
         if (![sub isKindOfClass:NSString.class] || !sub.length || [sub isEqualToString:title]) sub = on ? @"On" : @"Off";
+        if (!round) sub = @"Unavailable";
         if (![card.title.text isEqualToString:title]) card.title.text = title;
         if (![card.sub.text isEqualToString:sub]) card.sub.text = sub;
-        if (card.isOn != on || !card.icon.backgroundColor) [card setOn:on];
+        [card setOn:on];
         card.alpha = round ? (round.enabled ? 1.0 : 0.5) : 0.4;
         card.enabled = round != nil && !gEditModeActive;
     }
@@ -692,4 +749,24 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
         BOOL compact = (h < 4);
         if (p.compact != compact) { p.compact = compact; [p setNeedsLayout]; }
     }
+}
+
+#pragma mark - stand-alone copies (a second Connectivity or Music on another page)
+
+UIView *PACCBigNewClone(int kind) {
+    return kind == 1 ? (UIView *)[[PACBigConn alloc] initWithFrame:CGRectZero]
+                     : (UIView *)[[PACBigMusic alloc] initWithFrame:CGRectZero];
+}
+
+// apple: the view of the real Connectivity module, whose buttons the cards press
+void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIView *apple) {
+    if (kind == 1 && [v isKindOfClass:PACBigConn.class]) {
+        PACBigConn *c = (PACBigConn *)v;
+        if (c.apple != apple) c.apple = apple;
+    } else if (kind == 2 && [v isKindOfClass:PACBigMusic.class]) {
+        PACBigMusic *p = (PACBigMusic *)v;
+        BOOL compact = (h < 4);
+        if (p.compact != compact) { p.compact = compact; [p setNeedsLayout]; }
+    }
+    v.layer.cornerCurve = kCACornerCurveContinuous;
 }

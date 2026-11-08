@@ -1612,6 +1612,172 @@ static void PACLogMethods(Class cls) {
     PACLog(@"%@: %@", NSStringFromClass(cls), [names componentsJoinedByString:@", "]);
 }
 
+
+#pragma mark - copies (a second Connectivity or Music Player on another page)
+
+static const NSInteger kPACCloneTag   = 182200;
+static const NSInteger kPACCloneBgTag = 182201;
+static const void *kPACCloneIDKey = &kPACCloneIDKey;
+static NSMutableArray<NSMutableDictionary *> *gPACClones;      // {id, mid, c, a, w, h}
+
+static void PACEnsureClones(void) {
+    if (gPACClones) return;
+    gPACClones = [NSMutableArray array];
+    CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditClones"), CFSTR("pawxed.ccock18.preferences"));
+    if (v && CFGetTypeID(v) == CFArrayGetTypeID()) {
+        for (id d in (__bridge NSArray *)v) {
+            if ([d isKindOfClass:NSDictionary.class]) [gPACClones addObject:[d mutableCopy]];
+        }
+    }
+    if (v) CFRelease(v);
+}
+
+static void PACSaveClones(void) {
+    PACEnsureClones();
+    CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)[gPACClones copy], CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+}
+
+// Where the grid starts inside the collection view (page independent), cached for moments when modules are moving.
+static BOOL PACRawGridBase(UIViewController *ov, CGFloat *ox, CGFloat *oy) {
+    static CGFloat cx = 0, cy = 0;
+    static BOOL have = NO;
+    PACRefreshGridConstants();
+    PACEnsureStore();
+    if (!gPACPendingResizeID && !gPageAnimating) {
+        CGFloat bx = CGFLOAT_MAX, by = CGFLOAT_MAX;
+        for (UIViewController *m in ModuleControllers(ov)) {
+            NSString *mid = PACMid(m);
+            NSArray<NSNumber *> *o = mid.length ? PACGetOrigin(mid) : nil;
+            CGRect raw;
+            if (o.count < 2 || !PACRawFrame(m, ov, &raw) || CGRectIsEmpty(raw)) continue;
+            CGFloat x = raw.origin.x - (CGFloat)o[0].unsignedIntegerValue * kPACStep;
+            CGFloat y = raw.origin.y - (CGFloat)o[1].unsignedIntegerValue * kPACStep;
+            if (x < bx) bx = x;
+            if (y < by) by = y;
+        }
+        if (bx != CGFLOAT_MAX) { cx = bx; cy = by; have = YES; }
+    }
+    if (!have) return NO;
+    *ox = cx; *oy = cy;
+    return YES;
+}
+
+static void PACRemoveCloneChrome(UIView *cl) {
+    [objc_getAssociatedObject(cl, kPACBorderKey) removeFromSuperview];
+    [objc_getAssociatedObject(cl, kPACRemoveKey) removeFromSuperview];
+    objc_setAssociatedObject(cl, kPACBorderKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(cl, kPACRemoveKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+static void PACCloneChromeToFront(UIViewController *ov) {
+    UIView *cv = ModuleCollection(ov).view;
+    for (UIView *cl in cv.subviews) {
+        if (cl.tag != kPACCloneTag) continue;
+        UIView *rm = objc_getAssociatedObject(cl, kPACRemoveKey);
+        if (rm.superview == ov.view) [ov.view bringSubviewToFront:rm];
+    }
+}
+
+void PACCSyncClones(UIViewController *ov, BOOL animated) {
+    static BOOL busy = NO;
+    if (busy || !ov || !ov.view) return;
+    UIView *cv = ModuleCollection(ov).view;
+    if (!cv) return;
+    busy = YES;
+    PACEnsureClones();
+
+    NSMutableDictionary<NSString *, UIView *> *have = [NSMutableDictionary dictionary];
+    for (UIView *sv in [cv.subviews copy]) {
+        if (sv.tag != kPACCloneTag) continue;
+        NSString *cid = objc_getAssociatedObject(sv, kPACCloneIDKey);
+        NSDictionary *d = nil;
+        for (NSDictionary *c in gPACClones) if ([c[@"id"] isEqualToString:cid ?: @""]) { d = c; break; }
+        if (!d) { PACRemoveCloneChrome(sv); [sv removeFromSuperview]; continue; }
+        have[cid] = sv;
+    }
+
+    CGFloat bx = 0, by = 0;
+    BOOL ok = !PACIsLandscape() && PACRawGridBase(ov, &bx, &by);
+    UIView *connHost = nil;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        NSString *mid = PACMid(m);
+        if (mid.length && PACCBigKind(mid) == 1) { connHost = m.view; break; }
+    }
+
+    CATransform3D sub = cv.layer.sublayerTransform;
+    for (NSDictionary *d in gPACClones) {
+        NSString *cid = d[@"id"];
+        NSString *mid = d[@"mid"];
+        int kind = PACCBigKind(mid);
+        UIView *cl = have[cid];
+        if (!ok || !kind) { cl.hidden = YES; PACRemoveCloneChrome(cl); continue; }
+        NSUInteger c = [d[@"c"] unsignedIntegerValue], a = [d[@"a"] unsignedIntegerValue];
+        NSUInteger w = [d[@"w"] unsignedIntegerValue], h = [d[@"h"] unsignedIntegerValue];
+
+        if (!cl) {
+            cl = PACCBigNewClone(kind);
+            cl.tag = kPACCloneTag;
+            cl.clipsToBounds = YES;
+            objc_setAssociatedObject(cl, kPACCloneIDKey, cid, OBJC_ASSOCIATION_COPY_NONATOMIC);
+            UIVisualEffectView *bg = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark]];
+            bg.tag = kPACCloneBgTag;
+            bg.userInteractionEnabled = NO;
+            [cl addSubview:bg];
+            [cl sendSubviewToBack:bg];
+            [cv addSubview:cl];
+        }
+        cl.hidden = NO;
+        CGRect f = CGRectMake(bx + (CGFloat)c * kPACStep, by + (CGFloat)a * kPACStep,
+                              (CGFloat)w * kPACStep - kPACgap, (CGFloat)h * kPACStep - kPACgap);
+        if (!CGRectEqualToRect(cl.frame, f)) cl.frame = f;
+        UIView *bg = [cl viewWithTag:kPACCloneBgTag];
+        if (bg) { if (!CGRectEqualToRect(bg.frame, cl.bounds)) bg.frame = cl.bounds; [cl sendSubviewToBack:bg]; }
+        cl.layer.cornerRadius = kPACCell * 0.5;
+        cl.layer.cornerCurve = kCACornerCurveContinuous;
+        cl.userInteractionEnabled = !gEditModeActive;
+        PACCBigConfigureClone(cl, kind, w, h, connHost);
+
+        BOOL onPage = ((NSInteger)(a / kPACStride) == gCurrentPage);
+        CGFloat alpha = onPage ? 1.0 : 0.0;
+        if (fabs(cl.alpha - alpha) > 0.01) {
+            if (animated) [UIView animateWithDuration:0.35 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ cl.alpha = alpha; } completion:nil];
+            else cl.alpha = alpha;
+        }
+
+        // edit mode: outline and the minus button, like on a real module
+        if (gEditModeActive && onPage) {
+            CGRect raw = f;
+            raw.origin.x += sub.m41;
+            raw.origin.y += sub.m42;
+            CGRect vis = [cv convertRect:raw toView:ov.view];
+            UIView *border = objc_getAssociatedObject(cl, kPACBorderKey);
+            if (!border) {
+                border = PACMakeBorder();
+                objc_setAssociatedObject(cl, kPACBorderKey, border, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            if (border.superview != ov.view) [ov.view addSubview:border];
+            border.frame = CGRectInset(vis, -kPACBorderInset, -kPACBorderInset);
+            border.layer.cornerRadius = kPACCell * 0.5 + kPACBorderInset;
+            border.hidden = NO;
+            UIButton *rm = objc_getAssociatedObject(cl, kPACRemoveKey);
+            if (!rm) {
+                rm = PACMakeRemoveButton([@"clone:" stringByAppendingString:cid]);
+                id proxy = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"PACEditProxy"), NSSelectorFromString(@"shared"));
+                [rm addTarget:proxy action:NSSelectorFromString(@"removeTap:") forControlEvents:UIControlEventTouchUpInside];
+                objc_setAssociatedObject(cl, kPACRemoveKey, rm, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            if (rm.superview != ov.view) [ov.view addSubview:rm];
+            rm.frame = CGRectMake(vis.origin.x - 8.0, vis.origin.y - 8.0, 30.0, 30.0);
+            rm.hidden = NO;
+        } else {
+            PACRemoveCloneChrome(cl);
+        }
+    }
+    if (gEditModeActive) PACCloneChromeToFront(ov);
+    busy = NO;
+}
+
 // First free cell of a page, reading row by row from the top left (so a new control lands at the start).
 static BOOL PACFirstFreeCell(NSDictionary<NSString *, NSValue *> *occupied, NSUInteger w, NSUInteger h,
                              NSUInteger maxRow, NSUInteger *outCol, NSUInteger *outRow) {
@@ -1632,7 +1798,8 @@ static BOOL PACFirstFreeCell(NSDictionary<NSString *, NSValue *> *occupied, NSUI
     return NO;
 }
 
-static BOOL PACPlaceNewModule(NSString *mid, NSUInteger w, NSUInteger h, UIViewController *ov, NSUInteger *outPage) {
+static BOOL PACFindSlot(NSString *mid, NSUInteger w, NSUInteger h, UIViewController *ov,
+                        NSUInteger *outCol, NSUInteger *outAbs, NSUInteger *outPage) {
     PACRefreshGridConstants();
     PACEnsureStore();
     NSMutableDictionary<NSNumber *, NSMutableDictionary<NSString *, NSValue *> *> *pages = [NSMutableDictionary dictionary];
@@ -1652,6 +1819,15 @@ static BOOL PACPlaceNewModule(NSString *mid, NSUInteger w, NSUInteger h, UIViewC
         if (!map) { map = [NSMutableDictionary dictionary]; pages[pn] = map; }
         map[other] = [NSValue value:&pr withObjCType:@encode(PACRect)];
     }
+    PACEnsureClones();
+    for (NSDictionary *cd in gPACClones) {
+        NSUInteger a = [cd[@"a"] unsignedIntegerValue];
+        PACRect pr = {[cd[@"c"] unsignedIntegerValue], a % kPACStride, [cd[@"w"] unsignedIntegerValue], [cd[@"h"] unsignedIntegerValue]};
+        NSNumber *pn = @(a / kPACStride);
+        NSMutableDictionary *map = pages[pn];
+        if (!map) { map = [NSMutableDictionary dictionary]; pages[pn] = map; }
+        map[[@"clone:" stringByAppendingString:cd[@"id"]]] = [NSValue value:&pr withObjCType:@encode(PACRect)];
+    }
 
     // Page 0 comes first; then the pages the user added. The media / promo pages cannot hold controls.
     NSMutableArray<NSNumber *> *order = [NSMutableArray arrayWithObject:@0];
@@ -1669,13 +1845,21 @@ static BOOL PACPlaceNewModule(NSString *mid, NSUInteger w, NSUInteger h, UIViewC
         if (kPACRows >= h) maxRow = MIN(maxRow, kPACRows - h);
         NSUInteger oc = 0, orr = 0;
         if (PACFirstFreeCell(pages[pn] ?: @{}, w, h, maxRow, &oc, &orr)) {
-            PACSetOrigin(mid, @[@(oc), @(p * kPACStride + orr)]);
-            PACInvalidateOtherOrientationOriginForModule(mid);
+            if (outCol) *outCol = oc;
+            if (outAbs) *outAbs = p * kPACStride + orr;
             if (outPage) *outPage = p;
             return YES;
         }
     }
     return NO;
+}
+
+static BOOL PACPlaceNewModule(NSString *mid, NSUInteger w, NSUInteger h, UIViewController *ov, NSUInteger *outPage) {
+    NSUInteger oc = 0, oa = 0;
+    if (!PACFindSlot(mid, w, h, ov, &oc, &oa, outPage)) return NO;
+    PACSetOrigin(mid, @[@(oc), @(oa)]);
+    PACInvalidateOtherOrientationOriginForModule(mid);
+    return YES;
 }
 
 static void PACShowToast(UIViewController *ov, NSString *text) {
@@ -2033,6 +2217,7 @@ static void PACBringChromeToFront(UIViewController *ov) {
         UIView *pr = objc_getAssociatedObject(m.view, kPACPresKey);
         if (pr) [ov.view bringSubviewToFront:pr];
     }
+    PACCloneChromeToFront(ov);
     UIView *rp = [ov.view viewWithTag:kPACResetTag];
     if (rp) [ov.view bringSubviewToFront:rp];
     { UIView *pacI = [ov.view viewWithTag:kPageIndicatorTag]; if (pacI && gEditModeActive) [ov.view bringSubviewToFront:pacI];
@@ -2144,11 +2329,13 @@ static void PACSyncChromeToPage(UIViewController *ov) {
         if (!stale && PACModuleSupportsResizing(mid) && (!rz || rz.hidden || rz.superview != ov.view)) stale = YES;
         if (stale) PACApplyChrome(m, ov);
     }
+    PACCSyncClones(ov, NO);
     PACBringChromeToFront(ov);
 }
 
 // Pages the user added but left empty go away when editing ends (the later pages move up).
 static void PACPruneEmptyPages(UIViewController *ov) {
+    if (ov) PACCSyncClones(ov, NO);
     if (!ov || PACIsLandscape()) return;
     PACEnsureUserPages();
     PACEnsureStore();
@@ -2163,6 +2350,8 @@ static void PACPruneEmptyPages(UIViewController *ov) {
         NSArray<NSNumber *> *o = PACGetOrigin(mid);
         if (o.count >= 2) [used addObject:@(o[1].unsignedIntegerValue / kPACStride)];
     }
+    PACEnsureClones();
+    for (NSDictionary *cd in gPACClones) [used addObject:@([cd[@"a"] unsignedIntegerValue] / kPACStride)];
 
     NSInteger oldCur = gCurrentPage, newCur = gCurrentPage;
     BOOL changed = NO;
@@ -2176,6 +2365,10 @@ static void PACPruneEmptyPages(UIViewController *ov) {
             NSUInteger a = o[1].unsignedIntegerValue;
             if (a / kPACStride > p) gEditOrigins[key] = @[o[0], @(a - kPACStride)];
         }
+        for (NSMutableDictionary *cd in gPACClones) {
+            NSUInteger a = [cd[@"a"] unsignedIntegerValue];
+            if (a / kPACStride > p) cd[@"a"] = @(a - kPACStride);
+        }
         NSMutableSet *shifted = [NSMutableSet set];
         for (NSNumber *u in used) [shifted addObject:(u.unsignedIntegerValue > p ? @(u.unsignedIntegerValue - 1) : u)];
         used = shifted;
@@ -2186,6 +2379,7 @@ static void PACPruneEmptyPages(UIViewController *ov) {
     }
     if (!changed) return;
     PACSaveStore();
+    PACSaveClones();
     PACSaveUserPages();
 
     UIViewController *col = ModuleCollection(ov);
@@ -2303,6 +2497,48 @@ static void PACForceExitEdit(UIViewController *ov) {
                          overlay:(UIViewController *)ov;
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov;
 @end
+
+static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
+    int kind = PACCBigKind(mid);
+    if (!kind) return;
+    NSUInteger w = 4, h = (kind == 1) ? 4 : 2;
+    NSUInteger oc = 0, oa = 0, page = 0;
+    BOOL placed = PACFindSlot(@"", w, h, ov, &oc, &oa, &page);
+    if (!placed) {
+        PACEnsureUserPages();
+        if (PACBasePageCount() + gPACUserPages < kPACMaxPages) {
+            gPACUserPages++;
+            PACSaveUserPages();
+            [PACC.shared installPageIndicatorOnOverlay:ov];
+            PACPositionPageAddButton(ov);
+            placed = PACFindSlot(@"", w, h, ov, &oc, &oa, &page);
+        }
+    }
+    if (!placed) { PACShowToast(ov, @"No room left for another control"); return; }
+    PACEnsureClones();
+    NSString *cid = [NSString stringWithFormat:@"%llx", (unsigned long long)(CACurrentMediaTime() * 1000.0)];
+    [gPACClones addObject:[@{@"id": cid, @"mid": mid, @"c": @(oc), @"a": @(oa), @"w": @(w), @"h": @(h)} mutableCopy]];
+    PACSaveClones();
+    PACCSyncClones(ov, NO);
+    PACLog(@"add copy of %@ at page %lu", mid, (unsigned long)page);
+
+    UIView *cl = nil;
+    for (UIView *sv in ModuleCollection(ov).view.subviews) {
+        if (sv.tag == kPACCloneTag && [objc_getAssociatedObject(sv, kPACCloneIDKey) isEqualToString:cid]) { cl = sv; break; }
+    }
+    if (cl) {
+        cl.transform = CGAffineTransformMakeScale(0.4, 0.4);
+        [UIView animateWithDuration:0.6 delay:0 usingSpringWithDamping:0.55 initialSpringVelocity:0.8 options:0 animations:^{
+            cl.transform = CGAffineTransformIdentity;
+        } completion:nil];
+    }
+    if (page != (NSUInteger)gCurrentPage) {
+        CCAPageIndicator *pager = (CCAPageIndicator *)[ov.view viewWithTag:kPageIndicatorTag];
+        [pager setCurrentPage:page forOverlay:ov];
+        PACShowToast(ov, [NSString stringWithFormat:@"%@ added to page %lu", PACNameForIdentifier(mid), (unsigned long)(page + 1)]);
+    }
+    PACCSyncClones(ov, YES);
+}
 
 @implementation PACEditProxy
 + (instancetype)shared {
@@ -3091,6 +3327,17 @@ static void PACForceExitEdit(UIViewController *ov) {
     id prov = PACSettingsProvider();
     SEL get = NSSelectorFromString(@"orderedUserEnabledModuleIdentifiers");
     SEL set = NSSelectorFromString(@"setAndSaveOrderedUserEnabledModuleIdentifiers:");
+    if (PACCBigKind(mid)) {      // already on the grid: add a second copy instead of moving it
+        BOOL onGrid = NO;
+        for (UIViewController *m in ModuleControllers(ov)) if ([PACMid(m) isEqualToString:mid]) { onGrid = YES; break; }
+        if (!onGrid && prov && [prov respondsToSelector:get]) {
+            NSArray *cur = ((id (*)(id, SEL))objc_msgSend)(prov, get);
+            onGrid = [cur isKindOfClass:NSArray.class] && [cur containsObject:mid];
+        }
+        BOOL onUserPage = (gCurrentPage > 0 && PACIsUserPage((NSUInteger)gCurrentPage));
+        // adding on a new page always gives the big one (4x4 / 4x2); Connectivity needs the real module on the grid to press its buttons
+        if (onGrid || (onUserPage && PACCBigKind(mid) == 2)) { PACAddCloneOf(mid, ov); return; }
+    }
     if (!prov || ![prov respondsToSelector:get] || ![prov respondsToSelector:set]) {
         PACShowToast(ov, @"Couldn't add this control");
         PACLog(@"add %@: settings provider unavailable", mid);
@@ -3399,6 +3646,21 @@ static void PACForceExitEdit(UIViewController *ov) {
     UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
     if (!ov) return;
 
+    if ([mid hasPrefix:@"clone:"]) {
+        NSString *cid = [mid substringFromIndex:6];
+        PACEnsureClones();
+        for (NSDictionary *cd in [gPACClones copy]) if ([cd[@"id"] isEqualToString:cid]) [gPACClones removeObject:cd];
+        PACSaveClones();
+        for (UIView *sv in ModuleCollection(ov).view.subviews) {
+            if (sv.tag == kPACCloneTag && [objc_getAssociatedObject(sv, kPACCloneIDKey) isEqualToString:cid]) {
+                PACRemoveCloneChrome(sv);
+                [UIView animateWithDuration:0.24 animations:^{ sv.transform = CGAffineTransformMakeScale(0.35, 0.35); sv.alpha = 0.0; }
+                                 completion:^(BOOL f) { [sv removeFromSuperview]; }];
+            }
+        }
+        return;
+    }
+
     UIViewController *victim = nil;
     for (UIViewController *m in ModuleControllers(ov)) {
         if ([PACMid(m) isEqualToString:mid]) { victim = m; break; }
@@ -3530,6 +3792,10 @@ static void PACForceExitEdit(UIViewController *ov) {
         if ([key hasPrefix:prefix]) [gEditOrigins removeObjectForKey:key];
     }
     [gEditSizes removeAllObjects];
+    PACEnsureClones();
+    [gPACClones removeAllObjects];
+    PACSaveClones();
+    PACCSyncClones(ov, NO);
 
     NSMutableDictionary<NSString *, NSValue *> *placed = [NSMutableDictionary dictionary];
 
@@ -4005,6 +4271,7 @@ static void PACInstallGestures(UIViewController *ov) {
         UIViewController *m2 = wm, *o2 = wo;
         if (!m2 || !o2) return;
         PACUpdateGridMetrics(o2);
+        PACCSyncClones(o2, NO);
         PACApplyRadiusToModule(m2);
         PACRefreshPresentation(m2, o2);
     });
