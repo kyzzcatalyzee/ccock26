@@ -54,6 +54,7 @@ BOOL gPagerScrubbing = NO;
 
     [PACC.shared layoutMediaPlayerForCollectionView:scroll];
     [PACC.shared layoutPromoPageForCollectionView:scroll];
+    PACCClonesRelayout(scroll);
 
     if (fabs(scroll.contentOffset.x) > 0.25 || fabs(scroll.contentOffset.y) > 0.25) {
         [scroll setContentOffset:CGPointZero animated:NO];

@@ -82,6 +82,7 @@ void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger
 UIView *PACCBigNewClone(int kind);
 void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIView *apple);
 void PACCCrumb(const char *label);
+void PACCClonesRelayout(UIView *collectionView);
 void PACCCrashLog(NSString *line);
 void PACCSyncClones(UIViewController *overlay, BOOL animated);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);

@@ -63,6 +63,7 @@ static const void *kPACResizeKey   = &kPACResizeKey;
 static const void *kPACPresKey     = &kPACPresKey;
 static const void *kPACMidKey      = &kPACMidKey;
 static const void *kPACStartSzKey  = &kPACStartSzKey;
+static const void *kPACCloneSigKey = &kPACCloneSigKey;
 static const void *kPACGestKey     = &kPACGestKey;
 static const void *kPACDragSrcKey  = &kPACDragSrcKey;
 static const void *kPACDragProxyKey= &kPACDragProxyKey;
@@ -1640,9 +1641,10 @@ static void PACSaveClones(void) {
 }
 
 // Where the grid starts inside the collection view (page independent), cached for moments when modules are moving.
+static CGFloat gPACGridBX = 0, gPACGridBY = 0;
+static BOOL gPACGridHave = NO;
+
 static BOOL PACRawGridBase(UIViewController *ov, CGFloat *ox, CGFloat *oy) {
-    static CGFloat cx = 0, cy = 0;
-    static BOOL have = NO;
     PACRefreshGridConstants();
     PACEnsureStore();
     if (!gPACPendingResizeID && !gPageAnimating) {
@@ -1657,18 +1659,20 @@ static BOOL PACRawGridBase(UIViewController *ov, CGFloat *ox, CGFloat *oy) {
             if (x < bx) bx = x;
             if (y < by) by = y;
         }
-        if (bx != CGFLOAT_MAX) { cx = bx; cy = by; have = YES; }
+        if (bx != CGFLOAT_MAX) { gPACGridBX = bx; gPACGridBY = by; gPACGridHave = YES; }
     }
-    if (!have) return NO;
-    *ox = cx; *oy = cy;
+    if (!gPACGridHave) return NO;
+    *ox = gPACGridBX; *oy = gPACGridBY;
     return YES;
 }
 
 static void PACRemoveCloneChrome(UIView *cl) {
     [objc_getAssociatedObject(cl, kPACBorderKey) removeFromSuperview];
     [objc_getAssociatedObject(cl, kPACRemoveKey) removeFromSuperview];
+    [objc_getAssociatedObject(cl, kPACResizeKey) removeFromSuperview];
     objc_setAssociatedObject(cl, kPACBorderKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(cl, kPACRemoveKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(cl, kPACResizeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 static void PACCloneChromeToFront(UIViewController *ov) {
@@ -1677,7 +1681,56 @@ static void PACCloneChromeToFront(UIViewController *ov) {
         if (cl.tag != kPACCloneTag) continue;
         UIView *rm = objc_getAssociatedObject(cl, kPACRemoveKey);
         if (rm.superview == ov.view) [ov.view bringSubviewToFront:rm];
+        UIView *rz = objc_getAssociatedObject(cl, kPACResizeKey);
+        if (rz.superview == ov.view) [ov.view bringSubviewToFront:rz];
     }
+}
+
+static CGRect PACCloneFrame(NSDictionary *d, CGFloat bx, CGFloat by) {
+    NSUInteger c = [d[@"c"] unsignedIntegerValue], a = [d[@"a"] unsignedIntegerValue];
+    NSUInteger w = [d[@"w"] unsignedIntegerValue], h = [d[@"h"] unsignedIntegerValue];
+    return CGRectMake(bx + (CGFloat)c * kPACStep, by + (CGFloat)a * kPACStep,
+                      (CGFloat)w * kPACStep - kPACgap, (CGFloat)h * kPACStep - kPACgap);
+}
+
+// Apple's layout pass may move views it does not know; this puts the copies back (called from the layout hook).
+void PACCClonesRelayout(UIView *cv) {
+    if (!cv || !gPACClones.count || !gPACGridHave || PACIsLandscape()) return;
+    for (UIView *cl in cv.subviews) {
+        if (cl.tag != kPACCloneTag) continue;
+        NSString *cid = objc_getAssociatedObject(cl, kPACCloneIDKey);
+        for (NSDictionary *d in gPACClones) {
+            if (![d[@"id"] isEqualToString:cid ?: @""]) continue;
+            CGRect f = PACCloneFrame(d, gPACGridBX, gPACGridBY);
+            if (!CGRectEqualToRect(cl.frame, f)) cl.frame = f;
+            break;
+        }
+    }
+}
+
+// does a w x h block at column c / absolute row a fit, without touching a module or another copy?
+static BOOL PACCloneFits(UIViewController *ov, NSString *cid, NSUInteger c, NSUInteger a, NSUInteger w, NSUInteger h) {
+    NSUInteger row = a % kPACStride;
+    if (c + w > kPACCols || row + h > kPACRows) return NO;
+    PACRect t = {c, row, w, h};
+    NSUInteger page = a / kPACStride;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        NSString *other = PACMid(m);
+        NSArray<NSNumber *> *o = other.length ? PACGetOrigin(other) : nil;
+        if (o.count < 2 || o[1].unsignedIntegerValue / kPACStride != page) continue;
+        NSUInteger ow = 1, oh = 1;
+        PACEffectiveSize(other, &ow, &oh);
+        PACRect r = {o[0].unsignedIntegerValue, o[1].unsignedIntegerValue % kPACStride, ow, oh};
+        if (PACRectsOverlap(t, r)) return NO;
+    }
+    for (NSDictionary *d in gPACClones) {
+        if ([d[@"id"] isEqualToString:cid]) continue;
+        NSUInteger oa = [d[@"a"] unsignedIntegerValue];
+        if (oa / kPACStride != page) continue;
+        PACRect r = {[d[@"c"] unsignedIntegerValue], oa % kPACStride, [d[@"w"] unsignedIntegerValue], [d[@"h"] unsignedIntegerValue]};
+        if (PACRectsOverlap(t, r)) return NO;
+    }
+    return YES;
 }
 
 void PACCSyncClones(UIViewController *ov, BOOL animated) {
@@ -1735,8 +1788,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             [cv addSubview:cl];
         }
         cl.hidden = NO;
-        CGRect f = CGRectMake(bx + (CGFloat)c * kPACStep, by + (CGFloat)a * kPACStep,
-                              (CGFloat)w * kPACStep - kPACgap, (CGFloat)h * kPACStep - kPACgap);
+        CGRect f = PACCloneFrame(d, bx, by);
         if (!CGRectEqualToRect(cl.frame, f)) cl.frame = f;
         UIView *bg = [cl viewWithTag:kPACCloneBgTag];
         if (bg) { if (!CGRectEqualToRect(bg.frame, cl.bounds)) bg.frame = cl.bounds; [cl sendSubviewToBack:bg]; }
@@ -1744,6 +1796,15 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         cl.layer.cornerCurve = kCACornerCurveContinuous;
         cl.userInteractionEnabled = !gEditModeActive;
         PACCBigConfigureClone(cl, kind, w, h, connHost);
+        {
+            NSString *sig = [NSString stringWithFormat:@"kind %d frame %@ super %@ alpha %.2f hidden %d host %d subviews %lu",
+                             kind, NSStringFromCGRect(cl.frame), NSStringFromClass(cl.superview.class), cl.alpha, cl.hidden,
+                             connHost != nil, (unsigned long)cl.subviews.count];
+            if (![sig isEqualToString:objc_getAssociatedObject(cl, kPACCloneSigKey)]) {
+                objc_setAssociatedObject(cl, kPACCloneSigKey, sig, OBJC_ASSOCIATION_COPY_NONATOMIC);
+                PACCCrashLog([@"clone " stringByAppendingString:sig]);
+            }
+        }
 
         BOOL onPage = ((NSInteger)(a / kPACStride) == gCurrentPage);
         CGFloat alpha = onPage ? 1.0 : 0.0;
@@ -1777,6 +1838,19 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             if (rm.superview != ov.view) [ov.view addSubview:rm];
             rm.frame = CGRectMake(vis.origin.x - 8.0, vis.origin.y - 8.0, 30.0, 30.0);
             rm.hidden = NO;
+            UIButton *rz = objc_getAssociatedObject(cl, kPACResizeKey);
+            if (!rz) {
+                rz = PACMakeResizeButton([@"clone:" stringByAppendingString:cid]);
+                id proxy2 = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"PACEditProxy"), NSSelectorFromString(@"shared"));
+                UIPanGestureRecognizer *rp = [[UIPanGestureRecognizer alloc] initWithTarget:proxy2 action:NSSelectorFromString(@"clonePan:")];
+                rp.maximumNumberOfTouches = 1;
+                rp.cancelsTouchesInView = YES;
+                [rz addGestureRecognizer:rp];
+                objc_setAssociatedObject(cl, kPACResizeKey, rz, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            if (rz.superview != ov.view) [ov.view addSubview:rz];
+            rz.frame = CGRectMake(CGRectGetMaxX(vis) - 42.0 + 2.0, CGRectGetMaxY(vis) - 42.0 + 2.0, 42.0, 42.0);
+            rz.hidden = NO;
         } else {
             PACRemoveCloneChrome(cl);
         }
@@ -3431,6 +3505,45 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             }
         });
     });
+}
+
+- (void)clonePan:(UIPanGestureRecognizer *)g {
+    if (!gEditModeActive) return;
+    NSString *key = objc_getAssociatedObject(g.view, kPACMidKey);
+    if (![key hasPrefix:@"clone:"]) return;
+    NSString *cid = [key substringFromIndex:6];
+    UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+    if (!ov) return;
+    PACEnsureClones();
+    NSMutableDictionary *cd = nil;
+    for (NSMutableDictionary *c in gPACClones) if ([c[@"id"] isEqualToString:cid]) { cd = c; break; }
+    if (!cd) return;
+    PACRefreshGridConstants();
+    if (g.state == UIGestureRecognizerStateBegan) {
+        objc_setAssociatedObject(g, kPACStartSzKey, @[cd[@"w"], cd[@"h"]], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if (gHapticsEnabled) Haptic();
+    }
+    NSArray *st = objc_getAssociatedObject(g, kPACStartSzKey);
+    if (st.count < 2) return;
+    if (g.state == UIGestureRecognizerStateChanged) {
+        CGPoint t = [g translationInView:ov.view];
+        NSInteger wantW = [st[0] integerValue] + (NSInteger)llround(t.x / kPACStep);
+        NSInteger wantH = [st[1] integerValue] + (NSInteger)llround(t.y / kPACStep);
+        NSUInteger w = 0, h = 0;
+        PACCBigSnapSize(cd[@"mid"], wantW, wantH, &w, &h);
+        if (!w || !h) return;
+        if (w == [cd[@"w"] unsignedIntegerValue] && h == [cd[@"h"] unsignedIntegerValue]) return;
+        if (!PACCloneFits(ov, cid, [cd[@"c"] unsignedIntegerValue], [cd[@"a"] unsignedIntegerValue], w, h)) return;
+        cd[@"w"] = @(w);
+        cd[@"h"] = @(h);
+        if (gHapticsEnabled) Haptic();
+        [UIView animateWithDuration:0.28 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.4 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+            PACCSyncClones(ov, NO);
+        } completion:nil];
+    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled ||
+               g.state == UIGestureRecognizerStateFailed) {
+        PACSaveClones();
+    }
 }
 
 - (void)resizePan:(UIPanGestureRecognizer *)g {

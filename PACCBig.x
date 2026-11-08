@@ -412,6 +412,12 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
         if (!byKey[k]) byKey[k] = b;
     }
     NSMutableArray<NSString *> *keys = [NSMutableArray array];
+    {
+        static NSString *lastNote;
+        NSString *note = [NSString stringWithFormat:@"connectivity overlay: %lu labeled buttons, apple host %@",
+                          (unsigned long)found.count, NSStringFromClass(self.apple.class)];
+        if (![note isEqualToString:lastNote]) { lastNote = note; PACCCrashLog(note); }
+    }
     if (!byKey.count) return;
     // all six are always shown; one the device does not have (no Cellular or Hotspot) stays dimmed and cannot be pressed
     for (NSString *k in order) [keys addObject:k];
