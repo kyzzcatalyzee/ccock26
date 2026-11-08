@@ -316,11 +316,14 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     // finger lifted: pick the page, then let it spring in with a jelly wobble
     NSInteger target = (NSInteger)self.dragStartPage;
-    if (g.state == UIGestureRecognizerStateEnded) {
-        if (ty < -span * 0.18 || vy < -500.0) target += 1;
-        else if (ty > span * 0.18 || vy > 500.0) target -= 1;
+    // a cancelled touch (the system took it over, a module button was under the finger) counts like a lifted finger
+    if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
+        if (ty < -span * 0.12 || vy < -350.0) target += 1;
+        else if (ty > span * 0.12 || vy > 350.0) target -= 1;
     }
     target = MIN(maxPage, MAX(0, target));
+    PACCCrashLog([NSString stringWithFormat:@"swipe end state %ld ty %.0f vy %.0f from %ld to %ld", (long)g.state,
+                  ty, vy, (long)self.dragStartPage, (long)target]);
 
     CGFloat endStretch = MIN(0.045, fabs(vy) / 12000.0);
     CALayer *pres = (CALayer *)cv.layer.presentationLayer;
