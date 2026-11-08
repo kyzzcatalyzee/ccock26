@@ -1,4 +1,5 @@
 #import "PACC.h"
+#import <dlfcn.h>
 
 const NSInteger PACCTagConnectivityCluster = 18005;
 const NSInteger PACCTagMediaButtonMaterial = 18009;
@@ -371,7 +372,21 @@ UIImage *PACCBundledSymbol(NSString *name, UIColor *color, BOOL hierarchical) {
         NSString *path = @"/var/jb/Library/Application Support/CC18/CC18.bundle";
         if (![NSFileManager.defaultManager fileExistsAtPath:path]) path = @"/Library/Application Support/CC18/CC18.bundle";
         bundle = [NSBundle bundleWithPath:path];
-        privateBundle = [NSBundle bundleWithPath:[path stringByAppendingPathComponent:@"PrivateSymbols.bundle"]];
+        // CCock26 ships its own iOS 26 private symbols (Connectivity, Music); find them next to the tweak, then at the usual paths
+        NSMutableArray<NSString *> *cands = [NSMutableArray array];
+        Dl_info info;
+        if (dladdr((const void *)&PACCBundledSymbol, &info) && info.dli_fname) {
+            NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];   // .../MobileSubstrate/DynamicLibraries
+            NSString *lib = [[dir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];          // .../Library
+            [cands addObject:[lib stringByAppendingPathComponent:@"Application Support/CCock26/PrivateSymbols.bundle"]];
+        }
+        [cands addObject:@"/var/jb/Library/Application Support/CCock26/PrivateSymbols.bundle"];
+        [cands addObject:@"/Library/Application Support/CCock26/PrivateSymbols.bundle"];
+        [cands addObject:[path stringByAppendingPathComponent:@"PrivateSymbols.bundle"]];
+        [cands addObject:@"/var/jb/Library/Application Support/ControlCenter26/PrivateSymbols.bundle"];
+        for (NSString *c in cands) {
+            if ([NSFileManager.defaultManager fileExistsAtPath:c]) { privateBundle = [NSBundle bundleWithPath:c]; break; }
+        }
     });
     BOOL privateSymbol = [name isEqualToString:@"calculator.fill"] || [name isEqualToString:@"music"] || [name isEqualToString:@"network.connected.to.line.below.fill"];
     UIImage *image = [UIImage imageNamed:name inBundle:privateSymbol ? privateBundle : bundle compatibleWithTraitCollection:nil];

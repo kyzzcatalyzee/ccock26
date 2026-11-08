@@ -46,12 +46,13 @@ static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) 
     else {
         // a page of your own: antenna when it holds Connectivity, music note when it holds Music Player
         int kind = PACCPageContentKind(index);
-        if (kind == 1) name = @"antenna.radiowaves.left.and.right";
+        if (kind == 1) name = @"network.connected.to.line.below.fill";   // the iOS 26 Connectivity glyph (private symbol)
         else if (kind == 2) name = @"music.note";
     }
 
     UIImage *image = PACCBundledSymbol(name, UIColor.whiteColor, NO);
     if (!image) image = [UIImage systemImageNamed:name];
+    if (!image && [name isEqualToString:@"network.connected.to.line.below.fill"]) image = [UIImage systemImageNamed:@"antenna.radiowaves.left.and.right"];
     if (!image) return nil;
 
     if (!image.symbolConfiguration) {
@@ -227,7 +228,7 @@ static void PACCBindOtherPans(UIViewController *overlay, UIGestureRecognizer *ou
 }
 
 // if one of them already started pulling, cancel it and put the panel back
-static void PACCHoldScrollPans(UIViewController *overlay, UIGestureRecognizer *ours) {
+__attribute__((unused)) static void PACCHoldScrollPans(UIViewController *overlay, UIGestureRecognizer *ours) {
     gPACCHeldPans = [NSMutableArray array];
     for (UIView *v in PACCOverlayScrollers(overlay)) {
         UIScrollView *sv = (UIScrollView *)v;
@@ -252,7 +253,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (!host) return;
     // The panel's view ignores touches on its empty space (that is how tapping outside closes it), so a page with few
     // controls had nothing under the finger. The recognizer lives on the window instead and sees every touch.
-    UIView *target = host.window ?: host.superview ?: host;
+    UIView *target = host;
     UIGestureRecognizer *old = objc_getAssociatedObject(self, kPACCSwipeKey);
     if (old) [old.view removeGestureRecognizer:old];
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(swipePan:)];
@@ -280,7 +281,6 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         self.dragging = YES;
         gPageAnimating = YES;
         gPagerScrubbing = YES;          // keeps the layout pass from snapping the page back to its rest spot
-        PACCHoldScrollPans(self.overlay, g);
         gPACCRevealAll = YES;
         [cv.layer removeAnimationForKey:@"PAnimPageSlide"];
         [cv.layer removeAnimationForKey:@"PAnimJelly"];
@@ -382,14 +382,17 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gr shouldReceiveTouch:(UITouch *)touch {
     if (gr == objc_getAssociatedObject(self, kPACCSwipeRecKey) && self.overlay.view) {
+        UIView *host = self.overlay.view;
         PACCBindOtherPans(self.overlay, gr);
-        PACCCrashLog([NSString stringWithFormat:@"swipe touch on %@", NSStringFromClass(touch.view.class)]);
+        // Only the middle band pages. The strip at the top (status bar) and the bottom edge stay Apple's, so closing the panel still works there.
+        CGPoint p = [touch locationInView:host];
+        if (p.y < 60.0 || p.y > CGRectGetHeight(host.bounds) - 110.0) return NO;
     }
     return YES;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
-    return a == objc_getAssociatedObject(self, kPACCSwipeRecKey);
+    return NO;      // the page swipe is exclusive; Apple's pans are set to wait for it
 }
 
 - (void)setOverlay:(UIViewController *)overlay {
