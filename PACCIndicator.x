@@ -181,6 +181,29 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     [button.layer addAnimation:pulse forKey:@"PACCIndicatorPulse"];
 }
 
+// While a page swipe runs, Apple's own pans (the ones that pull Control Center down to close it) are switched off,
+// otherwise the whole panel and the status bar get dragged along with the page.
+static NSMutableArray<UIGestureRecognizer *> *gPACCSuspendedPans;
+
+static void PACCSuspendOtherPans(UIView *host, UIGestureRecognizer *except) {
+    if (gPACCSuspendedPans) return;
+    gPACCSuspendedPans = [NSMutableArray array];
+    for (UIView *v = host; v; v = v.superview) {
+        for (UIGestureRecognizer *gr in v.gestureRecognizers) {
+            if (gr == except || !gr.enabled) continue;
+            if (![gr isKindOfClass:UIPanGestureRecognizer.class]) continue;
+            if ([v isKindOfClass:UIScrollView.class] && gr == ((UIScrollView *)v).panGestureRecognizer) continue;
+            gr.enabled = NO;
+            [gPACCSuspendedPans addObject:gr];
+        }
+    }
+}
+
+static void PACCResumeOtherPans(void) {
+    for (UIGestureRecognizer *gr in gPACCSuspendedPans) gr.enabled = YES;
+    gPACCSuspendedPans = nil;
+}
+
 static const void *kPACCSwipeKey = &kPACCSwipeKey;
 static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
@@ -215,6 +238,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         self.dragging = YES;
         gPageAnimating = YES;
         gPagerScrubbing = YES;          // keeps the layout pass from snapping the page back to its rest spot
+        PACCSuspendOtherPans(host, g);
         gPACCRevealAll = YES;
         [cv.layer removeAnimationForKey:@"PAnimPageSlide"];
         [cv.layer removeAnimationForKey:@"PAnimJelly"];
@@ -255,6 +279,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     toSub.m41 = 0.0; toSub.m42 = -(CGFloat)target * span; toSub.m43 = 0.0;
 
     self.dragging = NO;
+    PACCResumeOtherPans();
     gPACCRevealAll = NO;
     gPagerScrubbing = NO;
     self.currentPage = (NSUInteger)target;
