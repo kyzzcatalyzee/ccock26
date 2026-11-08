@@ -268,8 +268,9 @@ BOOL gPACCRevealAll = NO;
         [queue removeObjectAtIndex:0];
         if ([NSStringFromClass(v.class) isEqualToString:@"CCUIHeaderPocketView"]) {
             for (UIView *child in v.subviews) {
-                if ([NSStringFromClass(child.class) isEqualToString:@"MTMaterialView"]) {
-                    child.hidden = hidden;
+                NSString *cn = NSStringFromClass(child.class);
+                if ([cn isEqualToString:@"MTMaterialView"] || [cn containsString:@"Separator"] || [cn containsString:@"Backdrop"]) {
+                    child.hidden = YES;     // the blur strip (and its line) under the status bar is always off
                 }
             }
         }

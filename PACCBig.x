@@ -507,6 +507,33 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 - (void)refresh;
 @end
 
+// Built exactly like the material of the old built-in music page, which LiquidAss already styles.
+static UIView *PACBigMediaMaterial(void) {
+    UIView *material = nil;
+    Class cls = NSClassFromString(@"MTMaterialView");
+    SEL full = NSSelectorFromString(@"materialViewWithRecipe:options:initialWeight:");
+    if ([cls respondsToSelector:full]) {
+        material = ((id (*)(id, SEL, long long, unsigned long long, double))objc_msgSend)(cls, full, (long long)4, (unsigned long long)0, 1.0);
+    }
+    if (!material && [cls respondsToSelector:NSSelectorFromString(@"materialViewWithRecipe:")]) {
+        material = ((id (*)(id, SEL, long long))objc_msgSend)(cls, NSSelectorFromString(@"materialViewWithRecipe:"), (long long)4);
+    }
+    if (material && [material respondsToSelector:NSSelectorFromString(@"setWeight:")]) {
+        ((void (*)(id, SEL, double))objc_msgSend)(material, NSSelectorFromString(@"setWeight:"), 1.0);
+    }
+    if (material && [material respondsToSelector:NSSelectorFromString(@"setGroupName:")]) {
+        ((void (*)(id, SEL, id))objc_msgSend)(material, NSSelectorFromString(@"setGroupName:"), @"ccMediaPlayer");
+    }
+    if (!material) {
+        UIVisualEffectView *fb = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterialDark]];
+        fb.alpha = 0.92;
+        material = fb;
+    }
+    material.layer.cornerCurve = kCACornerCurveContinuous;
+    material.layer.masksToBounds = YES;
+    return material;
+}
+
 @implementation PACBigMusic {
     UIView *_blur;
     UIImageView *_art;
@@ -525,7 +552,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
         self.tag = kPACBigTag;
         self.layer.cornerCurve = kCACornerCurveContinuous;
         self.layer.masksToBounds = YES;
-        _blur = PACCModuleMaterial();      // same material as the stock controls
+        _blur = PACBigMediaMaterial();
         _blur.userInteractionEnabled = NO;
         [self addSubview:_blur];
 
@@ -611,7 +638,6 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
     _blur.frame = self.bounds;
-    _blur.hidden = !self.standalone;      // on the real module the stock material (and LiquidAss) shows through instead
     self.layer.cornerRadius = MIN(34.0, h * 0.5);
     _blur.layer.cornerRadius = self.layer.cornerRadius;
     _blur.layer.cornerCurve = kCACornerCurveContinuous;
@@ -782,10 +808,10 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
             [existing removeFromSuperview];
             PACBigMask(host, nil, NO);
         }
-        if (kind == 1) PACBigHideModuleMaterial(host, NO);
+        if (kind) PACBigHideModuleMaterial(host, NO);
         return;
     }
-    if (kind == 1) PACBigHideModuleMaterial(host, YES);
+    PACBigHideModuleMaterial(host, YES);
 
     UIView *bv = existing;
     Class want = (kind == 1) ? PACBigConn.class : PACBigMusic.class;

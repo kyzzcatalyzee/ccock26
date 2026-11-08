@@ -214,6 +214,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         self.dragStartPage = self.currentPage;
         self.dragging = YES;
         gPageAnimating = YES;
+        gPagerScrubbing = YES;          // keeps the layout pass from snapping the page back to its rest spot
         gPACCRevealAll = YES;
         [cv.layer removeAnimationForKey:@"PAnimPageSlide"];
         [cv.layer removeAnimationForKey:@"PAnimJelly"];
@@ -255,6 +256,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     self.dragging = NO;
     gPACCRevealAll = NO;
+    gPagerScrubbing = NO;
     self.currentPage = (NSUInteger)target;
     gCurrentPage = target;
 
