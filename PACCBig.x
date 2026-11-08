@@ -255,7 +255,7 @@ static UIImage *PACBigSymbol(NSArray<NSString *> *names, CGFloat pt) {
 static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     if ([key isEqualToString:@"air"])     return PACBigSymbol(@[@"airplane"], pt);
     if ([key isEqualToString:@"wifi"])    return PACBigSymbol(@[@"wifi"], pt);
-    if ([key isEqualToString:@"cell"])    return PACBigSymbol(@[@"antenna.radiowaves.left.and.right"], pt);
+    if ([key isEqualToString:@"cell"])    return PACBigSymbol(@[@"cellularbars", @"antenna.radiowaves.left.and.right"], pt);
     if ([key isEqualToString:@"bt"])      return PACBigSymbol(@[@"bluetooth", @"dot.radiowaves.left.and.right"], pt);
     if ([key isEqualToString:@"airdrop"]) {
         // the iOS 26 glyph from the bundled private symbols, as the small Connectivity control uses it

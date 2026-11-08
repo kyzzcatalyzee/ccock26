@@ -366,7 +366,8 @@ void PACCScaleMiniGlyphs(UIView *root, CGFloat scale) {
 }
 
 UIImage *PACCBundledSymbol(NSString *name, UIColor *color, BOOL hierarchical) {
-    static NSBundle *bundle, *privateBundle;
+    static NSBundle *bundle;
+    static NSMutableArray<NSBundle *> *privateBundles;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSString *path = @"/var/jb/Library/Application Support/CC18/CC18.bundle";
@@ -384,13 +385,25 @@ UIImage *PACCBundledSymbol(NSString *name, UIColor *color, BOOL hierarchical) {
         [cands addObject:@"/Library/Application Support/CCock26/PrivateSymbols.bundle"];
         [cands addObject:[path stringByAppendingPathComponent:@"PrivateSymbols.bundle"]];
         [cands addObject:@"/var/jb/Library/Application Support/ControlCenter26/PrivateSymbols.bundle"];
+        privateBundles = [NSMutableArray array];
         for (NSString *c in cands) {
-            if ([NSFileManager.defaultManager fileExistsAtPath:c]) { privateBundle = [NSBundle bundleWithPath:c]; break; }
+            NSBundle *b = [NSFileManager.defaultManager fileExistsAtPath:c] ? [NSBundle bundleWithPath:c] : nil;
+            if (b) [privateBundles addObject:b];
         }
     });
     BOOL privateSymbol = [name isEqualToString:@"calculator.fill"] || [name isEqualToString:@"music"] || [name isEqualToString:@"network.connected.to.line.below.fill"];
-    UIImage *image = [UIImage imageNamed:name inBundle:privateSymbol ? privateBundle : bundle compatibleWithTraitCollection:nil];
+    UIImage *image = nil;
+    if (privateSymbol) {
+        // try every copy of the private symbols: a folder that is there without its Assets.car must not hide a good one
+        for (NSBundle *b in privateBundles) {
+            image = [UIImage imageNamed:name inBundle:b compatibleWithTraitCollection:nil];
+            if (image) break;
+        }
+    } else {
+        image = [UIImage imageNamed:name inBundle:bundle compatibleWithTraitCollection:nil];
+    }
     if (!image) image = [UIImage systemImageNamed:name];
+    if (!image && [name isEqualToString:@"network.connected.to.line.below.fill"]) image = [UIImage systemImageNamed:@"network"];
     if (hierarchical) image = [image imageByApplyingSymbolConfiguration:[UIImageSymbolConfiguration configurationWithHierarchicalColor:color]];
     if (!hierarchical) image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     return image;
@@ -442,7 +455,7 @@ void PACCConfigureConnectivity(UIViewController *controller) {
         cluster = [[UIView alloc] initWithFrame:bottomRight];
         cluster.tag = PACCTagConnectivityCluster;
         cluster.userInteractionEnabled = NO;
-        NSArray<NSString *> *symbols = @[@"antenna.radiowaves.left.and.right", @"bluetooth", @"personalhotspot", @"network"];
+        NSArray<NSString *> *symbols = @[@"cellularbars", @"bluetooth", @"personalhotspot", @"network"];
         NSArray<UIColor *> *colors = @[
             [UIColor colorWithRed:0.26 green:0.66 blue:1.0 alpha:0.48],
             [UIColor colorWithRed:0.36 green:0.20 blue:1.0 alpha:1.0],
@@ -461,7 +474,7 @@ void PACCConfigureConnectivity(UIViewController *controller) {
                 [tile addSubview:backing];
             }
             UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:9.0 weight:UIImageSymbolWeightSemibold];
-            UIImage *symbolImage = index == 3 ? PACCBundledSymbol(@"network.connected.to.line.below.fill", UIColor.whiteColor, NO) : [UIImage systemImageNamed:symbols[index] withConfiguration:configuration];
+            UIImage *symbolImage = index == 3 ? PACCBundledSymbol(@"network.connected.to.line.below.fill", UIColor.whiteColor, NO) : ([UIImage systemImageNamed:symbols[index] withConfiguration:configuration] ?: [UIImage systemImageNamed:@"antenna.radiowaves.left.and.right" withConfiguration:configuration]);
             UIImageView *icon = [[UIImageView alloc] initWithImage:symbolImage];
             icon.tag = 1;
             icon.contentMode = UIViewContentModeCenter;
