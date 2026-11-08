@@ -46,7 +46,7 @@ static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) 
     else {
         // a page of your own: antenna when it holds Connectivity, music note when it holds Music Player
         int kind = PACCPageContentKind(index);
-        if (kind == 1) name = @"network.connected.to.line.below.fill";   // the iOS 26 Connectivity glyph (private symbol)
+        if (kind == 1) name = @"antenna.radiowaves.left.and.right";
         else if (kind == 2) name = @"music.note";
     }
 
@@ -384,15 +384,15 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (gr == objc_getAssociatedObject(self, kPACCSwipeRecKey) && self.overlay.view) {
         UIView *host = self.overlay.view;
         PACCBindOtherPans(self.overlay, gr);
-        // Only the middle band pages. The strip at the top (status bar) and the bottom edge stay Apple's, so closing the panel still works there.
-        CGPoint p = [touch locationInView:host];
-        if (p.y < 60.0 || p.y > CGRectGetHeight(host.bounds) - 110.0) return NO;
+        // Only the middle band pages (like ControlCenter26): the top strip with the status bar and the bottom edge stay Apple's, so closing still works there.
+        CGPoint p = [touch locationInView:self.overlay.view];
+        if (p.y < 60.0 || p.y > CGRectGetHeight(self.overlay.view.bounds) - 110.0) return NO;
     }
     return YES;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
-    return NO;      // the page swipe is exclusive; Apple's pans are set to wait for it
+    return NO;      // exclusive, as in ControlCenter26: Apple's pans wait for the page swipe
 }
 
 - (void)setOverlay:(UIViewController *)overlay {

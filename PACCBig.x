@@ -257,7 +257,15 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     if ([key isEqualToString:@"wifi"])    return PACBigSymbol(@[@"wifi"], pt);
     if ([key isEqualToString:@"cell"])    return PACBigSymbol(@[@"antenna.radiowaves.left.and.right"], pt);
     if ([key isEqualToString:@"bt"])      return PACBigSymbol(@[@"bluetooth", @"dot.radiowaves.left.and.right"], pt);
-    if ([key isEqualToString:@"airdrop"]) return PACBigSymbol(@[@"airdrop", @"dot.radiowaves.up.forward", @"wave.3.right"], pt);
+    if ([key isEqualToString:@"airdrop"]) {
+        // the iOS 26 glyph from the bundled private symbols, as the small Connectivity control uses it
+        UIImage *p = PACCBundledSymbol(@"network.connected.to.line.below.fill", UIColor.whiteColor, NO);
+        if (p) {
+            UIImageSymbolConfiguration *c = [UIImageSymbolConfiguration configurationWithPointSize:pt weight:UIImageSymbolWeightSemibold];
+            return [[p imageByApplyingSymbolConfiguration:c] ?: p imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        }
+        return PACBigSymbol(@[@"airdrop", @"dot.radiowaves.up.forward", @"wave.3.right"], pt);
+    }
     if ([key isEqualToString:@"hotspot"]) return PACBigSymbol(@[@"personalhotspot", @"antenna.radiowaves.left.and.right.circle"], pt);
     return PACBigSymbol(@[@"circle.fill"], pt);
 }
