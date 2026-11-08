@@ -181,27 +181,24 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     [button.layer addAnimation:pulse forKey:@"PACCIndicatorPulse"];
 }
 
-// While a page swipe runs, Apple's own pans (the ones that pull Control Center down to close it) are switched off,
-// otherwise the whole panel and the status bar get dragged along with the page.
-static NSMutableArray<UIGestureRecognizer *> *gPACCSuspendedPans;
+// Apple's pans (the ones that pull Control Center down to close it) must wait for the page swipe: when ours takes
+// the touch, theirs fails and nothing drags the panel or the status bar along. On the first page ours never begins
+// for a downward drag, so closing works as before.
+static NSHashTable<UIGestureRecognizer *> *gPACCBoundPans;
 
-static void PACCSuspendOtherPans(UIView *host, UIGestureRecognizer *except) {
-    if (gPACCSuspendedPans) return;
-    gPACCSuspendedPans = [NSMutableArray array];
+static void PACCBindOtherPans(UIView *host, UIGestureRecognizer *ours) {
+    if (!gPACCBoundPans) gPACCBoundPans = [NSHashTable weakObjectsHashTable];
     for (UIView *v = host; v; v = v.superview) {
-        for (UIGestureRecognizer *gr in v.gestureRecognizers) {
-            if (gr == except || !gr.enabled) continue;
-            if (![gr isKindOfClass:UIPanGestureRecognizer.class]) continue;
+        for (UIGestureRecognizer *gr in [v.gestureRecognizers copy]) {
+            if (gr == ours || ![gr isKindOfClass:UIPanGestureRecognizer.class]) continue;
             if ([v isKindOfClass:UIScrollView.class] && gr == ((UIScrollView *)v).panGestureRecognizer) continue;
-            gr.enabled = NO;
-            [gPACCSuspendedPans addObject:gr];
+            if ([gPACCBoundPans containsObject:gr]) continue;
+            [gPACCBoundPans addObject:gr];
+            [gr requireGestureRecognizerToFail:ours];
+            PACCCrashLog([NSString stringWithFormat:@"swipe: Apple pan %@ on %@ now waits for the page swipe",
+                          NSStringFromClass(gr.class), NSStringFromClass(v.class)]);
         }
     }
-}
-
-static void PACCResumeOtherPans(void) {
-    for (UIGestureRecognizer *gr in gPACCSuspendedPans) gr.enabled = YES;
-    gPACCSuspendedPans = nil;
 }
 
 static const void *kPACCSwipeKey = &kPACCSwipeKey;
@@ -238,7 +235,6 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         self.dragging = YES;
         gPageAnimating = YES;
         gPagerScrubbing = YES;          // keeps the layout pass from snapping the page back to its rest spot
-        PACCSuspendOtherPans(host, g);
         gPACCRevealAll = YES;
         [cv.layer removeAnimationForKey:@"PAnimPageSlide"];
         [cv.layer removeAnimationForKey:@"PAnimJelly"];
@@ -279,7 +275,6 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     toSub.m41 = 0.0; toSub.m42 = -(CGFloat)target * span; toSub.m43 = 0.0;
 
     self.dragging = NO;
-    PACCResumeOtherPans();
     gPACCRevealAll = NO;
     gPagerScrubbing = NO;
     self.currentPage = (NSUInteger)target;
@@ -320,6 +315,13 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         gPageAnimating = NO;
         [strong captureCollectionBase];
     });
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gr shouldReceiveTouch:(UITouch *)touch {
+    if (gr == objc_getAssociatedObject(self, kPACCSwipeRecKey) && self.overlay.view) {
+        PACCBindOtherPans(self.overlay.view, gr);
+    }
+    return YES;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
