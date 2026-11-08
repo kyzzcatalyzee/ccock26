@@ -340,9 +340,28 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 }
 @end
 
+#pragma mark - base view
+
+// ControlCenterUI walks the views of a module and sends it its own selectors (caAnimationContainerView, ...).
+// Our overlay sits among them, so it answers those instead of crashing SpringBoard.
+@interface PACBigView : UIView
+@end
+
+@implementation PACBigView
+- (UIView *)caAnimationContainerView { return self; }
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel {
+    NSMethodSignature *sig = [super methodSignatureForSelector:sel];
+    return sig ?: [NSMethodSignature signatureWithObjCTypes:"@@:"];
+}
+- (void)forwardInvocation:(NSInvocation *)inv {
+    id nothing = nil;
+    if (inv.methodSignature.methodReturnLength == sizeof(id)) [inv setReturnValue:&nothing];
+}
+@end
+
 #pragma mark - big connectivity
 
-@interface PACBigConn : UIView
+@interface PACBigConn : PACBigView
 @property (nonatomic, weak) UIView *apple;           // the module's own view with Apple's buttons
 - (void)refresh;
 @end
@@ -467,7 +486,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 
 #pragma mark - big music
 
-@interface PACBigMusic : UIView
+@interface PACBigMusic : PACBigView
 @property (nonatomic) BOOL compact;                  // 4x2 strip
 - (void)refresh;
 @end
