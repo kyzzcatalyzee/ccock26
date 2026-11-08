@@ -181,8 +181,63 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     [button.layer addAnimation:pulse forKey:@"PACCIndicatorPulse"];
 }
 
+static const void *kPACCSwipeKey = &kPACCSwipeKey;
+static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
+
+// Swipe up on the page area to go to the next page (and down to come back), with the same springy page slide and jelly as scrubbing the pager.
+- (void)installSwipe {
+    UIView *host = self.overlay.view;
+    if (!host) return;
+    UIGestureRecognizer *old = objc_getAssociatedObject(host, kPACCSwipeKey);
+    if (old) [host removeGestureRecognizer:old];
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(swipePan:)];
+    pan.maximumNumberOfTouches = 1;
+    pan.cancelsTouchesInView = NO;
+    pan.delegate = self;
+    [host addGestureRecognizer:pan];
+    objc_setAssociatedObject(host, kPACCSwipeKey, pan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(self, kPACCSwipeRecKey, pan, OBJC_ASSOCIATION_ASSIGN);
+}
+
+- (void)swipePan:(UIPanGestureRecognizer *)g {
+    UIView *host = self.overlay.view;
+    if (!host || self.pageCount <= 1) return;
+    CGFloat scrubStep = 58.0, dragPerPage = 220.0;
+    CGFloat maxProgress = (CGFloat)self.pageCount - 1.0;
+    CGFloat ty = [g translationInView:host].y;
+
+    if (g.state == UIGestureRecognizerStateBegan) {
+        self.dragStartPage = self.currentPage;
+        self.dragging = YES;
+        if (!self.transitionActive) [self beginInteractiveTransitionWithStartPage:self.currentPage];
+    }
+    CGFloat progress = (CGFloat)self.dragStartPage - ty / dragPerPage;
+    progress = MIN(maxProgress + 0.5, MAX(-0.5, progress));
+
+    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
+        if (self.transitionActive) [self updateInteractiveTransitionWithProgress:progress touchY:(progress + 0.5) * scrubStep];
+    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled ||
+               g.state == UIGestureRecognizerStateFailed) {
+        if (!self.transitionActive) return;
+        CGFloat vy = [g velocityInView:host].y;
+        NSInteger target = llround(MIN(maxProgress, MAX(0.0, progress)));
+        if (g.state == UIGestureRecognizerStateEnded && fabs(vy) > 500.0 && target == (NSInteger)self.dragStartPage) {
+            target += (vy < 0.0) ? 1 : -1;     // a quick flick is enough
+        }
+        if (g.state != UIGestureRecognizerStateEnded) target = (NSInteger)self.dragStartPage;
+        target = MIN((NSInteger)maxProgress, MAX(0, target));
+        self.dragging = NO;
+        [self finishInteractiveTransitionWithTargetPage:(NSUInteger)target];
+    }
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
+    return a == objc_getAssociatedObject(self, kPACCSwipeRecKey);
+}
+
 - (void)setOverlay:(UIViewController *)overlay {
     _overlay = overlay;
+    [self installSwipe];
     [self captureCollectionBase];
     [self rebuildButtons];
     [self syncLandscapeState];
@@ -725,6 +780,22 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
 
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer {
     if (self.suspendedForLandscape) return NO;
+    if (gestureRecognizer == objc_getAssociatedObject(self, kPACCSwipeRecKey)) {
+        UIView *host = self.overlay.view;
+        if (!host || !gPagingEnabled || self.pageCount <= 1 || gEditModeActive || self.transitionActive) return NO;
+        if (PACCIndicatorIsLandscape()) return NO;
+        UIPanGestureRecognizer *pan = (UIPanGestureRecognizer *)gestureRecognizer;
+        CGPoint v = [pan velocityInView:host];
+        if (fabs(v.y) < fabs(v.x) * 1.4) return NO;
+        BOOL up = v.y < 0.0;
+        if (up && self.currentPage + 1 >= self.pageCount) return NO;
+        if (!up && self.currentPage == 0) return NO;    // down on the first page stays Apple's close gesture
+        UIView *hit = [host hitTest:[pan locationInView:host] withEvent:nil];
+        for (UIView *s = hit; s && s != host; s = s.superview) {
+            if ([NSStringFromClass(s.class) containsString:@"Slider"]) return NO;
+        }
+        return YES;
+    }
     if (!gExperimentalPagingEnabled) return NO;
     if (gestureRecognizer == self.panRecognizer) {
         if (!gPagingEnabled || self.pageCount <= 1) return NO;

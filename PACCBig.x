@@ -611,6 +611,9 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
     _blur.frame = self.bounds;
     self.layer.cornerRadius = MIN(34.0, h * 0.5);
+    _blur.layer.cornerRadius = self.layer.cornerRadius;
+    _blur.layer.cornerCurve = kCACornerCurveContinuous;
+    _blur.clipsToBounds = YES;
     CGFloat pad = 14.0;
     BOOL full = !self.compact;
     _seek.hidden = _elapsed.hidden = _remaining.hidden = _vol.hidden = _volLo.hidden = _volHi.hidden = !full;
