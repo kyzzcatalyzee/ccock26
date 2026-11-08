@@ -185,6 +185,15 @@ special thanks to:
             <key>cell</key>
             <string>PSButtonCell</string>
             <key>label</key>
+            <string>Crash Log</string>
+            <key>action</key>
+            <string>showCrashLog</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSButtonCell</string>
+            <key>label</key>
             <string>Respring</string>
             <key>action</key>
             <string>respring</string>

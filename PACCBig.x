@@ -370,6 +370,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 - (void)dealloc { [_timer invalidate]; }
 - (void)layoutSubviews { [super layoutSubviews]; [self refresh]; }
 - (void)refresh {
+    PACCCrumb("PACBigConn refresh");
     @try { [self refreshImpl]; } @catch (NSException *e) { NSLog(@"[CCock26] connectivity refresh: %@", e); }
 }
 - (void)refreshImpl {
@@ -713,6 +714,7 @@ static void PACBigMask(UIView *host, UIView *keep, BOOL hide) {
 
 // Shows or removes the big layout of a module. Safe to call on every layout pass.
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded) {
+    PACCCrumb("PACCBigStyle");
     UIView *host = m.view;
     if (!host) return;
     int kind = PACCBigKind(mid);

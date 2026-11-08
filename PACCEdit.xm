@@ -1462,6 +1462,7 @@ static void PACLog(NSString *fmt, ...) {
     va_start(ap, fmt);
     NSString *msg = [[NSString alloc] initWithFormat:fmt arguments:ap];
     va_end(ap);
+    PACCCrashLog(msg);
     NSString *dir = @"/var/mobile/Library/CCock26";
     [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
     NSString *path = [dir stringByAppendingPathComponent:@"log.txt"];
@@ -1680,6 +1681,7 @@ static void PACCloneChromeToFront(UIViewController *ov) {
 }
 
 void PACCSyncClones(UIViewController *ov, BOOL animated) {
+    PACCCrumb("PACCSyncClones");
     static BOOL busy = NO;
     if (busy || !ov || !ov.view) return;
     PACEnsureClones();
@@ -2343,6 +2345,7 @@ static void PACSyncChromeToPage(UIViewController *ov) {
 
 // Pages the user added but left empty go away when editing ends (the later pages move up).
 static void PACPruneEmptyPages(UIViewController *ov) {
+    PACCCrumb("PACPruneEmptyPages");
     if (ov) PACCSyncClones(ov, NO);
     if (!ov || PACIsLandscape()) return;
     PACEnsureUserPages();
@@ -3331,6 +3334,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 }
 
 - (void)addModule:(NSString *)mid overlay:(UIViewController *)ov {
+    PACCCrumb("addModule");
     if (!mid.length || !ov || !gEditModeActive) return;
     id prov = PACSettingsProvider();
     SEL get = NSSelectorFromString(@"orderedUserEnabledModuleIdentifiers");
@@ -4278,8 +4282,10 @@ static void PACInstallGestures(UIViewController *ov) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIViewController *m2 = wm, *o2 = wo;
         if (!m2 || !o2) return;
+        PACCCrumb("module layout: grid metrics");
         PACUpdateGridMetrics(o2);
         PACCSyncClones(o2, NO);
+        PACCCrumb("module layout: radius + presentation");
         PACApplyRadiusToModule(m2);
         PACRefreshPresentation(m2, o2);
     });
