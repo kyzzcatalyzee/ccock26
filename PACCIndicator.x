@@ -186,19 +186,60 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
 // for a downward drag, so closing works as before.
 static NSHashTable<UIGestureRecognizer *> *gPACCBoundPans;
 
-static void PACCBindOtherPans(UIView *host, UIGestureRecognizer *ours) {
+// The panel is pulled down by the overlay's own scroll view (it bounces at the top and Apple turns that into "close"),
+// so its pan is the one to hold back too. Control26 gets the same effect by scrolling that view itself.
+static NSMutableArray<UIGestureRecognizer *> *gPACCHeldPans;
+
+static NSArray<UIView *> *PACCOverlayScrollers(UIViewController *overlay) {
+    NSMutableArray<UIView *> *out = [NSMutableArray array];
+    id sv = nil;
+    @try { sv = [(id)overlay valueForKey:@"overlayScrollView"]; } @catch (__unused NSException *e) {}
+    if ([sv isKindOfClass:UIScrollView.class]) [out addObject:sv];
+    UIView *cv = ModuleCollection(overlay).view;
+    if ([cv isKindOfClass:UIScrollView.class]) [out addObject:cv];
+    for (UIView *v = cv.superview; v && v != overlay.view.superview; v = v.superview) {
+        if ([v isKindOfClass:UIScrollView.class] && ![out containsObject:v]) [out addObject:v];
+    }
+    return out;
+}
+
+static void PACCBindOtherPans(UIViewController *overlay, UIGestureRecognizer *ours) {
+    UIView *host = overlay.view;
     if (!gPACCBoundPans) gPACCBoundPans = [NSHashTable weakObjectsHashTable];
-    for (UIView *v = host; v; v = v.superview) {
-        for (UIGestureRecognizer *gr in [v.gestureRecognizers copy]) {
+    NSMutableArray<UIView *> *views = [NSMutableArray array];
+    for (UIView *v = host; v; v = v.superview) [views addObject:v];
+    for (UIView *v in PACCOverlayScrollers(overlay)) if (![views containsObject:v]) [views addObject:v];
+    for (UIView *v in views) {
+        NSMutableArray<UIGestureRecognizer *> *grs = [v.gestureRecognizers mutableCopy] ?: [NSMutableArray array];
+        if ([v isKindOfClass:UIScrollView.class] && ![grs containsObject:((UIScrollView *)v).panGestureRecognizer]) {
+            [grs addObject:((UIScrollView *)v).panGestureRecognizer];
+        }
+        for (UIGestureRecognizer *gr in grs) {
             if (gr == ours || ![gr isKindOfClass:UIPanGestureRecognizer.class]) continue;
-            if ([v isKindOfClass:UIScrollView.class] && gr == ((UIScrollView *)v).panGestureRecognizer) continue;
             if ([gPACCBoundPans containsObject:gr]) continue;
             [gPACCBoundPans addObject:gr];
             [gr requireGestureRecognizerToFail:ours];
-            PACCCrashLog([NSString stringWithFormat:@"swipe: Apple pan %@ on %@ now waits for the page swipe",
+            PACCCrashLog([NSString stringWithFormat:@"swipe: %@ pan on %@ now waits for the page swipe",
                           NSStringFromClass(gr.class), NSStringFromClass(v.class)]);
         }
     }
+}
+
+// if one of them already started pulling, cancel it and put the panel back
+static void PACCHoldScrollPans(UIViewController *overlay, UIGestureRecognizer *ours) {
+    gPACCHeldPans = [NSMutableArray array];
+    for (UIView *v in PACCOverlayScrollers(overlay)) {
+        UIScrollView *sv = (UIScrollView *)v;
+        UIGestureRecognizer *p = sv.panGestureRecognizer;
+        if (p == ours || !p.enabled) continue;
+        p.enabled = NO;
+        [gPACCHeldPans addObject:p];
+    }
+}
+
+static void PACCReleaseScrollPans(void) {
+    for (UIGestureRecognizer *p in gPACCHeldPans) p.enabled = YES;
+    gPACCHeldPans = nil;
 }
 
 static const void *kPACCSwipeKey = &kPACCSwipeKey;
@@ -235,6 +276,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         self.dragging = YES;
         gPageAnimating = YES;
         gPagerScrubbing = YES;          // keeps the layout pass from snapping the page back to its rest spot
+        PACCHoldScrollPans(self.overlay, g);
         gPACCRevealAll = YES;
         [cv.layer removeAnimationForKey:@"PAnimPageSlide"];
         [cv.layer removeAnimationForKey:@"PAnimJelly"];
@@ -275,6 +317,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     toSub.m41 = 0.0; toSub.m42 = -(CGFloat)target * span; toSub.m43 = 0.0;
 
     self.dragging = NO;
+    PACCReleaseScrollPans();
     gPACCRevealAll = NO;
     gPagerScrubbing = NO;
     self.currentPage = (NSUInteger)target;
@@ -319,7 +362,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gr shouldReceiveTouch:(UITouch *)touch {
     if (gr == objc_getAssociatedObject(self, kPACCSwipeRecKey) && self.overlay.view) {
-        PACCBindOtherPans(self.overlay.view, gr);
+        PACCBindOtherPans(self.overlay, gr);
     }
     return YES;
 }
