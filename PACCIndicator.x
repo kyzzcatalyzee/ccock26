@@ -375,6 +375,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gr shouldReceiveTouch:(UITouch *)touch {
     if (gr == objc_getAssociatedObject(self, kPACCSwipeRecKey) && self.overlay.view) {
         PACCBindOtherPans(self.overlay, gr);
+        PACCCrashLog([NSString stringWithFormat:@"swipe touch on %@", NSStringFromClass(touch.view.class)]);
     }
     return YES;
 }
@@ -930,19 +931,23 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (self.suspendedForLandscape) return NO;
     if (gestureRecognizer == objc_getAssociatedObject(self, kPACCSwipeRecKey)) {
         UIView *host = self.overlay.view;
-        if (!host || !gPagingEnabled || self.pageCount <= 1 || gEditModeActive || self.transitionActive) return NO;
-        if (PACCIndicatorIsLandscape()) return NO;
         UIPanGestureRecognizer *pan = (UIPanGestureRecognizer *)gestureRecognizer;
-        CGPoint v = [pan velocityInView:host];
-        if (fabs(v.y) < fabs(v.x) * 1.4) return NO;
-        BOOL up = v.y < 0.0;
-        if (up && self.currentPage + 1 >= self.pageCount) return NO;
-        if (!up && self.currentPage == 0) return NO;    // down on the first page stays Apple's close gesture
-        UIView *hit = [host hitTest:[pan locationInView:host] withEvent:nil];
-        for (UIView *s = hit; s && s != host; s = s.superview) {
-            if ([NSStringFromClass(s.class) containsString:@"Slider"]) return NO;
+        CGPoint v = host ? [pan velocityInView:host] : CGPointZero;
+        const char *why = NULL;
+        if (!host || !gPagingEnabled || self.pageCount <= 1 || gEditModeActive || self.transitionActive) why = "state";
+        else if (PACCIndicatorIsLandscape()) why = "landscape";
+        else if (fabs(v.y) < fabs(v.x) * 1.4) why = "not vertical";
+        else if (v.y < 0.0 && self.currentPage + 1 >= self.pageCount) why = "last page";
+        else if (v.y >= 0.0 && self.currentPage == 0) why = "first page (close)";
+        if (!why) {
+            UIView *hit = [host hitTest:[pan locationInView:host] withEvent:nil];
+            for (UIView *s = hit; s && s != host; s = s.superview) {
+                if ([NSStringFromClass(s.class) containsString:@"Slider"]) { why = "slider"; break; }
+            }
         }
-        return YES;
+        PACCCrashLog([NSString stringWithFormat:@"swipe begin page %ld/%lu vy %.0f: %s", (long)self.currentPage,
+                      (unsigned long)self.pageCount, v.y, why ?: "yes"]);
+        return why == NULL;
     }
     if (!gExperimentalPagingEnabled) return NO;
     if (gestureRecognizer == self.panRecognizer) {
