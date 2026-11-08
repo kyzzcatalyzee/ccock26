@@ -222,6 +222,7 @@ static NSString *PACBigTime(double t, BOOL negative) {
 @property (nonatomic, strong) UILabel *sub;
 @property (nonatomic) BOOL isOn;
 @property (nonatomic) BOOL tall;                    // square card: icon on top, text at the bottom
+@property (nonatomic, strong) UIView *material;     // the same material the stock controls use
 - (void)setOn:(BOOL)on;
 @end
 
@@ -264,8 +265,12 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 @implementation PACBigCard
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
-        self.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
+        self.backgroundColor = UIColor.clearColor;
+        self.clipsToBounds = YES;
         self.layer.cornerCurve = kCACornerCurveContinuous;
+        _material = PACCModuleMaterial();
+        _material.userInteractionEnabled = NO;
+        [self addSubview:_material];
         _icon = [UIImageView new];
         _icon.contentMode = UIViewContentModeCenter;
         _icon.tintColor = UIColor.whiteColor;
@@ -288,6 +293,10 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat h = self.bounds.size.height, w = self.bounds.size.width;
+    if (_material) {
+        if (!CGRectEqualToRect(_material.frame, self.bounds)) _material.frame = self.bounds;
+        [self sendSubviewToBack:_material];
+    }
     if (_tall) {
         self.layer.cornerRadius = MIN(36.0, h * 0.3);
         CGFloat d = 44.0;
@@ -498,7 +507,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 @end
 
 @implementation PACBigMusic {
-    UIVisualEffectView *_blur;
+    UIView *_blur;
     UIImageView *_art;
     UILabel *_title, *_artist, *_elapsed, *_remaining;
     UIButton *_prev, *_play, *_next;
@@ -515,7 +524,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
         self.tag = kPACBigTag;
         self.layer.cornerCurve = kCACornerCurveContinuous;
         self.layer.masksToBounds = YES;
-        _blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark]];
+        _blur = PACCModuleMaterial();      // same material as the stock controls
         _blur.userInteractionEnabled = NO;
         [self addSubview:_blur];
 
@@ -738,6 +747,21 @@ static void PACBigMask(UIView *host, UIView *keep, BOOL hide) {
 }
 
 // Shows or removes the big layout of a module. Safe to call on every layout pass.
+// The module's own background (a material view in its container). Connectivity draws one material per tile, so the big
+// layout hides this one and the tiles float on their own.
+static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
+    UIView *container = host.superview;
+    Class cls = NSClassFromString(@"CCUIContentModuleContainerView");
+    while (container && cls && ![container isKindOfClass:cls]) container = container.superview;
+    if (!container) return;
+    for (UIView *s in container.subviews) {
+        if (s == host || [host isDescendantOfView:s]) continue;
+        if (![NSStringFromClass(s.class) containsString:@"Material"]) continue;
+        CGFloat a = hide ? 0.0 : 1.0;
+        if (fabs(s.alpha - a) > 0.01) s.alpha = a;
+    }
+}
+
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded) {
     PACCCrumb("PACCBigStyle");
     UIView *host = m.view;
@@ -753,8 +777,10 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
             [existing removeFromSuperview];
             PACBigMask(host, nil, NO);
         }
+        if (kind) PACBigHideModuleMaterial(host, NO);
         return;
     }
+    PACBigHideModuleMaterial(host, YES);
 
     UIView *bv = existing;
     Class want = (kind == 1) ? PACBigConn.class : PACBigMusic.class;

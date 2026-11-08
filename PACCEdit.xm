@@ -1864,11 +1864,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             cl.tag = kPACCloneTag;
             cl.clipsToBounds = YES;
             objc_setAssociatedObject(cl, kPACCloneIDKey, cid, OBJC_ASSOCIATION_COPY_NONATOMIC);
-            UIVisualEffectView *bg = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark]];
-            bg.tag = kPACCloneBgTag;
-            bg.userInteractionEnabled = NO;
-            [cl addSubview:bg];
-            [cl sendSubviewToBack:bg];
+
             [cv addSubview:cl];
         }
         cl.hidden = NO;
