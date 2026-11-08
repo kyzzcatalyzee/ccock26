@@ -321,6 +321,11 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         if (ty < -span * 0.12 || vy < -350.0) target += 1;
         else if (ty > span * 0.12 || vy > 350.0) target -= 1;
     }
+    // the system often cancels a slow swipe right after it started (translation already reset to 0): go by direction
+    if (g.state == UIGestureRecognizerStateCancelled && target == (NSInteger)self.dragStartPage) {
+        if (vy < -120.0) target += 1;
+        else if (vy > 120.0) target -= 1;
+    }
     target = MIN(maxPage, MAX(0, target));
     PACCCrashLog([NSString stringWithFormat:@"swipe end state %ld ty %.0f vy %.0f from %ld to %ld", (long)g.state,
                   ty, vy, (long)self.dragStartPage, (long)target]);
