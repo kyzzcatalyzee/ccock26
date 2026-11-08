@@ -39,7 +39,16 @@ static NSArray<NSString *> *PACCIndicatorIcons(void) {
 
 static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) {
     NSArray<NSString *> *icons = PACCIndicatorIcons();
-    NSString *name = (index < icons.count) ? icons[index] : @"circle.fill";
+    NSString *name = @"circle.fill";
+    if (index == 0) name = icons[0];
+    else if ((NSInteger)index == PACCMediaPageIndex()) name = icons[1];
+    else if ((NSInteger)index == PACCPromoPageIndex()) name = icons[2];
+    else {
+        // a page of your own: antenna when it holds Connectivity, music note when it holds Music Player
+        int kind = PACCPageContentKind(index);
+        if (kind == 1) name = @"antenna.radiowaves.left.and.right";
+        else if (kind == 2) name = @"music.note";
+    }
 
     UIImage *image = PACCBundledSymbol(name, UIColor.whiteColor, NO);
     if (!image) image = [UIImage systemImageNamed:name];
@@ -75,7 +84,7 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
         self.backgroundColor = UIColor.clearColor;
         self.userInteractionEnabled = YES;
         self.currentPage = 0;
-        self.pageCount = (gPromoPageEnabled ? 3 : 2) + PACCUserPageCount();
+        self.pageCount = PACCBasePageCount() + PACCUserPageCount();
         self.heldScale = 1.0;
         self.heldAlphaFactor = 1.0;
         self.jelloScaleX = 1.0;
@@ -425,14 +434,14 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
         [PACC.shared syncModuleVisibilityForOverlay:self.overlay animated:YES];
         CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
         if (player) {
-            CGFloat targetAlpha = (candidate == 1) ? 1.0 : 0.0;
+            CGFloat targetAlpha = ((NSInteger)candidate == PACCMediaPageIndex()) ? 1.0 : 0.0;
             if (fabs(player.alpha - targetAlpha) > 0.01) {
                 [UIView animateWithDuration:0.15 animations:^{ player.alpha = targetAlpha; }];
             }
         }
 
         CCAPromoPageView *promo = (CCAPromoPageView *)[collection.view viewWithTag:kPromoPageTag];
-        if (promo && candidate == 2) [promo refreshFact];
+        if (promo && (NSInteger)candidate == PACCPromoPageIndex()) [promo refreshFact];
     }
 
     [self layoutIndicatorsWithScrubbing:YES touchY:touchY];
@@ -452,17 +461,17 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     self.interactiveTranslation = 0.0;
 
     [PACC.shared syncModuleVisibilityForOverlay:self.overlay animated:YES];
-    [PACC.shared applyHeaderMaterialHidden:(target == 1) forOverlay:self.overlay];
+    [PACC.shared applyHeaderMaterialHidden:((NSInteger)target == PACCMediaPageIndex()) forOverlay:self.overlay];
     [PACC.shared adjustStatusBarForOverlay:self.overlay];
 
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
     if (player) {
-        player.alpha = (target == 1) ? 1.0 : 0.0;
+        player.alpha = ((NSInteger)target == PACCMediaPageIndex()) ? 1.0 : 0.0;
         player.transform = CGAffineTransformIdentity;
     }
 
     CCAPromoPageView *promo = (CCAPromoPageView *)[collection.view viewWithTag:kPromoPageTag];
-    if (promo && target == 2) [promo refreshFact];
+    if (promo && (NSInteger)target == PACCPromoPageIndex()) [promo refreshFact];
 
     CGFloat span = PageSpan();
     CATransform3D toSub = CATransform3DTranslate(self.baseCollectionSublayerTransform, 0.0, -(CGFloat)target * span, 0.0);
@@ -635,7 +644,7 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     self.currentPage = page;
     gCurrentPage = (NSInteger)page;
 
-    [PACC.shared applyHeaderMaterialHidden:(page == 1) forOverlay:overlay];
+    [PACC.shared applyHeaderMaterialHidden:((NSInteger)page == PACCMediaPageIndex()) forOverlay:overlay];
     [PACC.shared adjustStatusBarForOverlay:overlay];
 
     UIViewController *collection = ModuleCollection(overlay);
@@ -644,12 +653,12 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
 
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
     if (player) {
-        if (page == 1) [player fadeIn];
+        if ((NSInteger)page == PACCMediaPageIndex()) [player fadeIn];
         else [player fadeOut];
     }
 
     CCAPromoPageView *promo = (CCAPromoPageView *)[collection.view viewWithTag:kPromoPageTag];
-    if (promo && page == 2) [promo refreshFact];
+    if (promo && (NSInteger)page == PACCPromoPageIndex()) [promo refreshFact];
 
     [PACC.shared syncModuleVisibilityForOverlay:overlay animated:YES];
 
@@ -680,7 +689,7 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     self.currentPage = page;
     gCurrentPage = (NSInteger)page;
 
-    [PACC.shared applyHeaderMaterialHidden:(page == 1) forOverlay:overlay];
+    [PACC.shared applyHeaderMaterialHidden:((NSInteger)page == PACCMediaPageIndex()) forOverlay:overlay];
     [PACC.shared adjustStatusBarForOverlay:overlay];
 
     UIViewController *collection = ModuleCollection(overlay);
@@ -701,12 +710,12 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
 
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
     if (player) {
-        player.alpha = (page == 1) ? 1.0 : 0.0;
+        player.alpha = ((NSInteger)page == PACCMediaPageIndex()) ? 1.0 : 0.0;
         player.transform = CGAffineTransformIdentity;
     }
 
     CCAPromoPageView *promo = (CCAPromoPageView *)[collection.view viewWithTag:kPromoPageTag];
-    if (promo && page == 2) [promo refreshFact];
+    if (promo && (NSInteger)page == PACCPromoPageIndex()) [promo refreshFact];
 
     [PACC.shared syncModuleVisibilityForOverlay:overlay animated:YES];
     [self layoutButtons];

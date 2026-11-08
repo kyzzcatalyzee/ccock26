@@ -136,7 +136,7 @@ static NSUInteger gPACUserPages = 0;
 static BOOL gPACUserPagesLoaded = NO;
 static const NSUInteger kPACMaxPages = 6;
 
-static NSUInteger PACBasePageCount(void) { return gPromoPageEnabled ? 3 : 2; }
+static NSUInteger PACBasePageCount(void) { return PACCBasePageCount(); }
 
 static void PACEnsureUserPages(void) {
     if (gPACUserPagesLoaded) return;
@@ -159,6 +159,29 @@ static BOOL PACIsUserPage(NSUInteger page) {
     return page >= PACBasePageCount() && page < PACBasePageCount() + gPACUserPages;
 }
 
+static void PACRefreshGridConstants(void);
+
+// The built-in music and paw pages are gone: pages of your own move up to sit right after page 1.
+static NSUInteger PACOldBasePages(void) {
+    CFPropertyListRef p = CFPreferencesCopyAppValue(CFSTR("PromoPageEnabled"), CFSTR("pawxed.ccock18.preferences"));
+    BOOL promo = YES;
+    if (p && CFGetTypeID(p) == CFBooleanGetTypeID()) promo = CFBooleanGetValue((CFBooleanRef)p);
+    if (p) CFRelease(p);
+    return promo ? 3 : 2;
+}
+
+static BOOL PACFlagIsSet(CFStringRef key) {
+    CFPropertyListRef f = CFPreferencesCopyAppValue(key, CFSTR("pawxed.ccock18.preferences"));
+    BOOL on = (f && CFGetTypeID(f) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)f));
+    if (f) CFRelease(f);
+    return on;
+}
+
+static void PACSetFlag(CFStringRef key) {
+    CFPreferencesSetAppValue(key, kCFBooleanTrue, CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+}
+
 static void PACEnsureStore(void) {
     static BOOL metricsLoaded = NO;
     if (!metricsLoaded) {
@@ -175,6 +198,24 @@ static void PACEnsureStore(void) {
         CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridOrigins"), CFSTR("pawxed.ccock18.preferences"));
         gEditOrigins = [(__bridge NSDictionary *)v mutableCopy] ?: [NSMutableDictionary dictionary];
         if (v) CFRelease(v);
+    }
+    static BOOL pagesMigrated = NO;
+    if (!pagesMigrated && !PACIsLandscape()) {
+        pagesMigrated = YES;
+        if (!PACFlagIsSet(CFSTR("BuiltinPagesGone"))) {
+            PACRefreshGridConstants();
+            NSUInteger old = PACOldBasePages();
+            NSUInteger stride = kPACStride;
+            for (NSString *key in [gEditOrigins.allKeys copy]) {
+                if (![key hasPrefix:@"P|"]) continue;
+                NSArray<NSNumber *> *o = gEditOrigins[key];
+                if (o.count < 2) continue;
+                NSUInteger a = o[1].unsignedIntegerValue;
+                if (a / stride >= old) gEditOrigins[key] = @[o[0], @(a - (old - 1) * stride)];
+            }
+            CFPreferencesSetAppValue(CFSTR("EditGridOrigins"), (__bridge CFPropertyListRef)[gEditOrigins copy], CFSTR("pawxed.ccock18.preferences"));
+            PACSetFlag(CFSTR("BuiltinPagesGone"));
+        }
     }
     if (!gEditSizes) {
         CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridSizes"), CFSTR("pawxed.ccock18.preferences"));
@@ -1622,6 +1663,8 @@ static const NSInteger kPACCloneBgTag = 182201;
 static const void *kPACCloneIDKey = &kPACCloneIDKey;
 static NSMutableArray<NSMutableDictionary *> *gPACClones;      // {id, mid, c, a, w, h}
 
+static void PACSaveClones(void);
+
 static void PACEnsureClones(void) {
     if (gPACClones) return;
     gPACClones = [NSMutableArray array];
@@ -1632,6 +1675,16 @@ static void PACEnsureClones(void) {
         }
     }
     if (v) CFRelease(v);
+    if (!PACIsLandscape() && !PACFlagIsSet(CFSTR("BuiltinPagesGoneClones"))) {
+        PACRefreshGridConstants();
+        NSUInteger old = PACOldBasePages();
+        for (NSMutableDictionary *cd in gPACClones) {
+            NSUInteger a = [cd[@"a"] unsignedIntegerValue];
+            if (a / kPACStride >= old) cd[@"a"] = @(a - (old - 1) * kPACStride);
+        }
+        PACSaveClones();
+        PACSetFlag(CFSTR("BuiltinPagesGoneClones"));
+    }
 }
 
 static void PACSaveClones(void) {
@@ -1684,6 +1737,37 @@ static void PACCloneChromeToFront(UIViewController *ov) {
         UIView *rz = objc_getAssociatedObject(cl, kPACResizeKey);
         if (rz.superview == ov.view) [ov.view bringSubviewToFront:rz];
     }
+}
+
+// What a page holds, for its icon in the pager: Connectivity wins over Music Player.
+extern "C" int PACCPageContentKind(NSUInteger page) {
+    PACEnsureStore();
+    PACEnsureClones();
+    BOOL conn = NO, music = NO;
+    for (NSString *key in gEditOrigins) {
+        if (![key hasPrefix:@"P|"]) continue;
+        NSArray<NSNumber *> *o = gEditOrigins[key];
+        if (o.count < 2 || o[1].unsignedIntegerValue / kPACStride != page) continue;
+        int k = PACCBigKind([key substringFromIndex:2]);
+        if (k == 1) conn = YES; else if (k == 2) music = YES;
+    }
+    for (NSDictionary *d in gPACClones) {
+        if ([d[@"a"] unsignedIntegerValue] / kPACStride != page) continue;
+        int k = PACCBigKind(d[@"mid"]);
+        if (k == 1) conn = YES; else if (k == 2) music = YES;
+    }
+    return conn ? 1 : (music ? 2 : 0);
+}
+
+static void PACRefreshPagerIcons(UIViewController *ov) {
+    static NSString *last;
+    NSMutableString *sig = [NSMutableString string];
+    NSUInteger total = PACBasePageCount() + gPACUserPages;
+    for (NSUInteger p = PACBasePageCount(); p < total; p++) [sig appendFormat:@"%d", PACCPageContentKind(p)];
+    if ([sig isEqualToString:last]) return;
+    last = sig;
+    CCAPageIndicator *ind = (CCAPageIndicator *)[ov.view viewWithTag:kPageIndicatorTag];
+    [ind layoutButtons];
 }
 
 static CGRect PACCloneFrame(NSDictionary *d, CGFloat bx, CGFloat by) {
@@ -2414,6 +2498,7 @@ static void PACSyncChromeToPage(UIViewController *ov) {
         if (stale) PACApplyChrome(m, ov);
     }
     PACCSyncClones(ov, NO);
+    PACRefreshPagerIcons(ov);
     PACBringChromeToFront(ov);
 }
 

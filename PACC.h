@@ -39,6 +39,7 @@ extern BOOL gEditModeEnabled;
 extern BOOL gEditModeActive;
 extern BOOL gCircularModulesEnabled;
 extern BOOL gPromoPageEnabled;
+extern BOOL gMediaPageEnabled;
 void PACCLoadEditPrefs(void);
 NSUInteger PACCUserPageCount(void);
 NSInteger PACCModulePageForIdentifier(NSString *mid);
@@ -73,6 +74,9 @@ void PACCConfigureConnectivity(UIViewController *controller);
 CGRect PACCVisibleModuleBounds(UIViewController *overlay);
 
 // PACCBig.x: big Connectivity / Music layouts
+NSInteger PACCMediaPageIndex(void);
+NSInteger PACCPromoPageIndex(void);
+NSUInteger PACCBasePageCount(void);
 void PACCSetGridMetrics(CGFloat cell, CGFloat gap);
 CGFloat PACCGridCell(void);
 CGFloat PACCGridGap(void);
@@ -81,6 +85,7 @@ BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h);
 void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH);
 UIView *PACCBigNewClone(int kind);
 void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIView *apple);
+int PACCPageContentKind(NSUInteger page);   // 0 other, 1 Connectivity, 2 Music Player
 void PACCCrumb(const char *label);
 void PACCClonesRelayout(UIView *collectionView);
 void PACCCrashLog(NSString *line);

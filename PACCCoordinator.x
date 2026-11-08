@@ -176,7 +176,7 @@ static NSArray<NSString *> *PACCDogFacts(void) {
     [self updateQuickAccessButtonsForOverlay:overlay];
     [self installPageIndicatorOnOverlay:overlay];
     [self syncModuleVisibilityForOverlay:overlay];
-    [self applyHeaderMaterialHidden:(gCurrentPage == 1) forOverlay:overlay];
+    [self applyHeaderMaterialHidden:(gCurrentPage == PACCMediaPageIndex()) forOverlay:overlay];
     [self adjustStatusBarForOverlay:overlay];
 
     UIViewController *collection = ModuleCollection(overlay);
@@ -308,7 +308,7 @@ static NSArray<NSString *> *PACCDogFacts(void) {
     }
     CGAffineTransform base = storedBase.CGAffineTransformValue;
 
-    CGFloat dy = (gCurrentPage == 1) ? -25.0 : 0.0;
+    CGFloat dy = (gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0;
     CGAffineTransform target = CGAffineTransformTranslate(base, 0, dy);
 
     if (CGAffineTransformEqualToTransform(statusBar.transform, target)) return;
@@ -439,7 +439,7 @@ static NSArray<NSString *> *PACCDogFacts(void) {
         return;
     }
 
-    NSUInteger pageCount = (gPromoPageEnabled ? 3 : 2) + PACCUserPageCount();
+    NSUInteger pageCount = PACCBasePageCount() + PACCUserPageCount();
     if ((NSInteger)gCurrentPage >= (NSInteger)pageCount) {
         [self snapToFirstPageForOverlay:overlay];
     }
@@ -491,7 +491,7 @@ return;
 }
 
 - (void)installMediaPlayerOnCollectionView:(UIScrollView *)collectionView {
-    if (!gEnabled || !gPagingEnabled) {
+    if (!gEnabled || !gPagingEnabled || !gMediaPageEnabled) {
         [[collectionView viewWithTag:kMediaPlayerTag] removeFromSuperview];
         return;
     }
@@ -589,9 +589,9 @@ return;
     if (collectionView.window) {
         CGRect probe = CGRectMake(0.0, (screenH - promoH) * 0.5, 0.0, 0.0);
         CGFloat localY = [collectionView convertRect:probe fromView:nil].origin.y;
-        frameY = localY + span * 2.0;
+        frameY = localY + span * (CGFloat)MAX(1, PACCPromoPageIndex());
     } else {
-        frameY = span * 2.0 + (screenH - promoH) * 0.5;
+        frameY = span * (CGFloat)MAX(1, PACCPromoPageIndex()) + (screenH - promoH) * 0.5;
     }
 
     promo.bounds = CGRectMake(0.0, 0.0, promoW, promoH);

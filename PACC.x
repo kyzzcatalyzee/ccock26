@@ -22,7 +22,8 @@ BOOL gExperimentalPagingEnabled = YES;
 BOOL gPageAnimating = NO;
 BOOL gCCAModuleExpanded = NO;
 BOOL gCircularModulesEnabled = YES;
-BOOL gPromoPageEnabled = YES;
+BOOL gPromoPageEnabled = NO;
+BOOL gMediaPageEnabled = NO;
 NSInteger gCurrentPage = 0;
 
 static NSUInteger const kGridRows = 8;
@@ -72,6 +73,8 @@ void LoadPrefs(void) {
     gEditModeEnabled             = PrefBool(@"EditModeEnabled", YES);
     gCircularModulesEnabled      = PrefBool(@"CircularModules", YES);
     gPromoPageEnabled            = PrefBool(@"PromoPageEnabled", YES);
+    gMediaPageEnabled            = NO;   // the built-in music page and the paw page are removed
+    gPromoPageEnabled            = NO;
     if (!gEditModeEnabled) gEditModeActive = NO;
 }
 
@@ -103,6 +106,11 @@ CGFloat PACCGridGap(void) {
     if (gPACCGridGap > 0.0) return gPACCGridGap;
     return UIScreen.mainScreen.bounds.size.width >= 414.0 ? 16.0 : 12.0;
 }
+
+// Page order: 0 controls, then the music page (unless removed), then the promo page, then the user's own pages.
+NSInteger PACCMediaPageIndex(void) { return gMediaPageEnabled ? 1 : -1; }
+NSInteger PACCPromoPageIndex(void) { return gPromoPageEnabled ? (gMediaPageEnabled ? 2 : 1) : -1; }
+NSUInteger PACCBasePageCount(void) { return 1 + (gMediaPageEnabled ? 1 : 0) + (gPromoPageEnabled ? 1 : 0); }
 
 CGFloat PageSpan(void) {
     CGSize size = UIScreen.mainScreen.bounds.size;

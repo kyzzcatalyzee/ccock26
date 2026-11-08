@@ -144,16 +144,16 @@ BOOL gPagerScrubbing = NO;
         [PACC.shared animateElementsInForOverlay:overlay];
         [PACC.shared adjustStatusBarForOverlay:overlay];
         [PACC.shared syncModuleVisibilityForOverlay:overlay];
-        [PACC.shared applyHeaderMaterialHidden:(gCurrentPage == 1) forOverlay:overlay];
+        [PACC.shared applyHeaderMaterialHidden:(gCurrentPage == PACCMediaPageIndex()) forOverlay:overlay];
 
         if (player && stateChanged) {
             [player resetForPresentation];
-            if (notched && gCurrentPage == 1) [player fadeIn];
+            if (notched && gCurrentPage == PACCMediaPageIndex()) [player fadeIn];
         }
     } else if (state == 3) {
         [PACC.shared animateElementsOutForOverlay:overlay];
 
-        if (player && stateChanged && gCurrentPage == 1 && notched) {
+        if (player && stateChanged && gCurrentPage == PACCMediaPageIndex() && notched) {
             [player fadeOut];
         }
 
