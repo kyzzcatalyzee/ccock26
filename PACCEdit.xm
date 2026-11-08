@@ -3649,7 +3649,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     if ([mid hasPrefix:@"clone:"]) {
         NSString *cid = [mid substringFromIndex:6];
         PACEnsureClones();
-        for (NSDictionary *cd in [gPACClones copy]) if ([cd[@"id"] isEqualToString:cid]) [gPACClones removeObject:cd];
+        for (NSMutableDictionary *cd in [gPACClones copy]) if ([cd[@"id"] isEqualToString:cid]) [gPACClones removeObject:cd];
         PACSaveClones();
         for (UIView *sv in ModuleCollection(ov).view.subviews) {
             if (sv.tag == kPACCloneTag && [objc_getAssociatedObject(sv, kPACCloneIDKey) isEqualToString:cid]) {
