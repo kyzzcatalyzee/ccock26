@@ -1886,7 +1886,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             }
         }
 
-        BOOL onPage = ((NSInteger)(a / kPACStride) == gCurrentPage);
+        BOOL onPage = ((NSInteger)(a / kPACStride) == gCurrentPage) || gPACCRevealAll;
         CGFloat alpha = onPage ? 1.0 : 0.0;
         if (fabs(cl.alpha - alpha) > 0.01) {
             if (animated) [UIView animateWithDuration:0.35 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ cl.alpha = alpha; } completion:nil];

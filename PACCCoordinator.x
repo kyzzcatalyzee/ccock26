@@ -189,6 +189,8 @@ static NSArray<NSString *> *PACCDogFacts(void) {
     [self syncModuleVisibilityForOverlay:overlay animated:NO];
 }
 
+BOOL gPACCRevealAll = NO;
+
 - (void)syncModuleVisibilityForOverlay:(UIViewController *)overlay animated:(BOOL)animated {
     PACCCrumb("syncModuleVisibility");
     PACCSyncClones(overlay, animated);
@@ -219,7 +221,7 @@ static NSArray<NSString *> *PACCDogFacts(void) {
             NSString *mid = midByView[[NSValue valueWithNonretainedObject:v]];
             NSInteger page = mid.length ? PACCModulePageForIdentifier(mid) : 0;
             [targets addObject:v];
-            [alphas addObject:@(page == gCurrentPage ? 1.0 : 0.0)];
+            [alphas addObject:@((page == gCurrentPage || gPACCRevealAll) ? 1.0 : 0.0)];
         }
         [queue addObjectsFromArray:v.subviews];
     }

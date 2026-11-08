@@ -503,6 +503,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 
 @interface PACBigMusic : PACBigView
 @property (nonatomic) BOOL compact;                  // 4x2 strip
+@property (nonatomic) BOOL standalone;               // a copy that draws its own material
 - (void)refresh;
 @end
 
@@ -610,6 +611,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
     _blur.frame = self.bounds;
+    _blur.hidden = !self.standalone;      // on the real module the stock material (and LiquidAss) shows through instead
     self.layer.cornerRadius = MIN(34.0, h * 0.5);
     _blur.layer.cornerRadius = self.layer.cornerRadius;
     _blur.layer.cornerCurve = kCACornerCurveContinuous;
@@ -780,10 +782,10 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
             [existing removeFromSuperview];
             PACBigMask(host, nil, NO);
         }
-        if (kind) PACBigHideModuleMaterial(host, NO);
+        if (kind == 1) PACBigHideModuleMaterial(host, NO);
         return;
     }
-    PACBigHideModuleMaterial(host, YES);
+    if (kind == 1) PACBigHideModuleMaterial(host, YES);
 
     UIView *bv = existing;
     Class want = (kind == 1) ? PACBigConn.class : PACBigMusic.class;
@@ -813,8 +815,10 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
 #pragma mark - stand-alone copies (a second Connectivity or Music on another page)
 
 UIView *PACCBigNewClone(int kind) {
-    return kind == 1 ? (UIView *)[[PACBigConn alloc] initWithFrame:CGRectZero]
-                     : (UIView *)[[PACBigMusic alloc] initWithFrame:CGRectZero];
+    if (kind == 1) return [[PACBigConn alloc] initWithFrame:CGRectZero];
+    PACBigMusic *m = [[PACBigMusic alloc] initWithFrame:CGRectZero];
+    m.standalone = YES;                  // a copy has no module behind it, so it brings its own material
+    return m;
 }
 
 // apple: the view of the real Connectivity module, whose buttons the cards press

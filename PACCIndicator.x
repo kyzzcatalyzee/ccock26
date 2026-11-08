@@ -201,34 +201,98 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
 - (void)swipePan:(UIPanGestureRecognizer *)g {
     UIView *host = self.overlay.view;
-    if (!host || self.pageCount <= 1) return;
-    CGFloat scrubStep = 58.0, dragPerPage = 220.0;
-    CGFloat maxProgress = (CGFloat)self.pageCount - 1.0;
+    UIViewController *collection = ModuleCollection(self.overlay);
+    UIView *cv = collection.view;
+    if (!host || !cv || self.pageCount <= 1) return;
+    CGFloat span = PageSpan();
+    if (span < 1.0) return;
+    NSInteger maxPage = (NSInteger)self.pageCount - 1;
     CGFloat ty = [g translationInView:host].y;
+    CGFloat vy = [g velocityInView:host].y;
 
     if (g.state == UIGestureRecognizerStateBegan) {
         self.dragStartPage = self.currentPage;
         self.dragging = YES;
-        if (!self.transitionActive) [self beginInteractiveTransitionWithStartPage:self.currentPage];
+        gPageAnimating = YES;
+        gPACCRevealAll = YES;
+        [cv.layer removeAnimationForKey:@"PAnimPageSlide"];
+        [cv.layer removeAnimationForKey:@"PAnimJelly"];
+        [PACC.shared syncModuleVisibilityForOverlay:self.overlay animated:NO];
     }
-    CGFloat progress = (CGFloat)self.dragStartPage - ty / dragPerPage;
-    progress = MIN(maxProgress + 0.5, MAX(-0.5, progress));
+    if (!self.dragging) return;
+
+    CGFloat rest = -(CGFloat)self.dragStartPage * span;
+    CGFloat y = rest + ty;
+    CGFloat top = 0.0, bottom = -(CGFloat)maxPage * span;
+    if (y > top) y = top + (y - top) * 0.35;                    // rubber band at the ends
+    else if (y < bottom) y = bottom + (y - bottom) * 0.35;
 
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
-        if (self.transitionActive) [self updateInteractiveTransitionWithProgress:progress touchY:(progress + 0.5) * scrubStep];
-    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled ||
-               g.state == UIGestureRecognizerStateFailed) {
-        if (!self.transitionActive) return;
-        CGFloat vy = [g velocityInView:host].y;
-        NSInteger target = llround(MIN(maxProgress, MAX(0.0, progress)));
-        if (g.state == UIGestureRecognizerStateEnded && fabs(vy) > 500.0 && target == (NSInteger)self.dragStartPage) {
-            target += (vy < 0.0) ? 1 : -1;     // a quick flick is enough
-        }
-        if (g.state != UIGestureRecognizerStateEnded) target = (NSInteger)self.dragStartPage;
-        target = MIN((NSInteger)maxProgress, MAX(0, target));
-        self.dragging = NO;
-        [self finishInteractiveTransitionWithTargetPage:(NSUInteger)target];
+        CGFloat stretch = MIN(0.045, fabs(vy) / 12000.0);        // the page stretches a little while it is dragged fast
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        CATransform3D sub = cv.layer.sublayerTransform;
+        sub.m41 = 0.0; sub.m42 = y; sub.m43 = 0.0;
+        cv.layer.sublayerTransform = sub;
+        cv.layer.transform = CATransform3DMakeScale(1.0 - stretch * 0.4, 1.0 + stretch, 1.0);
+        [CATransaction commit];
+        return;
     }
+
+    // finger lifted: pick the page, then let it spring in with a jelly wobble
+    NSInteger target = (NSInteger)self.dragStartPage;
+    if (g.state == UIGestureRecognizerStateEnded) {
+        if (ty < -span * 0.18 || vy < -500.0) target += 1;
+        else if (ty > span * 0.18 || vy > 500.0) target -= 1;
+    }
+    target = MIN(maxPage, MAX(0, target));
+
+    CGFloat endStretch = MIN(0.045, fabs(vy) / 12000.0);
+    CALayer *pres = (CALayer *)cv.layer.presentationLayer;
+    CATransform3D fromSub = pres ? pres.sublayerTransform : cv.layer.sublayerTransform;
+    CATransform3D toSub = cv.layer.sublayerTransform;
+    toSub.m41 = 0.0; toSub.m42 = -(CGFloat)target * span; toSub.m43 = 0.0;
+
+    self.dragging = NO;
+    gPACCRevealAll = NO;
+    self.currentPage = (NSUInteger)target;
+    gCurrentPage = target;
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    cv.layer.sublayerTransform = toSub;
+    cv.layer.transform = CATransform3DIdentity;
+    [CATransaction commit];
+
+    PACCAddBounceSlide(cv.layer, fromSub, toSub, @"PAnimPageSlide");
+
+    CAKeyframeAnimation *jy = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.y"];
+    jy.values = @[@(1.0 + endStretch), @0.965, @1.02, @0.99, @1.0];
+    jy.keyTimes = @[@0.0, @0.28, @0.55, @0.8, @1.0];
+    CAKeyframeAnimation *jx = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.x"];
+    jx.values = @[@(1.0 - endStretch * 0.4), @1.018, @0.99, @1.005, @1.0];
+    jx.keyTimes = jy.keyTimes;
+    CAAnimationGroup *jelly = [CAAnimationGroup animation];
+    jelly.animations = @[jy, jx];
+    jelly.duration = 0.75;
+    jelly.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    [cv.layer addAnimation:jelly forKey:@"PAnimJelly"];
+
+    [PACC.shared applyHeaderMaterialHidden:NO forOverlay:self.overlay];
+    [PACC.shared adjustStatusBarForOverlay:self.overlay];
+    [PACC.shared syncModuleVisibilityForOverlay:self.overlay animated:YES];
+    [self layoutButtons];
+    [self pulseCurrentButton];
+    Haptic();
+
+    NSUInteger token = ++self.animationToken;
+    __weak CCAPageIndicator *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.9 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        CCAPageIndicator *strong = weakSelf;
+        if (!strong || strong.animationToken != token) return;
+        gPageAnimating = NO;
+        [strong captureCollectionBase];
+    });
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {

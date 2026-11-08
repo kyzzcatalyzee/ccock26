@@ -39,6 +39,7 @@ extern BOOL gEditModeEnabled;
 extern BOOL gEditModeActive;
 extern BOOL gCircularModulesEnabled;
 extern BOOL gPromoPageEnabled;
+extern BOOL gPACCRevealAll;      // while a page swipe is in progress every page is drawn
 extern BOOL gMediaPageEnabled;
 void PACCLoadEditPrefs(void);
 NSUInteger PACCUserPageCount(void);
