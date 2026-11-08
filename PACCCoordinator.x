@@ -193,6 +193,16 @@ BOOL gPACCRevealAll = NO;
 
 - (void)syncModuleVisibilityForOverlay:(UIViewController *)overlay animated:(BOOL)animated {
     PACCCrumb("syncModuleVisibility");
+    // Off the first page the panel's own scroll view must not pan: pulling down at its top is Apple's "close", which
+    // dragged the whole panel and status bar along with the page swipe. Page one keeps it, so closing works there.
+    if (!gEditModeActive) {
+        id osv = nil;
+        @try { osv = [(id)overlay valueForKey:@"overlayScrollView"]; } @catch (__unused NSException *e) {}
+        if ([osv isKindOfClass:UIScrollView.class]) {
+            BOOL want = (gCurrentPage == 0);
+            if (((UIScrollView *)osv).scrollEnabled != want) ((UIScrollView *)osv).scrollEnabled = want;
+        }
+    }
     PACCSyncClones(overlay, animated);
     BOOL notched = (CGRectGetHeight(UIScreen.mainScreen.bounds) >= 800.0);
     if (notched) return;

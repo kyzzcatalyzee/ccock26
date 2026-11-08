@@ -112,8 +112,14 @@ static BOOL PACCLIQProbeLiquidass(void) {
 }
 
 static BOOL PACCLIQShouldGlass(void) {
-    if (!PACCLIQProbeLiquidass()) return NO;
-    return PACCLIQControlCenterEnabled();
+    // asked on every layout: look at the settings at most twice a second
+    static CFTimeInterval lastCheck = 0;
+    static BOOL lastResult = NO;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (lastCheck > 0 && now - lastCheck < 0.5) return lastResult;
+    lastCheck = now;
+    lastResult = PACCLIQProbeLiquidass() && PACCLIQControlCenterEnabled();
+    return lastResult;
 }
 
 static id PACCLIQMakeFilter(NSString *typeName) {
@@ -272,6 +278,14 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
     if (![glass filterIsLive]) [glass forceReapply];
     [host sendSubviewToBack:glass];
     return glass;
+}
+
+// For the big Music Player: puts the LiquidAss glass behind `host`. YES when the glass is live, so the caller hides
+// its own material (exactly what the old built-in music page does).
+BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius) {
+    if (!host) return NO;
+    PACCLIQGlassView *glass = PACCLIQInstallGlass(host, radius);
+    return glass && [glass filterIsLive];
 }
 
 static void PACCLIQRemoveAllGlass(void) {

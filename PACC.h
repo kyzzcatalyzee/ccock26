@@ -93,6 +93,7 @@ void PACCCrashLog(NSString *line);
 void PACCSyncClones(UIViewController *overlay, BOOL animated);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);
 BOOL PACCLIQIsActive(void);
+BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius);
 
 #ifdef __cplusplus
 }

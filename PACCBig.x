@@ -642,6 +642,8 @@ static UIView *PACBigMediaMaterial(void) {
     _blur.layer.cornerRadius = self.layer.cornerRadius;
     _blur.layer.cornerCurve = kCACornerCurveContinuous;
     _blur.clipsToBounds = YES;
+    // LiquidAss: the glass sits behind everything and takes the place of the plain material (as on the old music page)
+    _blur.hidden = PACCLIQApplyGlass(self, self.layer.cornerRadius);
     CGFloat pad = 14.0;
     BOOL full = !self.compact;
     _seek.hidden = _elapsed.hidden = _remaining.hidden = _vol.hidden = _volLo.hidden = _volHi.hidden = !full;
