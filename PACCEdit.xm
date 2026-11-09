@@ -1344,6 +1344,23 @@ static UIViewPropertyAnimator *PACBezierAnimator(NSTimeInterval duration,
     return a;
 }
 
+// LiquidAss glass behind a chrome button; a thin blur takes its place when LiquidAss is not active
+static void PACGlassBackdrop(UIView *host, CGFloat radius) {
+    if (PACCLIQApplyGlass(host, radius)) return;
+    UIVisualEffectView *fx = (UIVisualEffectView *)[host viewWithTag:190300];
+    if (!fx) {
+        fx = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];
+        fx.tag = 190300;
+        fx.userInteractionEnabled = NO;
+        fx.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        fx.layer.masksToBounds = YES;
+        fx.layer.cornerCurve = kCACornerCurveContinuous;
+        [host insertSubview:fx atIndex:0];
+    }
+    fx.frame = host.bounds;
+    fx.layer.cornerRadius = radius;
+}
+
 static UIView *PACMakeBorder(void) {
     UIView *v = [UIView new];
     v.userInteractionEnabled = NO;
@@ -1373,8 +1390,10 @@ static UIView *PACMakeBorder(void) {
 static UIButton *PACMakeRemoveButton(NSString *mid) {
     UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
     b.tag = kPACRemoveTag;
-    b.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.94];
+    b.backgroundColor = UIColor.clearColor;
     b.frame = CGRectMake(0, 0, 30, 30);
+    b.layer.borderWidth = 1.0;
+    b.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.38].CGColor;
     b.layer.cornerRadius = 15.0;
     b.layer.cornerCurve = kCACornerCurveContinuous;
     b.layer.masksToBounds = NO;
@@ -1387,12 +1406,13 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
         configurationWithPointSize:15 weight:UIImageSymbolWeightBold];
     UIImageView *icon = [[UIImageView alloc]
         initWithImage:[UIImage systemImageNamed:@"minus" withConfiguration:cfg]];
-    icon.tintColor = [UIColor colorWithWhite:0.10 alpha:0.85];
+    icon.tintColor = UIColor.whiteColor;
     icon.contentMode = UIViewContentModeCenter;
     icon.userInteractionEnabled = NO;
     icon.frame = b.bounds;
     icon.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [b addSubview:icon];
+    PACGlassBackdrop(b, 15.0);
 
     objc_setAssociatedObject(b, kPACMidKey, mid, OBJC_ASSOCIATION_COPY_NONATOMIC);
     return b;
@@ -1410,8 +1430,8 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
                   controlPoint1:CGPointMake(31.20, 40.01)
                   controlPoint2:CGPointMake(40.01, 31.20)];
 
-    UIVisualEffectView *material = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialLight]];
-    material.frame = b.bounds;
+    // the arc is a glass strip: LiquidAss glass (or a thin blur) cut to the arc, with a soft light rim
+    UIView *material = [[UIView alloc] initWithFrame:b.bounds];
     material.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     material.userInteractionEnabled = NO;
     CAShapeLayer *materialMask = [CAShapeLayer layer];
@@ -1423,11 +1443,12 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     materialMask.lineJoin = kCALineJoinRound;
     material.layer.mask = materialMask;
     [b addSubview:material];
+    PACGlassBackdrop(material, 0.0);
 
     CAShapeLayer *pill = [CAShapeLayer layer];
     pill.path = cornerPath.CGPath;
     pill.fillColor = UIColor.clearColor.CGColor;
-    pill.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.82].CGColor;
+    pill.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.16].CGColor;
     pill.lineWidth = 12.5;
     pill.lineCap = kCALineCapRound;
     pill.lineJoin = kCALineJoinRound;
@@ -1440,10 +1461,10 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
 static UIButton *PACMakeResetButton(void) {
     UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
     b.tag = kPACResetTag;
-    b.backgroundColor = [UIColor colorWithWhite:0.12 alpha:0.90];
+    b.backgroundColor = UIColor.clearColor;     // no backdrop behind it
     b.layer.cornerRadius = 20.0;
     b.layer.cornerCurve = kCACornerCurveContinuous;
-    b.layer.masksToBounds = YES;
+    b.layer.masksToBounds = NO;
 
     UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightSemibold];
     UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.counterclockwise" withConfiguration:cfg]];
@@ -2072,9 +2093,7 @@ static UIButton *PACMakeAddButton(void) {
     b.layer.cornerCurve = kCACornerCurveContinuous;
     b.layer.masksToBounds = YES;
 
-    UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterialDark]];
-    blur.userInteractionEnabled = NO;
-    [b addSubview:blur];
+    b.backgroundColor = UIColor.clearColor;     // no backdrop behind it, as on iOS 26
 
     UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightSemibold];
     UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"plus.circle.fill" withConfiguration:cfg]];
@@ -2093,7 +2112,6 @@ static UIButton *PACMakeAddButton(void) {
     CGFloat width = padX + iconSide + gap + textSize.width + padX;
     b.bounds = CGRectMake(0, 0, width, height);
     b.layer.cornerRadius = height * 0.5;
-    blur.frame = b.bounds;
     icon.frame = CGRectMake(padX, (height - iconSide) * 0.5, iconSide, iconSide);
     label.frame = CGRectMake(padX + iconSide + gap, 0, textSize.width, height);
     [b addSubview:icon];
@@ -2855,6 +2873,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         [layers addTarget:self action:@selector(layersTap:) forControlEvents:UIControlEventTouchUpInside];
         [ov.view addSubview:layers];
     }
+    layers.hidden = YES;
+    layers.userInteractionEnabled = NO;
     layers.center = CGPointMake(CGRectGetMinX(addButton.frame) - 14.0 - 24.0, addButton.center.y);
     layers.alpha = 0.0;
     layers.transform = CGAffineTransformMakeScale(0.7, 0.7);
