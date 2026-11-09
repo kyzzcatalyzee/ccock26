@@ -22,7 +22,7 @@
 @end
 
 static UIImage *PACCModGlyph(CGFloat pt) {
-    UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:pt weight:UIImageSymbolWeightSemibold];
+    __unused UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:pt weight:UIImageSymbolWeightSemibold];
 #if PACC_KIND == 0
     UIImage *i = [UIImage systemImageNamed:@"wifi" withConfiguration:cfg];
 #elif PACC_KIND == 1
