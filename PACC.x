@@ -341,6 +341,41 @@ NSArray *PACCConnectivityVibrantFilters(UIView *root) {
     return nil;
 }
 
+// The three small Connectivity buttons are Apple's own. Their glyphs are replaced with the ones ControlCenter26 uses.
+static void PACCReplaceMiniGlyph(UIView *root, NSString *symbol, NSString *fallback, CGFloat cell) {
+    UIView *button = nil;
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
+    while (queue.count) {
+        UIView *v = queue.firstObject; [queue removeObjectAtIndex:0];
+        if ([NSStringFromClass(v.class) isEqualToString:@"CCUIRoundButton"]) { button = v; break; }
+        [queue addObjectsFromArray:v.subviews];
+    }
+    if (!button) return;
+    BOOL on = NO;
+    @try { on = [[button valueForKey:@"selected"] boolValue]; } @catch (__unused NSException *e) {}
+    UIImageView *mine = (UIImageView *)[button viewWithTag:190100];
+    for (UIView *sub in button.subviews) {
+        if (sub == mine) continue;
+        NSString *cn = NSStringFromClass(sub.class);
+        if ([cn isEqualToString:@"CCUICAPackageView"] || [cn containsString:@"Glyph"] || [sub isKindOfClass:UIImageView.class]) sub.hidden = YES;
+    }
+    UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:cell * 0.36 weight:UIImageSymbolWeightSemibold];
+    UIImage *img = [UIImage systemImageNamed:symbol withConfiguration:cfg] ?: [UIImage systemImageNamed:fallback withConfiguration:cfg];
+    if (!img) return;
+    if (!mine) {
+        mine = [[UIImageView alloc] init];
+        mine.tag = 190100;
+        mine.contentMode = UIViewContentModeCenter;
+        mine.userInteractionEnabled = NO;
+        [button addSubview:mine];
+    }
+    mine.image = [img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    mine.tintColor = on ? UIColor.whiteColor : [UIColor.whiteColor colorWithAlphaComponent:0.55];
+    mine.frame = button.bounds;
+    mine.hidden = NO;
+    [button bringSubviewToFront:mine];
+}
+
 void PACCScaleMiniGlyphs(UIView *root, CGFloat scale) {
     if (!root) return;
     NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithArray:root.subviews];
@@ -518,6 +553,8 @@ void PACCConfigureConnectivity(UIViewController *controller) {
             CGRectGetMinY(bottomRight) + (slot / 2) * (miniCell + miniGap) + miniCell * 0.5);
         view.transform = CGAffineTransformMakeScale(miniCell / cell, miniCell / cell);
         PACCScaleMiniGlyphs(view, 1.2);
+        PACCReplaceMiniGlyph(view, slot == 0 ? @"cellularbars" : slot == 1 ? @"bluetooth" : @"personalhotspot",
+                             slot == 0 ? @"antenna.radiowaves.left.and.right" : slot == 1 ? @"dot.radiowaves.left.and.right" : @"personalhotspot", cell);
         [root bringSubviewToFront:view];
         slot++;
     }
