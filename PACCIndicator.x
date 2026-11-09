@@ -39,7 +39,7 @@ static NSArray<NSString *> *PACCIndicatorIcons(void) {
 
 static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) {
     NSArray<NSString *> *icons = PACCIndicatorIcons();
-    NSString *name = @"circle.fill";
+    NSString *name = @"circle";      // an open ring for a plain page
     if (index == 0) name = icons[0];
     else if ((NSInteger)index == PACCMediaPageIndex()) name = icons[1];
     else if ((NSInteger)index == PACCPromoPageIndex()) name = icons[2];
@@ -531,8 +531,8 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
             CGFloat pointSize = (index == 0) ? 16.0 : 12.0;
             UIImage *image = PACCIndicatorSymbolForPage(index, pointSize);
             if (image) [b setImage:image forState:UIControlStateNormal];
-            button.alpha = selected ? 1.0 : 0.72;
-            button.tintColor = selected ? UIColor.whiteColor : [UIColor colorWithWhite:0.12 alpha:0.88];
+            button.alpha = selected ? 1.0 : 0.42;       // selected white, the others a dim grey
+            button.tintColor = UIColor.whiteColor;
         }
     }
 

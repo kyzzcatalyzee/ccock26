@@ -1346,35 +1346,64 @@ static UIViewPropertyAnimator *PACBezierAnimator(NSTimeInterval duration,
 
 // LiquidAss glass behind a chrome button; a thin blur takes its place when LiquidAss is not active
 static void PACGlassBackdrop(UIView *host, CGFloat radius) {
-    if (PACCLIQApplyGlass(host, radius)) return;
-    UIVisualEffectView *fx = (UIVisualEffectView *)[host viewWithTag:190300];
-    if (!fx) {
-        fx = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];
-        fx.tag = 190300;
-        fx.userInteractionEnabled = NO;
-        fx.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        fx.layer.masksToBounds = YES;
-        fx.layer.cornerCurve = kCACornerCurveContinuous;
-        [host insertSubview:fx atIndex:0];
-    }
-    fx.frame = host.bounds;
-    fx.layer.cornerRadius = radius;
+    // plain translucent white, no liquid glass
+    host.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.16];
 }
 
+// Edit-mode outline of a control: a glass-bubble look (bright rim on the upper left, darker rim underneath,
+// a soft inner glow and a drop shadow), instead of a flat border.
+@interface PACGlassBorderView : UIView
+@end
+@implementation PACGlassBorderView {
+    CAGradientLayer *_rim;
+    CAGradientLayer *_glow;
+    CAShapeLayer *_rimMask;
+    CAShapeLayer *_glowMask;
+}
+- (instancetype)initWithFrame:(CGRect)frame {
+    if ((self = [super initWithFrame:frame])) {
+        _glow = [CAGradientLayer layer];
+        _glow.startPoint = CGPointMake(0.0, 0.0); _glow.endPoint = CGPointMake(1.0, 1.0);
+        _glow.hidden = YES;
+        _glow.colors = @[(id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor, (id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor];
+        _glowMask = [CAShapeLayer layer]; _glowMask.fillRule = kCAFillRuleEvenOdd;
+        _glow.mask = _glowMask;
+        [self.layer addSublayer:_glow];
+        _rim = [CAGradientLayer layer];
+        _rim.startPoint = CGPointMake(0.0, 0.0); _rim.endPoint = CGPointMake(1.0, 1.0);
+        _rim.colors = @[(id)[UIColor colorWithWhite:1.0 alpha:0.34].CGColor,
+                        (id)[UIColor colorWithWhite:1.0 alpha:0.16].CGColor,
+                        (id)[UIColor colorWithWhite:1.0 alpha:0.24].CGColor];
+        _rim.locations = @[@0.0, @0.55, @1.0];
+        _rimMask = [CAShapeLayer layer]; _rimMask.fillRule = kCAFillRuleEvenOdd;
+        _rim.mask = _rimMask;
+        [self.layer addSublayer:_rim];
+    }
+    return self;
+}
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGRect b = self.bounds;
+    CGFloat r = self.layer.cornerRadius;
+    _glow.frame = b; _rim.frame = b;
+    UIBezierPath *outer = [UIBezierPath bezierPathWithRoundedRect:b cornerRadius:r];
+    UIBezierPath *glowPath = [outer copy];
+    [glowPath appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectInset(b, 7.0, 7.0) cornerRadius:MAX(0.0, r - 7.0)]];
+    _glowMask.path = glowPath.CGPath;
+    UIBezierPath *rimPath = [outer copy];
+    [rimPath appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectInset(b, 3.0, 3.0) cornerRadius:MAX(0.0, r - 3.0)]];
+    _rimMask.path = rimPath.CGPath;
+}
+@end
+
 static UIView *PACMakeBorder(void) {
-    UIView *v = [UIView new];
+    UIView *v = [PACGlassBorderView new];
     v.userInteractionEnabled = NO;
     v.backgroundColor = UIColor.clearColor;
     v.layer.cornerCurve = kCACornerCurveContinuous;
     v.layer.masksToBounds = NO;
-    
-    v.layer.borderColor = [UIColor colorWithWhite:0.75 alpha:0.35].CGColor;
-    
-    v.layer.borderWidth = kPACBorderWidth;
     v.layer.shadowColor = UIColor.blackColor.CGColor;
-    v.layer.shadowOpacity = 0.08;
-    v.layer.shadowRadius = 3.0;
-    v.layer.shadowOffset = CGSizeZero;
+    v.layer.shadowOpacity = 0.0;        // no drop shadow, the rim alone gives the depth
 
     CABasicAnimation *pulse = [CABasicAnimation animationWithKeyPath:@"opacity"];
     pulse.fromValue = @0.85;
@@ -1393,14 +1422,14 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
     b.backgroundColor = UIColor.clearColor;
     b.frame = CGRectMake(0, 0, 30, 30);
     b.layer.borderWidth = 1.0;
-    b.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.38].CGColor;
+    b.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.55].CGColor;
     b.layer.cornerRadius = 15.0;
     b.layer.cornerCurve = kCACornerCurveContinuous;
     b.layer.masksToBounds = NO;
     b.layer.shadowColor = UIColor.blackColor.CGColor;
-    b.layer.shadowOpacity = 0.38;               // soft drop shadow underneath, gives the 3D look
-    b.layer.shadowRadius = 6.0;
-    b.layer.shadowOffset = CGSizeMake(0, 3);
+    b.layer.shadowOpacity = 0.22;               // drop shadow underneath, gives the 3D look
+    b.layer.shadowRadius = 3.0;
+    b.layer.shadowOffset = CGSizeMake(0, 2);
 
     UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration
         configurationWithPointSize:15 weight:UIImageSymbolWeightBold];
@@ -1453,10 +1482,46 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     pill.lineCap = kCALineCapRound;
     pill.lineJoin = kCALineJoinRound;
     [b.layer addSublayer:pill];
-    b.layer.shadowColor = UIColor.blackColor.CGColor;     // soft drop shadow under the handle (3D look)
-    b.layer.shadowOpacity = 0.38;
-    b.layer.shadowRadius = 6.0;
-    b.layer.shadowOffset = CGSizeMake(0, 3);
+
+    // glass bubble look: a bright rim on the upper edge, a darker rim underneath, and a lighter body
+    CAShapeLayer *rimMask = [CAShapeLayer layer];
+    rimMask.path = cornerPath.CGPath;
+    rimMask.fillColor = UIColor.clearColor.CGColor;
+    rimMask.strokeColor = UIColor.blackColor.CGColor;
+    rimMask.lineWidth = 12.0;
+    rimMask.lineCap = kCALineCapRound;
+    rimMask.lineJoin = kCALineJoinRound;
+    CAShapeLayer *rimEdge = [CAShapeLayer layer];            // outline of the strip, shown only as a thin line
+    rimEdge.path = CGPathCreateCopyByStrokingPath(cornerPath.CGPath, NULL, 12.0, kCGLineCapRound, kCGLineJoinRound, 10.0);
+    rimEdge.fillColor = UIColor.clearColor.CGColor;
+    rimEdge.strokeColor = UIColor.whiteColor.CGColor;
+    rimEdge.lineWidth = 1.2;
+    CAGradientLayer *rim = [CAGradientLayer layer];
+    rim.frame = b.bounds;
+    rim.colors = @[(id)[UIColor colorWithWhite:1.0 alpha:0.85].CGColor,
+                   (id)[UIColor colorWithWhite:1.0 alpha:0.25].CGColor,
+                   (id)[UIColor colorWithWhite:0.0 alpha:0.35].CGColor];
+    rim.startPoint = CGPointMake(0.0, 0.0);
+    rim.endPoint = CGPointMake(1.0, 1.0);
+    rim.mask = rimEdge;
+    [b.layer addSublayer:rim];
+
+    CAShapeLayer *gloss = [CAShapeLayer layer];              // small specular streak on the curve
+    gloss.path = cornerPath.CGPath;
+    gloss.fillColor = UIColor.clearColor.CGColor;
+    gloss.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.30].CGColor;
+    gloss.lineWidth = 2.5;
+    gloss.lineCap = kCALineCapRound;
+    gloss.transform = CATransform3DMakeTranslation(-1.5, -2.5, 0);
+    gloss.strokeStart = 0.12;
+    gloss.strokeEnd = 0.7;
+    [b.layer addSublayer:gloss];
+
+    b.layer.shadowColor = UIColor.blackColor.CGColor;     // drop shadow under the handle (3D look)
+    b.layer.shadowOpacity = 0.25;
+    b.layer.shadowRadius = 3.0;
+    b.layer.shadowOffset = CGSizeMake(1, 3);
+    b.layer.shadowPath = CGPathCreateCopyByStrokingPath(cornerPath.CGPath, NULL, 12.0, kCGLineCapRound, kCGLineJoinRound, 10.0);
 
     objc_setAssociatedObject(b, kPACMidKey, mid, OBJC_ASSOCIATION_COPY_NONATOMIC);
     return b;
