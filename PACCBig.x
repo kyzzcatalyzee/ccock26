@@ -857,11 +857,16 @@ static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
     Class cls = NSClassFromString(@"CCUIContentModuleContainerView");
     while (container && cls && ![container isKindOfClass:cls]) container = container.superview;
     if (!container) return;
-    for (UIView *s in container.subviews) {
-        if (s == host || [host isDescendantOfView:s]) continue;
-        if (![NSStringFromClass(s.class) containsString:@"Material"]) continue;
-        CGFloat a = hide ? 0.0 : 1.0;
-        if (fabs(s.alpha - a) > 0.01) s.alpha = a;
+    CGFloat a = hide ? 0.0 : 1.0;
+    // the plate can be a sibling of the host at any level up to the module container: material, background, platter or backdrop
+    for (UIView *chain = host; chain && chain != container; chain = chain.superview) {
+        for (UIView *s in chain.superview.subviews) {
+            if (s == chain) continue;
+            NSString *cn = NSStringFromClass(s.class);
+            if (![cn containsString:@"Material"] && ![cn containsString:@"Background"] &&
+                ![cn containsString:@"Platter"] && ![cn containsString:@"Backdrop"]) continue;
+            if (fabs(s.alpha - a) > 0.01) s.alpha = a;
+        }
     }
 }
 

@@ -80,18 +80,22 @@ static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D
 }
 
 // the jelly: the page squashes and stretches a little as it lands
-static void PACCAddJelly(CALayer *layer, CGFloat endStretch) {
+static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
     CAKeyframeAnimation *jy = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.y"];
-    jy.values = @[@(1.0 + endStretch), @0.945, @1.032, @0.985, @1.0];
+    jy.values = @[@(startY), @0.945, @1.032, @0.985, @1.0];
     jy.keyTimes = @[@0.0, @0.28, @0.55, @0.8, @1.0];
     CAKeyframeAnimation *jx = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.x"];
-    jx.values = @[@(1.0 - endStretch * 0.4), @1.03, @0.985, @1.008, @1.0];
+    jx.values = @[@(startX), @1.03, @0.985, @1.008, @1.0];
     jx.keyTimes = jy.keyTimes;
     CAAnimationGroup *jelly = [CAAnimationGroup animation];
     jelly.animations = @[jy, jx];
     jelly.duration = 0.75;
     jelly.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
     [layer addAnimation:jelly forKey:@"PAnimJelly"];
+}
+
+static void PACCAddJelly(CALayer *layer, CGFloat endStretch) {
+    PACCAddJellyFrom(layer, 1.0 - endStretch * 0.4, 1.0 + endStretch);
 }
 
 static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
@@ -741,12 +745,11 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
 
-    CABasicAnimation *scale = [CABasicAnimation animationWithKeyPath:@"transform"];
-    scale.fromValue = [NSValue valueWithCATransform3D:fromTrans];
-    scale.toValue   = [NSValue valueWithCATransform3D:CATransform3DIdentity];
-    scale.duration = 0.30;
-    scale.timingFunction = curve;
-    [collection.view.layer addAnimation:scale forKey:@"PAnimScrubTransform"];
+    // letting go of the pager: from the held size straight into the jelly (no shrink and no extra bounce)
+    CGFloat heldX = fromTrans.m11, heldY = fromTrans.m22;
+    if (fabs(heldX - 1.0) < 0.004 && fabs(heldY - 1.0) < 0.004) { heldX = 0.986; heldY = 1.035; }
+    [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
+    PACCAddJellyFrom(collection.view.layer, heldX, heldY);
 
     CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
     fade.fromValue = @(fromAlpha);
