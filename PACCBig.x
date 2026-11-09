@@ -852,32 +852,37 @@ static void PACBigMask(UIView *host, UIView *keep, BOOL hide) {
 // Shows or removes the big layout of a module. Safe to call on every layout pass.
 // The module's own background (a material view in its container). Connectivity draws one material per tile, so the big
 // layout hides this one and the tiles float on their own.
-static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
-    UIView *container = host.superview;
-    Class cls = NSClassFromString(@"CCUIContentModuleContainerView");
-    while (container && cls && ![container isKindOfClass:cls]) container = container.superview;
-    if (!container) return;
-    CGFloat a = hide ? 0.0 : 1.0;
-    // the plate can be a sibling of the host at any level up to the module container: material, background, platter or backdrop
-    for (UIView *chain = host; chain && chain != container; chain = chain.superview) {
-        for (UIView *s in chain.superview.subviews) {
-            if (s == chain) continue;
-            NSString *cn = NSStringFromClass(s.class);
-            if (![cn containsString:@"Material"] && ![cn containsString:@"Background"] &&
-                ![cn containsString:@"Platter"] && ![cn containsString:@"Backdrop"]) continue;
-            if (fabs(s.alpha - a) > 0.01) s.alpha = a;
-        }
+// Control26 hides the module's own glass plate with an empty layer mask on every material or backdrop view of about the module's size
+// on the way up (alpha and filters get reset by CC, a mask does not). Same here.
+static const char kPACPlateMask = 0;
+
+static void PACBigMaskPlate(UIView *s, BOOL hide) {
+    BOOL has = objc_getAssociatedObject(s, &kPACPlateMask) != nil;
+    if (hide && !has) {
+        s.layer.mask = [CALayer layer];
+        objc_setAssociatedObject(s, &kPACPlateMask, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else if (!hide && has) {
+        s.layer.mask = nil;
+        objc_setAssociatedObject(s, &kPACPlateMask, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    // LiquidAss puts its own live backdrop (LGLiveBackdropView) behind the module: hide that too, but not the cards' own
-    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:container];
-    while (queue.count) {
-        UIView *v = queue.firstObject; [queue removeObjectAtIndex:0];
-        if ([v isKindOfClass:PACBigView.class]) continue;
-        if ([NSStringFromClass(v.class) containsString:@"LGLiveBackdrop"]) {
-            if (fabs(v.alpha - a) > 0.01) v.alpha = a;
-            continue;
+}
+
+static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
+    CGFloat screenW = UIScreen.mainScreen.bounds.size.width;
+    CGRect area = [host convertRect:host.bounds toView:nil];
+    UIView *child = host;
+    int up = 0;
+    for (UIView *p = host.superview; p && up < 8; child = p, p = p.superview, up++) {
+        for (UIView *s in p.subviews) {
+            if (s == child || [s isKindOfClass:PACBigView.class]) continue;
+            NSString *n = NSStringFromClass(s.class);
+            if (!([n containsString:@"Material"] || [n containsString:@"Backdrop"] || [n containsString:@"Background"] ||
+                  [n containsString:@"Blur"] || [n containsString:@"Platter"])) continue;
+            CGRect f = [s convertRect:s.bounds toView:nil];
+            if (f.size.width >= screenW * 0.97 || f.size.width < area.size.width * 0.8) continue;
+            if (!CGRectIntersectsRect(f, area)) continue;
+            PACBigMaskPlate(s, hide);
         }
-        [queue addObjectsFromArray:v.subviews];
     }
 }
 
