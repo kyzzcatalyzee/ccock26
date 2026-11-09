@@ -33,6 +33,7 @@ static void PACBigCollect(UIView *root, Class cls, int depth, NSMutableArray *ou
 int PACCBigKind(NSString *mid) {
     NSString *l = mid.lowercaseString;
     if (!l.length) return 0;
+    if ([l hasPrefix:@"pacc.toggle."]) return 3;      // our own Wi-Fi / Cellular / Bluetooth / Hotspot controls
     if ([l containsString:@"connectivity"]) return 1;
     if ([l containsString:@"nowplaying"] || [l containsString:@"mediacontrols"]) return 2;
     return 0;
@@ -42,12 +43,13 @@ BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h) {
     int k = PACCBigKind(mid);
     if (k == 1) return (w == 2 && h == 2) || (w == 4 && (h == 4 || h == 6));
     if (k == 2) return (w == 2 && h == 2) || (w == 4 && (h == 2 || h == 4 || h == 6));
+    if (k == 3) return (w == 1 && h == 1) || (w == 2 && h == 1);
     return NO;
 }
 
 // The allowed size closest to what the finger asked for.
 void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH) {
-    NSUInteger cands[][2] = { {2, 2}, {4, 2}, {4, 4}, {4, 6} };
+    NSUInteger cands[][2] = { {1, 1}, {2, 1}, {2, 2}, {4, 2}, {4, 4}, {4, 6} };
     NSInteger best = NSIntegerMax;
     NSUInteger bw = 2, bh = 2;
     for (size_t i = 0; i < sizeof(cands) / sizeof(cands[0]); i++) {
@@ -223,6 +225,7 @@ static NSString *PACBigTime(double t, BOOL negative) {
 @property (nonatomic, strong) UILabel *sub;
 @property (nonatomic) BOOL isOn;
 @property (nonatomic) BOOL tall;                    // square card: icon on top, text at the bottom
+@property (nonatomic) BOOL iconOnly;                // round control: just the glyph
 @property (nonatomic, strong) UIView *material;     // the same material the stock controls use
 - (void)setOn:(BOOL)on;
 @end
@@ -338,6 +341,15 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     if (_material) {
         if (!CGRectEqualToRect(_material.frame, self.bounds)) _material.frame = self.bounds;
         [self sendSubviewToBack:_material];
+    }
+    if (_iconOnly) {
+        self.layer.cornerRadius = h * 0.5;
+        _icon.frame = self.bounds;
+        _icon.layer.cornerRadius = h * 0.5;
+        _icon.layer.masksToBounds = YES;
+        _icon.image = PACBigIconForKey(_key, h * 0.40);
+        _title.hidden = YES; _sub.hidden = YES;
+        return;
     }
     if (_tall) {
         self.layer.cornerRadius = MIN(36.0, h * 0.3);
@@ -566,6 +578,88 @@ static BOOL PACBigVPNActive(void) {
         card.alpha = round ? (round.enabled ? 1.0 : 0.5) : 0.4;
         card.enabled = round != nil && !gEditModeActive;
     }
+}
+@end
+
+#pragma mark - single toggle (Wi-Fi, Cellular, Bluetooth, Hotspot)
+
+// One of Apple's Connectivity buttons as a control of its own; it presses the real button of the Connectivity module.
+@interface PACBigToggle : PACBigView
+@property (nonatomic, copy) NSString *key;
+@property (nonatomic, weak) UIView *apple;
+@end
+
+@implementation PACBigToggle {
+    PACBigCard *_card;
+    NSTimer *_timer;
+}
+- (instancetype)initWithFrame:(CGRect)f {
+    if ((self = [super initWithFrame:f])) {
+        _card = [[PACBigCard alloc] initWithFrame:CGRectZero];
+        [self addSubview:_card];
+    }
+    return self;
+}
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    [_timer invalidate]; _timer = nil;
+    if (self.window) {
+        __weak typeof(self) ws = self;
+        _timer = [NSTimer timerWithTimeInterval:0.6 repeats:YES block:^(NSTimer *t) { [ws refresh]; }];
+        [[NSRunLoop mainRunLoop] addTimer:_timer forMode:NSRunLoopCommonModes];
+    }
+}
+- (void)dealloc { [_timer invalidate]; }
+- (void)layoutSubviews { [super layoutSubviews]; [self refresh]; }
+- (void)refresh {
+    @try { [self refreshImpl]; } @catch (NSException *e) { NSLog(@"[CCock26] toggle refresh: %@", e); }
+}
+- (void)refreshImpl {
+    CGSize S = self.bounds.size;
+    if (S.width < 20 || S.height < 20 || !self.key.length) return;
+    _card.frame = self.bounds;
+    _card.key = self.key;
+    BOOL iconOnly = S.width < S.height * 1.4;
+    if (_card.iconOnly != iconOnly) { _card.iconOnly = iconOnly; [_card setNeedsLayout]; }
+
+    UIView *labeled = nil;
+    Class L = NSClassFromString(@"CCUILabeledRoundButton");
+    if (L && self.apple) {
+        NSMutableArray *found = [NSMutableArray array];
+        PACBigCollect(self.apple, L, 0, found);
+        for (UIView *b in found) {
+            id t = PACBigKV(b, @"title");
+            NSString *title = [t isKindOfClass:NSString.class] ? t : @"";
+            if (!title.length) {
+                NSMutableArray *labels = [NSMutableArray array];
+                PACBigCollect(b, UILabel.class, 0, labels);
+                for (UILabel *lb in labels) if (lb.text.length) { title = lb.text; break; }
+            }
+            if ([PACBigKey(title) isEqualToString:self.key]) { labeled = b; break; }
+        }
+    }
+    id rb = PACBigKV(labeled, @"buttonView");
+    UIControl *round = [rb isKindOfClass:UIControl.class] ? rb : nil;
+    if (!round && labeled) {
+        NSMutableArray *all = [NSMutableArray array];
+        PACBigCollect(labeled, UIControl.class, 0, all);
+        for (UIControl *c in all) if ([NSStringFromClass(c.class) containsString:@"RoundButton"]) { round = c; break; }
+    }
+    _card.target = round;
+    _card.labeled = labeled;
+    NSString *title = PACBigKV(labeled, @"title");
+    if (![title isKindOfClass:NSString.class] || !title.length) {
+        title = @{@"wifi": @"Wi-Fi", @"cell": @"Cellular Data", @"bt": @"Bluetooth", @"hotspot": @"Hotspot"}[self.key] ?: self.key;
+    }
+    BOOL on = round.isSelected;
+    NSString *sub = PACBigKV(labeled, @"subtitle");
+    if (![sub isKindOfClass:NSString.class] || !sub.length || [sub isEqualToString:title]) sub = on ? @"On" : @"Off";
+    if (!round) sub = @"Unavailable";
+    if (![_card.title.text isEqualToString:title]) _card.title.text = title;
+    if (![_card.sub.text isEqualToString:sub]) _card.sub.text = sub;
+    [_card setOn:on];
+    _card.alpha = round ? (round.enabled ? 1.0 : 0.5) : 0.4;
+    _card.enabled = round != nil && !gEditModeActive;
 }
 @end
 
@@ -1028,14 +1122,25 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
 
 UIView *PACCBigNewClone(int kind) {
     if (kind == 1) return [[PACBigConn alloc] initWithFrame:CGRectZero];
+    if (kind == 3) return [[PACBigToggle alloc] initWithFrame:CGRectZero];
     PACBigMusic *m = [[PACBigMusic alloc] initWithFrame:CGRectZero];
     m.standalone = YES;                  // a copy has no module behind it, so it brings its own material
     return m;
 }
 
 // apple: the view of the real Connectivity module, whose buttons the cards press
+// "pacc.toggle.wifi" -> key "wifi"
+void PACCBigSetToggleMid(UIView *v, NSString *mid) {
+    if (![v isKindOfClass:PACBigToggle.class]) return;
+    NSString *k = [mid substringFromIndex:MIN(mid.length, (NSUInteger)12)];
+    if (![k isEqualToString:((PACBigToggle *)v).key]) ((PACBigToggle *)v).key = k;
+}
+
 void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIView *apple) {
-    if (kind == 1 && [v isKindOfClass:PACBigConn.class]) {
+    if (kind == 3 && [v isKindOfClass:PACBigToggle.class]) {
+        PACBigToggle *t = (PACBigToggle *)v;
+        if (t.apple != apple) t.apple = apple;
+    } else if (kind == 1 && [v isKindOfClass:PACBigConn.class]) {
         PACBigConn *c = (PACBigConn *)v;
         if (c.apple != apple) c.apple = apple;
     } else if (kind == 2 && [v isKindOfClass:PACBigMusic.class]) {

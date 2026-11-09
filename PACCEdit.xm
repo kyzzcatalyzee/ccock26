@@ -1637,6 +1637,7 @@ static NSArray<NSString *> *PACAvailableModuleIdentifiers(void) {
     [all addObject:@"com.apple.mediaremote.controlcenter.nowplaying"];
     NSArray<NSString *> *enabled = PACProviderOrderedIdentifiers() ?: @[];
     NSMutableArray<NSString *> *result = [NSMutableArray array];
+    for (NSString *t in @[@"wifi", @"cell", @"bt", @"hotspot"]) [result addObject:[@"pacc.toggle." stringByAppendingString:t]];
     for (NSString *mid in all) {
         // Connectivity and Music stay in the list even when already on the grid; picking one moves it to the first free spot
         BOOL alwaysListed = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"] ||
@@ -1654,6 +1655,10 @@ static NSString *PACNameForIdentifier(NSString *mid) {
     if ([lower containsString:@"screencapture"]) return @"Screen Recording";
     if ([lower containsString:@"control-center.displaymodule"]) return @"Brightness";
     if ([lower containsString:@"controlcenter.audio"]) return @"Volume";
+    if ([lower isEqualToString:@"pacc.toggle.wifi"]) return @"Wi-Fi";
+    if ([lower isEqualToString:@"pacc.toggle.cell"]) return @"Cellular Data";
+    if ([lower isEqualToString:@"pacc.toggle.bt"]) return @"Bluetooth";
+    if ([lower isEqualToString:@"pacc.toggle.hotspot"]) return @"Hotspot";
     if ([lower containsString:@"connectivitymodule"]) return @"Connectivity";
     if ([lower containsString:@"controlcenter.nowplaying"]) return @"Music Player";
 
@@ -1936,6 +1941,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
 
         if (!cl) {
             cl = PACCBigNewClone(kind);
+            PACCBigSetToggleMid(cl, mid);
             cl.tag = kPACCloneTag;
             cl.clipsToBounds = YES;
             objc_setAssociatedObject(cl, kPACCloneIDKey, cid, OBJC_ASSOCIATION_COPY_NONATOMIC);
@@ -2738,6 +2744,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     int kind = PACCBigKind(mid);
     if (!kind) return;
     NSUInteger w = 4, h = (kind == 1) ? 4 : 2;
+    if (kind == 3) { w = 1; h = 1; }
     NSUInteger oc = 0, oa = 0, page = 0;
     BOOL placed = PACFindSlot(@"", w, h, ov, &oc, &oa, &page);
     if (!placed) {
@@ -3566,6 +3573,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     id prov = PACSettingsProvider();
     SEL get = NSSelectorFromString(@"orderedUserEnabledModuleIdentifiers");
     SEL set = NSSelectorFromString(@"setAndSaveOrderedUserEnabledModuleIdentifiers:");
+    if (PACCBigKind(mid) == 3) { PACAddCloneOf(mid, ov); return; }     // our own Wi-Fi / Cellular / Bluetooth / Hotspot
     if (PACCBigKind(mid)) {      // already on the grid: add a second copy instead of moving it
         BOOL onGrid = NO;
         for (UIViewController *m in ModuleControllers(ov)) if ([PACMid(m) isEqualToString:mid]) { onGrid = YES; break; }
