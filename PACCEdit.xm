@@ -3005,6 +3005,30 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         objc_setAssociatedObject(v, kPACRemoveKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(v, kPACResizeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
+    // chrome that no module or copy owns any more (its module was replaced while editing) would stay on screen: sweep it
+    {
+        NSMutableSet<NSValue *> *owned = [NSMutableSet set];
+        for (UIView *c in chromeViews) [owned addObject:[NSValue valueWithNonretainedObject:c]];
+        UIView *cvHost = ModuleCollection(ov).view;
+        for (UIView *sv in cvHost.subviews) {
+            if (sv.tag != kPACCloneTag) continue;
+            const void *ks[3] = {kPACBorderKey, kPACRemoveKey, kPACResizeKey};
+            for (int i = 0; i < 3; i++) {
+                UIView *c = objc_getAssociatedObject(sv, ks[i]);
+                if (c) [owned addObject:[NSValue valueWithNonretainedObject:c]];
+            }
+        }
+        NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:ov.view];
+        NSUInteger visited = 0;
+        while (queue.count && visited < 600) {
+            UIView *v = queue.firstObject; [queue removeObjectAtIndex:0]; visited++;
+            for (UIView *sv in v.subviews) {
+                BOOL chrome = (sv.tag == kPACRemoveTag || sv.tag == kPACResizeTag || [sv isKindOfClass:PACGlassBorderView.class]);
+                if (chrome && ![owned containsObject:[NSValue valueWithNonretainedObject:sv]]) { [chromeViews addObject:sv]; continue; }
+                if (!chrome) [queue addObject:sv];
+            }
+        }
+    }
     if (chromeViews.count) {
         UIViewPropertyAnimator *exitAnim = PACBezierAnimator(0.24, 0.4, 0.0, 0.2, 1.0);
         [exitAnim addAnimations:^{
