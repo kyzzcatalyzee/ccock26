@@ -342,13 +342,13 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
         if (!CGRectEqualToRect(_material.frame, self.bounds)) _material.frame = self.bounds;
         [self sendSubviewToBack:_material];
     }
+    _title.hidden = _iconOnly; _sub.hidden = _iconOnly;     // text only on a pill
     if (_iconOnly) {
         self.layer.cornerRadius = h * 0.5;
         _icon.frame = self.bounds;
         _icon.layer.cornerRadius = h * 0.5;
         _icon.layer.masksToBounds = YES;
         _icon.image = PACBigIconForKey(_key, h * 0.40);
-        _title.hidden = YES; _sub.hidden = YES;
         return;
     }
     if (_tall) {
