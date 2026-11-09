@@ -1459,25 +1459,10 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
                   controlPoint1:CGPointMake(31.20, 40.01)
                   controlPoint2:CGPointMake(40.01, 31.20)];
 
-    // the arc is a glass strip: LiquidAss glass (or a thin blur) cut to the arc, with a soft light rim
-    UIView *material = [[UIView alloc] initWithFrame:b.bounds];
-    material.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    material.userInteractionEnabled = NO;
-    CAShapeLayer *materialMask = [CAShapeLayer layer];
-    materialMask.path = cornerPath.CGPath;
-    materialMask.fillColor = UIColor.clearColor.CGColor;
-    materialMask.strokeColor = UIColor.blackColor.CGColor;
-    materialMask.lineWidth = 12.0;
-    materialMask.lineCap = kCALineCapRound;
-    materialMask.lineJoin = kCALineJoinRound;
-    material.layer.mask = materialMask;
-    [b addSubview:material];
-    PACGlassBackdrop(material, 0.0);
-
     CAShapeLayer *pill = [CAShapeLayer layer];
     pill.path = cornerPath.CGPath;
     pill.fillColor = UIColor.clearColor.CGColor;
-    pill.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.16].CGColor;
+    pill.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.18].CGColor;   // translucent body, no square behind it
     pill.lineWidth = 12.5;
     pill.lineCap = kCALineCapRound;
     pill.lineJoin = kCALineJoinRound;
@@ -2923,8 +2908,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         [ov.view addSubview:addButton];
     }
     CGFloat addBottom = ov.view.safeAreaInsets.bottom;
-    if (addBottom < 1.0) addBottom = 2.0;        // sits right at the bottom edge, below the last row of controls
-    addButton.center = CGPointMake(CGRectGetMidX(ov.view.bounds), CGRectGetHeight(ov.view.bounds) - addBottom - 18.0);
+    if (addBottom < 1.0) addBottom = 0.0;        // sits right at the bottom edge, below the last row of controls
+    addButton.center = CGPointMake(CGRectGetMidX(ov.view.bounds), CGRectGetHeight(ov.view.bounds) - addBottom - 8.0);
     addButton.alpha = 0.0;
     addButton.transform = CGAffineTransformMakeScale(0.7, 0.7);
     [UIView animateWithDuration:0.65 delay:0.12 usingSpringWithDamping:0.58 initialSpringVelocity:0.7
