@@ -65,6 +65,20 @@ static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) 
 }
 
 // Page slide with a springy overshoot (the page lands a little past its spot and settles back).
+// the page swipe slides without overshoot (damping above critical); the jelly is added on top of it
+static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
+    CASpringAnimation *spring = [CASpringAnimation animationWithKeyPath:@"sublayerTransform.translation.y"];
+    spring.fromValue = @(from.m42);
+    spring.toValue   = @(to.m42);
+    spring.mass = 1.0;
+    spring.stiffness = 170.0;
+    spring.damping = 28.0;
+    spring.initialVelocity = 0.0;
+    spring.duration = spring.settlingDuration;
+    spring.fillMode = kCAFillModeBackwards;
+    [layer addAnimation:spring forKey:key];
+}
+
 static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
     CASpringAnimation *spring = [CASpringAnimation animationWithKeyPath:@"sublayerTransform.translation.y"];
     spring.fromValue = @(from.m42);
@@ -291,8 +305,8 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat rest = -(CGFloat)self.dragStartPage * span;
     CGFloat y = rest + ty;
     CGFloat top = 0.0, bottom = -(CGFloat)maxPage * span;
-    if (y > top) y = top + (y - top) * 0.35;                    // rubber band at the ends
-    else if (y < bottom) y = bottom + (y - bottom) * 0.35;
+    if (y > top) y = top + (y - top) * 0.15;                    // rubber band at the ends
+    else if (y < bottom) y = bottom + (y - bottom) * 0.15;
 
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
         // keep the panel's own scroll view at rest, so Apple's pull-down-to-close never gets a drag to work with
@@ -303,7 +317,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
                 if (u.contentOffset.y != rest0 && u.contentOffset.y < 0.0) u.contentOffset = CGPointMake(u.contentOffset.x, rest0);
             }
         }
-        CGFloat stretch = MIN(0.045, fabs(vy) / 12000.0);        // the page stretches a little while it is dragged fast
+        CGFloat stretch = MIN(0.07, fabs(vy) / 9000.0);        // the page stretches a little while it is dragged fast
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
         CATransform3D sub = cv.layer.sublayerTransform;
@@ -349,13 +363,13 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     cv.layer.transform = CATransform3DIdentity;
     [CATransaction commit];
 
-    PACCAddBounceSlide(cv.layer, fromSub, toSub, @"PAnimPageSlide");
+    PACCAddSmoothSlide(cv.layer, fromSub, toSub, @"PAnimPageSlide");
 
     CAKeyframeAnimation *jy = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.y"];
-    jy.values = @[@(1.0 + endStretch), @0.965, @1.02, @0.99, @1.0];
+    jy.values = @[@(1.0 + endStretch), @0.945, @1.032, @0.985, @1.0];
     jy.keyTimes = @[@0.0, @0.28, @0.55, @0.8, @1.0];
     CAKeyframeAnimation *jx = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.x"];
-    jx.values = @[@(1.0 - endStretch * 0.4), @1.018, @0.99, @1.005, @1.0];
+    jx.values = @[@(1.0 - endStretch * 0.4), @1.03, @0.985, @1.008, @1.0];
     jx.keyTimes = jy.keyTimes;
     CAAnimationGroup *jelly = [CAAnimationGroup animation];
     jelly.animations = @[jy, jx];

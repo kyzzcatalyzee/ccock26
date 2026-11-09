@@ -8,6 +8,7 @@
 // Taps on the connectivity cards are forwarded to Apple's real buttons, so the real toggles do the work.
 
 #import "PACC.h"
+#import <CFNetwork/CFNetwork.h>
 #import <QuartzCore/QuartzCore.h>
 
 static const NSInteger kPACBigTag = 182100;
@@ -252,19 +253,52 @@ static UIImage *PACBigSymbol(NSArray<NSString *> *names, CGFloat pt) {
     return nil;
 }
 
+// Apple's own Bluetooth and AirDrop marks, drawn as template images (the system symbol set on this iOS has neither).
+static UIImage *PACBigDrawn(NSString *kind, CGFloat pt) {
+    CGFloat s = ceil(pt * 1.4);
+    UIGraphicsImageRendererFormat *fmt = [UIGraphicsImageRendererFormat preferredFormat];
+    UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(s, s) format:fmt];
+    UIImage *img = [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+        [UIColor.blackColor setStroke];
+        [UIColor.blackColor setFill];
+        if ([kind isEqualToString:@"bt"]) {
+            CGPoint p[6] = {{0.22,0.30},{0.76,0.72},{0.50,0.94},{0.50,0.06},{0.76,0.28},{0.22,0.70}};
+            UIBezierPath *path = [UIBezierPath bezierPath];
+            for (int i = 0; i < 6; i++) {
+                CGPoint q = CGPointMake(s * (0.1 + 0.8 * p[i].x), s * (0.06 + 0.88 * p[i].y));
+                if (i == 0) [path moveToPoint:q]; else [path addLineToPoint:q];
+            }
+            path.lineWidth = s * 0.085; path.lineCapStyle = kCGLineCapRound; path.lineJoinStyle = kCGLineJoinRound;
+            [path stroke];
+        } else {
+            CGPoint c = CGPointMake(s * 0.5, s * 0.56);
+            CGFloat radii[3] = {0.15, 0.28, 0.41};
+            for (int i = 0; i < 3; i++) {
+                UIBezierPath *arc = [UIBezierPath bezierPathWithArcCenter:c radius:s * radii[i]
+                                                                startAngle:130.0 * M_PI / 180.0 endAngle:410.0 * M_PI / 180.0 clockwise:YES];
+                arc.lineWidth = s * 0.075; arc.lineCapStyle = kCGLineCapRound;
+                [arc stroke];
+            }
+            [[UIBezierPath bezierPathWithOvalInRect:CGRectMake(c.x - s * 0.06, c.y - s * 0.06, s * 0.12, s * 0.12)] fill];
+        }
+    }];
+    return [img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+}
+
 static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     if ([key isEqualToString:@"air"])     return PACBigSymbol(@[@"airplane"], pt);
     if ([key isEqualToString:@"wifi"])    return PACBigSymbol(@[@"wifi"], pt);
     if ([key isEqualToString:@"cell"])    return PACBigSymbol(@[@"cellularbars", @"antenna.radiowaves.left.and.right"], pt);
-    if ([key isEqualToString:@"bt"])      return PACBigSymbol(@[@"bluetooth", @"dot.radiowaves.left.and.right"], pt);
-    if ([key isEqualToString:@"airdrop"]) {
+    if ([key isEqualToString:@"bt"])      return PACBigDrawn(@"bt", pt);
+    if ([key isEqualToString:@"airdrop"]) return PACBigDrawn(@"airdrop", pt);
+    if ([key isEqualToString:@"vpn"]) {
         // the iOS 26 glyph from the bundled private symbols, as the small Connectivity control uses it
         UIImage *p = PACCBundledSymbol(@"network.connected.to.line.below.fill", UIColor.whiteColor, NO);
         if (p) {
             UIImageSymbolConfiguration *c = [UIImageSymbolConfiguration configurationWithPointSize:pt weight:UIImageSymbolWeightSemibold];
             return [[p imageByApplyingSymbolConfiguration:c] ?: p imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         }
-        return PACBigSymbol(@[@"airdrop", @"dot.radiowaves.up.forward", @"wave.3.right"], pt);
+        return PACBigSymbol(@[@"network", @"globe"], pt);
     }
     if ([key isEqualToString:@"hotspot"]) return PACBigSymbol(@[@"personalhotspot", @"antenna.radiowaves.left.and.right.circle"], pt);
     return PACBigSymbol(@[@"circle.fill"], pt);
@@ -378,6 +412,20 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 
 #pragma mark - big connectivity
 
+static BOOL PACBigVPNActive(void) {
+    BOOL on = NO;
+    CFDictionaryRef proxy = CFNetworkCopySystemProxySettings();
+    if (proxy) {
+        NSDictionary *scoped = ((__bridge NSDictionary *)proxy)[@"__SCOPED__"];
+        for (NSString *k in scoped) {
+            NSString *l = k.lowercaseString;
+            if ([l hasPrefix:@"tap"] || [l hasPrefix:@"tun"] || [l hasPrefix:@"ppp"] || [l hasPrefix:@"ipsec"] || [l hasPrefix:@"utun"]) { on = YES; break; }
+        }
+        CFRelease(proxy);
+    }
+    return on;
+}
+
 @interface PACBigConn : PACBigView
 @property (nonatomic, weak) UIView *apple;           // the module's own view with Apple's buttons
 - (void)refresh;
@@ -415,7 +463,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     NSMutableArray *found = [NSMutableArray array];
     PACBigCollect(self.apple, L, 0, found);
 
-    NSArray *order = @[@"air", @"wifi", @"cell", @"bt", @"airdrop", @"hotspot"];
+    NSArray *order = @[@"air", @"wifi", @"cell", @"bt", @"airdrop", @"hotspot", @"vpn"];
     NSMutableDictionary<NSString *, UIView *> *byKey = [NSMutableDictionary dictionary];
     for (UIView *b in found) {
         id t = PACBigKV(b, @"title");
@@ -443,11 +491,13 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     CGSize S = self.bounds.size;
     if (S.width < 40 || S.height < 40) return;
     // iOS 26 look: Airplane Mode as a wide pill on top, square cards in two columns, Hotspot as a pill at the bottom
-    BOOL hasTop = [keys containsObject:@"air"], hasBottom = [keys containsObject:@"hotspot"];
+    BOOL hasTop = [keys containsObject:@"air"];
+    NSMutableArray<NSString *> *bottomKeys = [NSMutableArray array];
+    for (NSString *bk in @[@"hotspot", @"vpn"]) if ([keys containsObject:bk]) [bottomKeys addObject:bk];
     NSMutableArray<NSString *> *cardKeys = [keys mutableCopy];
-    [cardKeys removeObject:@"air"]; [cardKeys removeObject:@"hotspot"];
+    [cardKeys removeObject:@"air"]; [cardKeys removeObjectsInArray:bottomKeys];
     NSUInteger cardRows = (cardKeys.count + 1) / 2;
-    NSUInteger pills = (hasTop ? 1 : 0) + (hasBottom ? 1 : 0);
+    NSUInteger pills = (hasTop ? 1 : 0) + bottomKeys.count;
     CGFloat gap = 12.0;
     CGFloat cw = (S.width - gap) / 2.0;
     CGFloat ph = MAX(52.0, MIN(70.0, S.height * 0.135));
@@ -464,7 +514,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
         frames[cardKeys[i]] = [NSValue valueWithCGRect:CGRectMake((i % 2) * (cw + gap), yy + (i / 2) * (ch + gap), cw, ch)];
     }
     yy += cardRows ? cardRows * (ch + gap) : 0;
-    if (hasBottom) frames[@"hotspot"] = [NSValue valueWithCGRect:CGRectMake(0, yy, S.width, ph)];
+    for (NSString *bk in bottomKeys) { frames[bk] = [NSValue valueWithCGRect:CGRectMake(0, yy, S.width, ph)]; yy += ph + gap; }
 
     for (NSUInteger i = 0; i < keys.count; i++) {
         NSString *k = keys[i];
@@ -476,10 +526,22 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
             _cards[k] = card;
             [self addSubview:card];
         }
-        BOOL tall = !([k isEqualToString:@"air"] || [k isEqualToString:@"hotspot"]) && ch >= 100.0;
+        BOOL tall = !([k isEqualToString:@"air"] || [k isEqualToString:@"hotspot"] || [k isEqualToString:@"vpn"]) && ch >= 100.0;
         if (card.tall != tall) { card.tall = tall; [card setNeedsLayout]; }
         NSValue *fv = frames[k];
         if (fv) card.frame = fv.CGRectValue;
+        if ([k isEqualToString:@"vpn"]) {
+            // no Apple button behind VPN: the card only shows the state
+            BOOL vpnOn = PACBigVPNActive();
+            card.target = nil; card.labeled = nil;
+            if (![card.title.text isEqualToString:@"VPN"]) card.title.text = @"VPN";
+            NSString *vs = vpnOn ? @"Connected" : @"Not Connected";
+            if (![card.sub.text isEqualToString:vs]) card.sub.text = vs;
+            [card setOn:vpnOn];
+            card.alpha = 1.0;
+            card.enabled = NO;
+            continue;
+        }
         id rb = PACBigKV(labeled, @"buttonView");
         UIControl *round = [rb isKindOfClass:UIControl.class] ? rb : nil;
         if (!round) {
@@ -849,6 +911,35 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
 }
 
 #pragma mark - stand-alone copies (a second Connectivity or Music on another page)
+
+// The expanded Connectivity panel (long press) shows this layout instead of Apple's six buttons.
+// Apple's buttons stay where they are, hidden, because the cards press them.
+void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
+    UIView *root = controller.view;
+    if (!root) return;
+    PACBigConn *mine = (PACBigConn *)[root viewWithTag:190200];
+    Class L = NSClassFromString(@"CCUILabeledRoundButton");
+    NSMutableArray *found = [NSMutableArray array];
+    if (L) PACBigCollect(root, L, 0, found);
+    if (!expanded) {
+        mine.hidden = YES;
+        for (UIView *b in found) if (objc_getAssociatedObject(b, "pacHidden")) { b.alpha = 1.0; objc_setAssociatedObject(b, "pacHidden", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+        return;
+    }
+    if (!mine) {
+        mine = [[PACBigConn alloc] initWithFrame:CGRectZero];
+        mine.tag = 190200;
+        [root addSubview:mine];
+    }
+    mine.apple = root;
+    mine.hidden = NO;
+    CGFloat pad = 14.0;
+    mine.frame = CGRectInset(root.bounds, pad, pad + 6.0);
+    [root bringSubviewToFront:mine];
+    for (UIView *b in found) {
+        if (b.alpha != 0.0) { b.alpha = 0.0; objc_setAssociatedObject(b, "pacHidden", @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    }
+}
 
 UIView *PACCBigNewClone(int kind) {
     if (kind == 1) return [[PACBigConn alloc] initWithFrame:CGRectZero];

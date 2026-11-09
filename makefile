@@ -9,7 +9,7 @@ TWEAK_NAME = CCOCK18
 CCOCK18_FILES = tweak.xm PACC.x PAnim.x PACCIndicator.x PACCMedia.x PACCCoordinator.x PACCDesign.x PACCEdit.xm PACCLIQ.x PACCBig.x PACCCrash.x
 
 CCOCK18_CFLAGS = -fobjc-arc 
-CCOCK18_FRAMEWORKS = UIKit
+CCOCK18_FRAMEWORKS = UIKit CFNetwork
 include $(THEOS_MAKE_PATH)/tweak.mk
 SUBPROJECTS += prefs
 

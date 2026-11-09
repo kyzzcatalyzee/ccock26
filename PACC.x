@@ -458,8 +458,10 @@ void PACCConfigureConnectivity(UIViewController *controller) {
             view.transform = CGAffineTransformIdentity;
             PACCScaleMiniGlyphs(view, 1.0);
         }
+        PACCBigConfigureExpanded(controller, side > 0.0);
         return;
     }
+    PACCBigConfigureExpanded(controller, NO);
     CGFloat inset = MAX(6.0, round(side * 0.103));
     CGFloat gap = MAX(4.0, round(side * 0.055));
     CGFloat cell = floor((side - inset * 2.0 - gap) * 0.5);
@@ -553,8 +555,8 @@ void PACCConfigureConnectivity(UIViewController *controller) {
             CGRectGetMinY(bottomRight) + (slot / 2) * (miniCell + miniGap) + miniCell * 0.5);
         view.transform = CGAffineTransformMakeScale(miniCell / cell, miniCell / cell);
         PACCScaleMiniGlyphs(view, 1.2);
-        PACCReplaceMiniGlyph(view, slot == 0 ? @"cellularbars" : slot == 1 ? @"bluetooth" : @"personalhotspot",
-                             slot == 0 ? @"antenna.radiowaves.left.and.right" : slot == 1 ? @"dot.radiowaves.left.and.right" : @"personalhotspot", cell);
+        if (slot != 1) PACCReplaceMiniGlyph(view, slot == 0 ? @"cellularbars" : @"personalhotspot",
+                             slot == 0 ? @"antenna.radiowaves.left.and.right" : @"personalhotspot", cell);
         [root bringSubviewToFront:view];
         slot++;
     }
