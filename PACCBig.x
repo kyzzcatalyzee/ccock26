@@ -9,6 +9,7 @@
 
 #import "PACC.h"
 #import <CFNetwork/CFNetwork.h>
+#import <notify.h>
 #import <QuartzCore/QuartzCore.h>
 
 static const NSInteger kPACBigTag = 182100;
@@ -226,12 +227,14 @@ static NSString *PACBigTime(double t, BOOL negative) {
 @property (nonatomic) BOOL isOn;
 @property (nonatomic) BOOL tall;                    // square card: icon on top, text at the bottom
 @property (nonatomic) BOOL iconOnly;                // round control: just the glyph
+@property (nonatomic, copy) void (^onTap)(void);    // own action instead of pressing an Apple button
 @property (nonatomic, strong) UIView *material;     // the same material the stock controls use
 - (void)setOn:(BOOL)on;
 @end
 
 static UIColor *PACBigOnColor(NSString *key) {
     if ([key isEqualToString:@"air"]) return [UIColor colorWithRed:1.0 green:0.62 blue:0.04 alpha:1];
+    if ([key isEqualToString:@"ringeroff"]) return [UIColor colorWithRed:1.0 green:0.62 blue:0.04 alpha:1];
     if ([key isEqualToString:@"cell"] || [key isEqualToString:@"hotspot"]) return [UIColor colorWithRed:0.2 green:0.78 blue:0.35 alpha:1];
     return [UIColor colorWithRed:0.04 green:0.52 blue:1.0 alpha:1];
 }
@@ -289,6 +292,8 @@ static UIImage *PACBigDrawn(NSString *kind, CGFloat pt) {
 }
 
 static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
+    if ([key isEqualToString:@"ringer"])    return PACBigSymbol(@[@"bell.fill"], pt);
+    if ([key isEqualToString:@"ringeroff"]) return PACBigSymbol(@[@"bell.slash.fill"], pt);
     if ([key isEqualToString:@"air"])     return PACBigSymbol(@[@"airplane"], pt);
     if ([key isEqualToString:@"wifi"])    return PACBigSymbol(@[@"wifi"], pt);
     if ([key isEqualToString:@"cell"])    return PACBigSymbol(@[@"cellularbars", @"antenna.radiowaves.left.and.right"], pt);
@@ -390,6 +395,16 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     }
 }
 - (void)tapped {
+    if (self.onTap) {
+        if (gHapticsEnabled) Haptic();
+        self.onTap();
+        [UIView animateWithDuration:0.12 animations:^{ self.transform = CGAffineTransformMakeScale(0.95, 0.95); }
+                         completion:^(BOOL f) {
+            [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.4 options:0
+                             animations:^{ self.transform = CGAffineTransformIdentity; } completion:nil];
+        }];
+        return;
+    }
     UIControl *round = self.target;
     if (!round) return;
     if (gHapticsEnabled) Haptic();
@@ -581,7 +596,32 @@ static BOOL PACBigVPNActive(void) {
 }
 @end
 
-#pragma mark - single toggle (Wi-Fi, Cellular, Bluetooth, Hotspot)
+#pragma mark - single toggle (Wi-Fi, Cellular, Bluetooth, Hotspot, Silent Mode)
+
+// Ringer / Silent switch state: 0 = silent, 1 = ringer on (SpringBoard's own notify state).
+static BOOL PACBigRingerMuted(void) {
+    static int token = 0; static BOOL ok = NO;
+    if (!ok) ok = (notify_register_check("com.apple.springboard.ringerstate", &token) == NOTIFY_STATUS_OK);
+    if (!ok) return NO;
+    uint64_t st = 1;
+    notify_get_state(token, &st);
+    return st == 0;
+}
+
+static void PACBigSetRingerMuted(BOOL muted) {
+    id app = UIApplication.sharedApplication;
+    id ctl = nil;
+    SEL rc = NSSelectorFromString(@"ringerControl");
+    if ([app respondsToSelector:rc]) ctl = ((id (*)(id, SEL))objc_msgSend)(app, rc);
+    if (!ctl) {
+        Class C = NSClassFromString(@"SBRingerControl");
+        SEL si = NSSelectorFromString(@"sharedInstance");
+        if (C && [C respondsToSelector:si]) ctl = ((id (*)(id, SEL))objc_msgSend)(C, si);
+    }
+    SEL set = NSSelectorFromString(@"setRingerMuted:");
+    if (ctl && [ctl respondsToSelector:set]) ((void (*)(id, SEL, BOOL))objc_msgSend)(ctl, set, muted);
+    else NSLog(@"[CCock26] ringer control unavailable");
+}
 
 // One of Apple's Connectivity buttons as a control of its own; it presses the real button of the Connectivity module.
 @interface PACBigToggle : PACBigView
@@ -618,9 +658,24 @@ static BOOL PACBigVPNActive(void) {
     CGSize S = self.bounds.size;
     if (S.width < 20 || S.height < 20 || !self.key.length) return;
     _card.frame = self.bounds;
-    _card.key = self.key;
     BOOL iconOnly = S.width < S.height * 1.4;
     if (_card.iconOnly != iconOnly) { _card.iconOnly = iconOnly; [_card setNeedsLayout]; }
+    if ([self.key isEqualToString:@"ringer"]) {
+        // Silent Mode: works on its own, no Apple button behind it
+        BOOL muted = PACBigRingerMuted();
+        NSString *k = muted ? @"ringeroff" : @"ringer";
+        if (![_card.key isEqualToString:k]) { _card.key = k; [_card setNeedsLayout]; }
+        _card.onTap = ^{ PACBigSetRingerMuted(!PACBigRingerMuted()); };
+        _card.target = nil; _card.labeled = nil;
+        if (![_card.title.text isEqualToString:@"Silent Mode"]) _card.title.text = @"Silent Mode";
+        NSString *rs = muted ? @"On" : @"Off";
+        if (![_card.sub.text isEqualToString:rs]) _card.sub.text = rs;
+        [_card setOn:muted];
+        _card.alpha = 1.0;
+        _card.enabled = !gEditModeActive;
+        return;
+    }
+    _card.key = self.key;
 
     UIView *labeled = nil;
     Class L = NSClassFromString(@"CCUILabeledRoundButton");
@@ -1129,6 +1184,33 @@ UIView *PACCBigNewClone(int kind) {
 }
 
 // apple: the view of the real Connectivity module, whose buttons the cards press
+// Apple's round button behind one Connectivity key (wifi, cell, bt, hotspot, ...), or nil
+UIControl *PACCBigFindRound(UIView *apple, NSString *key) {
+    Class L = NSClassFromString(@"CCUILabeledRoundButton");
+    if (!L || !apple) return nil;
+    NSMutableArray *found = [NSMutableArray array];
+    PACBigCollect(apple, L, 0, found);
+    for (UIView *b in found) {
+        id t = PACBigKV(b, @"title");
+        NSString *title = [t isKindOfClass:NSString.class] ? t : @"";
+        if (!title.length) {
+            NSMutableArray *labels = [NSMutableArray array];
+            PACBigCollect(b, UILabel.class, 0, labels);
+            for (UILabel *lb in labels) if (lb.text.length) { title = lb.text; break; }
+        }
+        if (![PACBigKey(title) isEqualToString:key]) continue;
+        id rb = PACBigKV(b, @"buttonView");
+        UIControl *round = [rb isKindOfClass:UIControl.class] ? rb : nil;
+        if (!round) {
+            NSMutableArray *all = [NSMutableArray array];
+            PACBigCollect(b, UIControl.class, 0, all);
+            for (UIControl *c in all) if ([NSStringFromClass(c.class) containsString:@"RoundButton"]) { round = c; break; }
+        }
+        return round;
+    }
+    return nil;
+}
+
 // "pacc.toggle.wifi" -> key "wifi"
 void PACCBigSetToggleMid(UIView *v, NSString *mid) {
     if (![v isKindOfClass:PACBigToggle.class]) return;

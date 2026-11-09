@@ -93,3 +93,85 @@ known issue:
 
 ## 0.4.19
 - Ships its own PrivateSymbols.bundle (from ControlCenter26) so the iOS 26 Connectivity glyph is used for the Connectivity page icon.
+
+## 0.4.20
+- Page swipe back to the earlier behaviour (no touch band, not exclusive). Pager icon for Connectivity back to the antenna.
+
+## 0.4.21
+- Page swipe like ControlCenter26 again (middle band only, exclusive), without the scroll-pan suspension.
+
+## 0.4.22
+- Big Connectivity: the AirDrop card uses the iOS 26 private Connectivity glyph.
+
+## 0.4.23
+- Page swipe: Apple pans wait for it through the delegate (like ControlCenter26) from the first touch.
+
+## 0.4.24
+- Cellular uses the cellularbars glyph like ControlCenter26; the globe tile falls back to the system "network" symbol and tries every copy of the private symbols.
+
+## 0.4.25
+- The small Connectivity control now shows the ControlCenter26 glyphs (cellular bars, bluetooth, hotspot) on Apple's own mini buttons.
+
+## 0.4.26
+- Small Connectivity keeps Apple's Bluetooth glyph. The expanded Connectivity panel now shows the CCock26 layout. The big layout has a VPN pill under Hotspot, the globe moved to VPN, and AirDrop and Bluetooth use drawn Apple-style marks.
+
+## 0.4.27
+- Page swipe slides without overshoot; the jelly wobble is a bit taller; less rubber band at the ends.
+
+## 0.4.28
+- Expanded Connectivity: no plate behind it, same size and look as the big Connectivity on a page.
+- No bounce anywhere when changing page; tapping a pager icon now gives the same jelly as the swipe. The pager icon no longer pulses.
+
+## 0.4.30
+- Tapping a pager icon now ends in the same jelly as the swipe. Expanded Connectivity hides every plate behind it.
+
+## 0.4.31
+- Expanded Connectivity: LiquidAss's LGLiveBackdropView plate behind the cards is hidden.
+
+## 0.4.32
+- Expanded Connectivity: provides its own platter (as ControlCenter26 does), so no plate is drawn behind the cards.
+
+## 0.4.33
+- Expanded Connectivity: Apple's chrome around the panel is stripped on every container layout (the way ControlCenter26 does it) and restored afterwards.
+
+## 0.4.44
+- Wi-Fi, Cellular Data, Bluetooth and Hotspot are real Control Center modules now (bundles in modules/, like SiriPlusCC). They show up in Settings > Control Center and in Add a Control. They press the real Connectivity button, so Connectivity has to stay on the grid.
+- The earlier built-in copies of these four are gone from the Add a Control list.
+
+## 0.4.43
+- New control: Silent Mode (like RingerToggle): bell glyph, orange with a slashed bell when silent; works on its own, no Connectivity needed.
+
+## 0.4.41
+- The 2x1 Wi-Fi / Cellular / Bluetooth / Hotspot pill shows its name and status again.
+
+## 0.4.40
+- New controls of our own: Wi-Fi, Cellular Data, Bluetooth and Hotspot, each as a round control (1x1, or a pill at 2x1) you add from "Add a Control". They press the real Connectivity buttons, so the Connectivity module has to stay on the grid.
+
+## 0.4.39
+- Edit mode: the square box behind the resize handle is gone (translucent arc only).
+- Holding the page icons: same dim grey / white colours as at rest.
+- Page icons: the plain-page ring is a little smaller; the music page uses two beamed notes.
+- "Add a Control" sits lower.
+
+## 0.4.38
+- Edit mode: the 3D look is redone as plain translucent, no liquid glass: thin soft rim on the controls, translucent minus button and resize handle, light shadows.
+- Page icons: the selected page is white, the others a dim grey; a plain page is an open ring.
+
+## 0.4.37
+- Edit mode: the outline of every control is a glass bubble now (bright rim on the upper left, darker rim underneath, soft inner glow, drop shadow) for the 3D look.
+
+## 0.4.36
+- Edit mode: soft drop shadow under the minus button and the resize handle (3D look).
+- Edit mode: "Add a Control" is smaller and sits lower, so it no longer touches the last row.
+
+## 0.4.36
+- Edit mode: "Add a Control" is smaller (text 14pt, height 36) and sits lower so it no longer covers the last row of controls.
+- Edit mode: the page "+" button is a plain white glyph without backdrop.
+
+## 0.4.35
+- Edit mode: the remove (minus) button and the resize handle are small liquid-glass pieces now (LiquidAss glass, thin light rim, white minus).
+- Edit mode: "Add a Control" and "Reset Layout" have no backdrop any more, only icon and text.
+- Edit mode: the layers button beside "Add a Control" is removed.
+
+## 0.4.34
+- Plate behind the big and expanded Connectivity hidden the way Control26 does it: an empty layer mask on material/backdrop views of the module size, up to 8 levels up.

@@ -1637,7 +1637,6 @@ static NSArray<NSString *> *PACAvailableModuleIdentifiers(void) {
     [all addObject:@"com.apple.mediaremote.controlcenter.nowplaying"];
     NSArray<NSString *> *enabled = PACProviderOrderedIdentifiers() ?: @[];
     NSMutableArray<NSString *> *result = [NSMutableArray array];
-    for (NSString *t in @[@"wifi", @"cell", @"bt", @"hotspot"]) [result addObject:[@"pacc.toggle." stringByAppendingString:t]];
     for (NSString *mid in all) {
         // Connectivity and Music stay in the list even when already on the grid; picking one moves it to the first free spot
         BOOL alwaysListed = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"] ||
@@ -1659,6 +1658,7 @@ static NSString *PACNameForIdentifier(NSString *mid) {
     if ([lower isEqualToString:@"pacc.toggle.cell"]) return @"Cellular Data";
     if ([lower isEqualToString:@"pacc.toggle.bt"]) return @"Bluetooth";
     if ([lower isEqualToString:@"pacc.toggle.hotspot"]) return @"Hotspot";
+    if ([lower isEqualToString:@"pacc.toggle.ringer"]) return @"Silent Mode";
     if ([lower containsString:@"connectivitymodule"]) return @"Connectivity";
     if ([lower containsString:@"controlcenter.nowplaying"]) return @"Music Player";
 
@@ -4720,3 +4720,36 @@ static void PACEditReload(__unused CFNotificationCenterRef c,
         }];
     }
 }
+
+
+// What the Wi-Fi / Cellular / Bluetooth / Hotspot Control Center modules (bundles in modules/) call into:
+// they press the real button of the Connectivity module, which has to be on the grid.
+@interface PACCRadioBridge : NSObject
++ (NSInteger)stateForKind:(NSInteger)kind;
++ (void)toggleKind:(NSInteger)kind;
+@end
+
+@implementation PACCRadioBridge
++ (UIControl *)buttonForKind:(NSInteger)kind {
+    NSArray<NSString *> *keys = @[@"wifi", @"cell", @"bt", @"hotspot"];
+    if (kind < 0 || kind >= (NSInteger)keys.count) return nil;
+    UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+    if (!ov) return nil;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        NSString *mid = PACMid(m);
+        if (mid.length && PACCBigKind(mid) == 1) return PACCBigFindRound(m.view, keys[(NSUInteger)kind]);
+    }
+    return nil;
+}
++ (NSInteger)stateForKind:(NSInteger)kind {
+    UIControl *b = [self buttonForKind:kind];
+    if (!b) return -1;
+    return b.isSelected ? 1 : 0;
+}
++ (void)toggleKind:(NSInteger)kind {
+    UIControl *b = [self buttonForKind:kind];
+    if (!b) return;
+    [b sendActionsForControlEvents:UIControlEventTouchUpInside];
+    [b sendActionsForControlEvents:UIControlEventPrimaryActionTriggered];
+}
+@end

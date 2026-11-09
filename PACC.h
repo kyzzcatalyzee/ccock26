@@ -84,6 +84,7 @@ CGFloat PACCGridGap(void);
 int PACCBigKind(NSString *mid);
 BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h);
 void PACCBigSetToggleMid(UIView *v, NSString *mid);
+UIControl *PACCBigFindRound(UIView *apple, NSString *key);
 void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH);
 void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded);
 void PACCBigStripContainer(UIView *container);
