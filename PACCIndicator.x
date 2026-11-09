@@ -81,6 +81,306 @@ static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D
 
 // the jelly: the page squashes and stretches a little as it lands
 static void PACCAddJelly(CALayer *layer, CGFloat endStretch) {
+    CAKeyframeAnimation *jy = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.y"];
+    jy.values = @[@(1.0 + endStretch), @0.945, @1.032, @0.985, @1.0];
+    jy.keyTimes = @[@0.0, @0.28, @0.55, @0.8, @1.0];
+    CAKeyframeAnimation *jx = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.x"];
+    jx.values = @[@(1.0 - endStretch * 0.4), @1.03, @0.985, @1.008, @1.0];
+    jx.keyTimes = jy.keyTimes;
+    CAAnimationGroup *jelly = [CAAnimationGroup animation];
+    jelly.animations = @[jy, jx];
+    jelly.duration = 0.75;
+    jelly.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    [layer addAnimation:jelly forKey:@"PAnimJelly"];
+}
+
+static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
+    CASpringAnimation *spring = [CASpringAnimation animationWithKeyPath:@"sublayerTransform.translation.y"];
+    spring.fromValue = @(from.m42);
+    spring.toValue   = @(to.m42);
+    spring.mass = 1.0;
+    spring.stiffness = 170.0;
+    spring.damping = 28.0;          // no overshoot anywhere
+    spring.initialVelocity = 0.0;
+    spring.duration = spring.settlingDuration;
+    spring.fillMode = kCAFillModeBackwards;
+    [layer addAnimation:spring forKey:key];
+}
+
+@implementation CCAPageIndicator
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    if ((self = [super initWithFrame:frame])) {
+        self.backgroundColor = UIColor.clearColor;
+        self.userInteractionEnabled = YES;
+        self.currentPage = 0;
+        self.pageCount = PACCBasePageCount() + PACCUserPageCount();
+        self.heldScale = 1.0;
+        self.heldAlphaFactor = 1.0;
+        self.jelloScaleX = 1.0;
+        self.jelloScaleY = 1.0;
+        self.baseCollectionSublayerTransform = CATransform3DIdentity;
+
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(scrubPan:)];
+        pan.maximumNumberOfTouches = 1;
+        pan.cancelsTouchesInView = YES;
+        pan.delegate = self;
+        [self addGestureRecognizer:pan];
+        self.panRecognizer = pan;
+
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(deviceOrientationChanged:)
+                                                     name:UIDeviceOrientationDidChangeNotification
+                                                   object:nil];
+    }
+    return self;
+}
+
+- (void)deviceOrientationChanged:(NSNotification *)note {
+    __weak CCAPageIndicator *weakSelf = self;
+    for (NSNumber *delay in @[@0.05, @0.4, @0.9]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{ [weakSelf syncLandscapeState]; });
+    }
+}
+
+- (void)syncLandscapeState {
+    BOOL landscape = PACCIndicatorIsLandscape();
+    if (landscape == self.suspendedForLandscape) return;
+    self.suspendedForLandscape = landscape;
+
+    if (landscape) {
+        if (self.panRecognizer.enabled) {
+            self.panRecognizer.enabled = NO;
+            self.panRecognizer.enabled = YES;
+        }
+        if (self.currentPage != 0 && self.overlay) {
+            if (gExperimentalPagingEnabled) [self experimentalSetCurrentPage:0 forOverlay:self.overlay];
+            else                            [self stableSetCurrentPage:0 forOverlay:self.overlay];
+        }
+        self.userInteractionEnabled = NO;
+        self.hidden = YES;
+    } else {
+        self.hidden = NO;
+        self.userInteractionEnabled = YES;
+        [self captureCollectionBase];
+        [self layoutButtons];
+    }
+}
+
+- (void)setFrame:(CGRect)frame {
+    [super setFrame:frame];
+    [self syncLandscapeState];
+}
+
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    if (self.window) [self installSwipe];
+    [self syncLandscapeState];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    [self syncLandscapeState];
+}
+
+- (BOOL)scrubbing {
+    return self.scrubbingActive;
+}
+
+- (BOOL)respondsToSelector:(SEL)aSelector {
+    if ([super respondsToSelector:aSelector]) return YES;
+    return NO;
+}
+- (id)forwardingTargetForSelector:(SEL)aSelector { return nil; }
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
+    NSMethodSignature *sig = [super methodSignatureForSelector:aSelector];
+    if (!sig) sig = [NSMethodSignature signatureWithObjCTypes:"v@:"];
+    return sig;
+}
+- (void)forwardInvocation:(NSInvocation *)anInvocation { }
+
+- (void)pulseCurrentButton {
+    return;     // no bounce on the pager icon either
+    if (self.currentPage >= self.subviews.count) return;
+    UIView *button = self.subviews[self.currentPage];
+    [button.layer removeAnimationForKey:@"PACCIndicatorPulse"];
+    CAKeyframeAnimation *pulse = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale"];
+    pulse.values = @[@1.0, @1.18, @0.95, @1.0];
+    pulse.keyTimes = @[@0.0, @0.35, @0.72, @1.0];
+    pulse.duration = 0.26;
+    pulse.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    [button.layer addAnimation:pulse forKey:@"PACCIndicatorPulse"];
+}
+
+// Apple's pans (the ones that pull Control Center down to close it) must wait for the page swipe: when ours takes
+// the touch, theirs fails and nothing drags the panel or the status bar along. On the first page ours never begins
+// for a downward drag, so closing works as before.
+static NSHashTable<UIGestureRecognizer *> *gPACCBoundPans;
+
+// The panel is pulled down by the overlay's own scroll view (it bounces at the top and Apple turns that into "close"),
+// so its pan is the one to hold back too. Control26 gets the same effect by scrolling that view itself.
+static NSMutableArray<UIGestureRecognizer *> *gPACCHeldPans;
+
+static NSArray<UIView *> *PACCOverlayScrollers(UIViewController *overlay) {
+    NSMutableArray<UIView *> *out = [NSMutableArray array];
+    id sv = nil;
+    @try { sv = [(id)overlay valueForKey:@"overlayScrollView"]; } @catch (__unused NSException *e) {}
+    if ([sv isKindOfClass:UIScrollView.class]) [out addObject:sv];
+    UIView *cv = ModuleCollection(overlay).view;
+    if ([cv isKindOfClass:UIScrollView.class]) [out addObject:cv];
+    for (UIView *v = cv.superview; v && v != overlay.view.superview; v = v.superview) {
+        if ([v isKindOfClass:UIScrollView.class] && ![out containsObject:v]) [out addObject:v];
+    }
+    return out;
+}
+
+static void PACCBindOtherPans(UIViewController *overlay, UIGestureRecognizer *ours) {
+    UIView *host = overlay.view;
+    if (!gPACCBoundPans) gPACCBoundPans = [NSHashTable weakObjectsHashTable];
+    NSMutableArray<UIView *> *views = [NSMutableArray array];
+    for (UIView *v = host; v; v = v.superview) [views addObject:v];
+    for (UIView *v in PACCOverlayScrollers(overlay)) if (![views containsObject:v]) [views addObject:v];
+    for (UIView *v in views) {
+        NSMutableArray<UIGestureRecognizer *> *grs = [v.gestureRecognizers mutableCopy] ?: [NSMutableArray array];
+        if ([v isKindOfClass:UIScrollView.class] && ![grs containsObject:((UIScrollView *)v).panGestureRecognizer]) {
+            [grs addObject:((UIScrollView *)v).panGestureRecognizer];
+        }
+        for (UIGestureRecognizer *gr in grs) {
+            if (gr == ours || ![gr isKindOfClass:UIPanGestureRecognizer.class]) continue;
+            if ([gPACCBoundPans containsObject:gr]) continue;
+            [gPACCBoundPans addObject:gr];
+            [gr requireGestureRecognizerToFail:ours];
+            PACCCrashLog([NSString stringWithFormat:@"swipe: %@ pan on %@ now waits for the page swipe",
+                          NSStringFromClass(gr.class), NSStringFromClass(v.class)]);
+        }
+    }
+}
+
+// if one of them already started pulling, cancel it and put the panel back
+__attribute__((unused)) static void PACCHoldScrollPans(UIViewController *overlay, UIGestureRecognizer *ours) {
+    gPACCHeldPans = [NSMutableArray array];
+    for (UIView *v in PACCOverlayScrollers(overlay)) {
+        UIScrollView *sv = (UIScrollView *)v;
+        UIGestureRecognizer *p = sv.panGestureRecognizer;
+        if (p == ours || !p.enabled) continue;
+        p.enabled = NO;
+        [gPACCHeldPans addObject:p];
+    }
+}
+
+static void PACCReleaseScrollPans(void) {
+    for (UIGestureRecognizer *p in gPACCHeldPans) p.enabled = YES;
+    gPACCHeldPans = nil;
+}
+
+static const void *kPACCSwipeKey = &kPACCSwipeKey;
+static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
+
+// Swipe up on the page area to go to the next page (and down to come back), with the same springy page slide and jelly as scrubbing the pager.
+- (void)installSwipe {
+    UIView *host = self.overlay.view;
+    if (!host) return;
+    // The panel's view ignores touches on its empty space (that is how tapping outside closes it), so a page with few
+    // controls had nothing under the finger. The recognizer lives on the window instead and sees every touch.
+    UIView *target = host;
+    UIGestureRecognizer *old = objc_getAssociatedObject(self, kPACCSwipeKey);
+    if (old) [old.view removeGestureRecognizer:old];
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(swipePan:)];
+    pan.maximumNumberOfTouches = 1;
+    pan.cancelsTouchesInView = NO;
+    pan.delegate = self;
+    [target addGestureRecognizer:pan];
+    objc_setAssociatedObject(self, kPACCSwipeKey, pan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(self, kPACCSwipeRecKey, pan, OBJC_ASSOCIATION_ASSIGN);
+}
+
+- (void)swipePan:(UIPanGestureRecognizer *)g {
+    UIView *host = self.overlay.view;
+    UIViewController *collection = ModuleCollection(self.overlay);
+    UIView *cv = collection.view;
+    if (!host || !cv || self.pageCount <= 1) return;
+    CGFloat span = PageSpan();
+    if (span < 1.0) return;
+    NSInteger maxPage = (NSInteger)self.pageCount - 1;
+    CGFloat ty = [g translationInView:host].y;
+    CGFloat vy = [g velocityInView:host].y;
+
+    if (g.state == UIGestureRecognizerStateBegan) {
+        self.dragStartPage = self.currentPage;
+        self.dragging = YES;
+        gPageAnimating = YES;
+        gPagerScrubbing = YES;          // keeps the layout pass from snapping the page back to its rest spot
+        gPACCRevealAll = YES;
+        [cv.layer removeAnimationForKey:@"PAnimPageSlide"];
+        [cv.layer removeAnimationForKey:@"PAnimJelly"];
+        [PACC.shared syncModuleVisibilityForOverlay:self.overlay animated:NO];
+    }
+    if (!self.dragging) return;
+
+    CGFloat rest = -(CGFloat)self.dragStartPage * span;
+    CGFloat y = rest + ty;
+    CGFloat top = 0.0, bottom = -(CGFloat)maxPage * span;
+    if (y > top) y = top + (y - top) * 0.15;                    // rubber band at the ends
+    else if (y < bottom) y = bottom + (y - bottom) * 0.15;
+
+    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
+        // keep the panel's own scroll view at rest, so Apple's pull-down-to-close never gets a drag to work with
+        for (UIView *sv in PACCOverlayScrollers(self.overlay)) {
+            if ([sv isKindOfClass:UIScrollView.class]) {
+                UIScrollView *u = (UIScrollView *)sv;
+                CGFloat rest0 = -u.adjustedContentInset.top;
+                if (u.contentOffset.y != rest0 && u.contentOffset.y < 0.0) u.contentOffset = CGPointMake(u.contentOffset.x, rest0);
+            }
+        }
+        CGFloat stretch = MIN(0.07, fabs(vy) / 9000.0);        // the page stretches a little while it is dragged fast
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        CATransform3D sub = cv.layer.sublayerTransform;
+        sub.m41 = 0.0; sub.m42 = y; sub.m43 = 0.0;
+        cv.layer.sublayerTransform = sub;
+        cv.layer.transform = CATransform3DMakeScale(1.0 - stretch * 0.4, 1.0 + stretch, 1.0);
+        [CATransaction commit];
+        return;
+    }
+
+    // finger lifted: pick the page, then let it spring in with a jelly wobble
+    NSInteger target = (NSInteger)self.dragStartPage;
+    // a cancelled touch (the system took it over, a module button was under the finger) counts like a lifted finger
+    if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
+        if (ty < -span * 0.12 || vy < -350.0) target += 1;
+        else if (ty > span * 0.12 || vy > 350.0) target -= 1;
+    }
+    // the system often cancels a slow swipe right after it started (translation already reset to 0): go by direction
+    if (g.state == UIGestureRecognizerStateCancelled && target == (NSInteger)self.dragStartPage) {
+        if (vy < -120.0) target += 1;
+        else if (vy > 120.0) target -= 1;
+    }
+    target = MIN(maxPage, MAX(0, target));
+    PACCCrashLog([NSString stringWithFormat:@"swipe end state %ld ty %.0f vy %.0f from %ld to %ld", (long)g.state,
+                  ty, vy, (long)self.dragStartPage, (long)target]);
+
+    CGFloat endStretch = MIN(0.045, fabs(vy) / 12000.0);
+    CALayer *pres = (CALayer *)cv.layer.presentationLayer;
+    CATransform3D fromSub = pres ? pres.sublayerTransform : cv.layer.sublayerTransform;
+    CATransform3D toSub = cv.layer.sublayerTransform;
+    toSub.m41 = 0.0; toSub.m42 = -(CGFloat)target * span; toSub.m43 = 0.0;
+
+    self.dragging = NO;
+    PACCReleaseScrollPans();
+    gPACCRevealAll = NO;
+    gPagerScrubbing = NO;
+    self.currentPage = (NSUInteger)target;
+    gCurrentPage = target;
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    cv.layer.sublayerTransform = toSub;
+    cv.layer.transform = CATransform3DIdentity;
+    [CATransaction commit];
+
+    PACCAddSmoothSlide(cv.layer, fromSub, toSub, @"PAnimPageSlide");
+
     PACCAddJelly(cv.layer, endStretch);
 
     [PACC.shared applyHeaderMaterialHidden:NO forOverlay:self.overlay];
