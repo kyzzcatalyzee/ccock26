@@ -6,6 +6,7 @@
 
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
+#import <objc/runtime.h>
 
 #ifndef PACC_KIND
 #define PACC_KIND 0
@@ -76,6 +77,12 @@ static UIColor *PACCModOnColor(void) {
     UIImageView *_glyph;
     NSTimer *_timer;
     NSInteger _last;
+}
+
+// Control Center expects the content view controller to adopt its protocol
++ (void)load {
+    Protocol *p = objc_getProtocol("CCUIContentModuleContentViewController");
+    if (p && !class_conformsToProtocol(self, p)) class_addProtocol(self, p);
 }
 
 - (void)loadView {
@@ -158,6 +165,12 @@ static UIColor *PACCModOnColor(void) {
 @end
 
 @implementation PACC_MODULE
+// Control Center expects the principal class to adopt its module protocol
++ (void)load {
+    Protocol *p = objc_getProtocol("CCUIContentModule");
+    if (p && !class_conformsToProtocol(self, p)) class_addProtocol(self, p);
+    NSLog(@"[CCock26] module %d loaded, protocol %d", (int)PACC_KIND, p != NULL);
+}
 - (UIViewController *)contentViewController {
     if (!_controller) _controller = [PACC_VC_CLASS new];
     return _controller;
