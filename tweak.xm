@@ -421,6 +421,14 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+// Like ControlCenter26: whenever the module container lays out, Apple's chrome around an expanded Connectivity is stripped.
+%hook CCUIContentModuleContainerView
+- (void)layoutSubviews {
+    %orig;
+    if (gEnabled) PACCBigStripContainer((UIView *)self);
+}
+%end
+
 // The expanded Connectivity panel is as tall as the big Connectivity on a page.
 %hook CCUIConnectivityModuleViewController
 - (CGFloat)preferredExpandedContentHeight {

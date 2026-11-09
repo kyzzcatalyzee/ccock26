@@ -928,6 +928,57 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
 
 #pragma mark - stand-alone copies (a second Connectivity or Music on another page)
 
+// ControlCenter26 does it this way (CC26StripExpandedBackground): while the expanded panel shows our layout, everything of Apple's
+// around it loses its chrome (background colour, filters, border, shadow) and the plate-like views are hidden; it all comes back afterwards.
+static const char kPACChromeKey = 0;
+static const char kPACHiddenKey = 0;
+
+void PACCBigStripContainer(UIView *container) {
+    if (!container) return;
+    UIView *mine = [container viewWithTag:190200];
+    BOOL strip = (mine && !mine.hidden && mine.window);
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:container];
+    while (queue.count) {
+        UIView *v = queue.firstObject; [queue removeObjectAtIndex:0];
+        if (v == mine) continue;
+        [queue addObjectsFromArray:v.subviews];
+        CALayer *l = v.layer;
+        NSDictionary *saved = objc_getAssociatedObject(l, &kPACChromeKey);
+        if (strip) {
+            if (!saved) {
+                id bgObj = l.backgroundColor ? (__bridge id)l.backgroundColor : (id)NSNull.null;
+                saved = @{@"bg": bgObj,
+                          @"f": l.filters ?: NSNull.null,
+                          @"bf": l.backgroundFilters ?: NSNull.null,
+                          @"bw": @(l.borderWidth), @"so": @(l.shadowOpacity)};
+                objc_setAssociatedObject(l, &kPACChromeKey, saved, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            l.backgroundColor = NULL; l.filters = nil; l.backgroundFilters = nil; l.borderWidth = 0; l.shadowOpacity = 0;
+            NSString *cn = NSStringFromClass(v.class);
+            BOOL plate = [cn containsString:@"Material"] || [cn containsString:@"Backdrop"] || [cn containsString:@"LGLive"] ||
+                         [cn containsString:@"Platter"] || [cn containsString:@"Background"];
+            if (plate && ![mine isDescendantOfView:v] && !v.hidden) {
+                v.hidden = YES;
+                objc_setAssociatedObject(v, &kPACHiddenKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+        } else {
+            if (saved) {
+                id bg = saved[@"bg"], f = saved[@"f"], bf = saved[@"bf"];
+                l.backgroundColor = (bg == NSNull.null) ? NULL : (__bridge CGColorRef)bg;
+                l.filters = (f == NSNull.null) ? nil : f;
+                l.backgroundFilters = (bf == NSNull.null) ? nil : bf;
+                l.borderWidth = [saved[@"bw"] doubleValue];
+                l.shadowOpacity = [saved[@"so"] floatValue];
+                objc_setAssociatedObject(l, &kPACChromeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            if (objc_getAssociatedObject(v, &kPACHiddenKey)) {
+                v.hidden = NO;
+                objc_setAssociatedObject(v, &kPACHiddenKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+        }
+    }
+}
+
 // The expanded Connectivity panel (long press) shows this layout instead of Apple's six buttons.
 // Apple's buttons stay where they are, hidden, because the cards press them.
 void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
@@ -938,7 +989,13 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     NSMutableArray *found = [NSMutableArray array];
     if (L) PACBigCollect(root, L, 0, found);
     if (!expanded) {
-        if (mine && !mine.hidden) PACBigHideModuleMaterial(root, NO);
+        if (mine && !mine.hidden) {
+            PACBigHideModuleMaterial(root, NO);
+            mine.hidden = YES;
+            UIView *c = root.superview; Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
+            while (c && cc && ![c isKindOfClass:cc]) c = c.superview;
+            PACCBigStripContainer(c);
+        }
         mine.hidden = YES;
         for (UIView *b in found) if (objc_getAssociatedObject(b, "pacHidden")) { b.alpha = 1.0; objc_setAssociatedObject(b, "pacHidden", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
         return;
@@ -953,6 +1010,11 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     // same layout as the Connectivity on a page: no plate behind it, the cards fill the whole space
     PACBigHideModuleMaterial(root, YES);
     mine.frame = root.bounds;
+    {
+        UIView *c = root.superview; Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
+        while (c && cc && ![c isKindOfClass:cc]) c = c.superview;
+        PACCBigStripContainer(c);
+    }
     [root bringSubviewToFront:mine];
     for (UIView *b in found) {
         if (b.alpha != 0.0) { b.alpha = 0.0; objc_setAssociatedObject(b, "pacHidden", @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }

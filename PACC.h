@@ -85,6 +85,7 @@ int PACCBigKind(NSString *mid);
 BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h);
 void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH);
 void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded);
+void PACCBigStripContainer(UIView *container);
 UIView *PACCBigNewClone(int kind);
 void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIView *apple);
 int PACCPageContentKind(NSUInteger page);   // 0 other, 1 Connectivity, 2 Music Player
