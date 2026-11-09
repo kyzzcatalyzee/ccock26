@@ -1398,9 +1398,9 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
     b.layer.cornerCurve = kCACornerCurveContinuous;
     b.layer.masksToBounds = NO;
     b.layer.shadowColor = UIColor.blackColor.CGColor;
-    b.layer.shadowOpacity = 0.14;
-    b.layer.shadowRadius = 4.0;
-    b.layer.shadowOffset = CGSizeMake(0, 1);
+    b.layer.shadowOpacity = 0.38;               // soft drop shadow underneath, gives the 3D look
+    b.layer.shadowRadius = 6.0;
+    b.layer.shadowOffset = CGSizeMake(0, 3);
 
     UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration
         configurationWithPointSize:15 weight:UIImageSymbolWeightBold];
@@ -1453,6 +1453,10 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     pill.lineCap = kCALineCapRound;
     pill.lineJoin = kCALineJoinRound;
     [b.layer addSublayer:pill];
+    b.layer.shadowColor = UIColor.blackColor.CGColor;     // soft drop shadow under the handle (3D look)
+    b.layer.shadowOpacity = 0.38;
+    b.layer.shadowRadius = 6.0;
+    b.layer.shadowOffset = CGSizeMake(0, 3);
 
     objc_setAssociatedObject(b, kPACMidKey, mid, OBJC_ASSOCIATION_COPY_NONATOMIC);
     return b;
@@ -2095,7 +2099,7 @@ static UIButton *PACMakeAddButton(void) {
 
     b.backgroundColor = UIColor.clearColor;     // no backdrop behind it, as on iOS 26
 
-    UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightSemibold];
+    UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:19 weight:UIImageSymbolWeightSemibold];
     UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"plus.circle.fill" withConfiguration:cfg]];
     icon.tintColor = UIColor.whiteColor;
     icon.contentMode = UIViewContentModeScaleAspectFit;
@@ -2103,12 +2107,12 @@ static UIButton *PACMakeAddButton(void) {
 
     UILabel *label = [UILabel new];
     label.text = @"Add a Control";
-    label.font = [UIFont systemFontOfSize:19 weight:UIFontWeightBold];
+    label.font = [UIFont systemFontOfSize:14 weight:UIFontWeightBold];
     label.textColor = UIColor.whiteColor;
     label.userInteractionEnabled = NO;
 
     CGSize textSize = [label sizeThatFits:CGSizeMake(300, 30)];
-    CGFloat height = 54.0, iconSide = 24.0, gap = 10.0, padX = 24.0;
+    CGFloat height = 36.0, iconSide = 18.0, gap = 7.0, padX = 16.0;
     CGFloat width = padX + iconSide + gap + textSize.width + padX;
     b.bounds = CGRectMake(0, 0, width, height);
     b.layer.cornerRadius = height * 0.5;
@@ -2126,10 +2130,8 @@ static UIButton *PACMakeRoundButton(NSString *symbol, CGFloat side, CGFloat poin
     b.layer.cornerRadius = side * 0.5;
     b.layer.masksToBounds = YES;
 
-    UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterialDark]];
-    blur.frame = b.bounds;
-    blur.userInteractionEnabled = NO;
-    [b addSubview:blur];
+    // plain white glyph without a backdrop, like the page icons beside it
+    b.backgroundColor = UIColor.clearColor;
 
     UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:UIImageSymbolWeightSemibold];
     UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:symbol withConfiguration:cfg]];
@@ -2856,8 +2858,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         [ov.view addSubview:addButton];
     }
     CGFloat addBottom = ov.view.safeAreaInsets.bottom;
-    if (addBottom < 1.0) addBottom = 20.0;
-    addButton.center = CGPointMake(CGRectGetMidX(ov.view.bounds), CGRectGetHeight(ov.view.bounds) - addBottom - 38.0);
+    if (addBottom < 1.0) addBottom = 2.0;        // sits right at the bottom edge, below the last row of controls
+    addButton.center = CGPointMake(CGRectGetMidX(ov.view.bounds), CGRectGetHeight(ov.view.bounds) - addBottom - 18.0);
     addButton.alpha = 0.0;
     addButton.transform = CGAffineTransformMakeScale(0.7, 0.7);
     [UIView animateWithDuration:0.65 delay:0.12 usingSpringWithDamping:0.58 initialSpringVelocity:0.7
