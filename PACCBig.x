@@ -868,6 +868,17 @@ static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
             if (fabs(s.alpha - a) > 0.01) s.alpha = a;
         }
     }
+    // LiquidAss puts its own live backdrop (LGLiveBackdropView) behind the module: hide that too, but not the cards' own
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:container];
+    while (queue.count) {
+        UIView *v = queue.firstObject; [queue removeObjectAtIndex:0];
+        if ([v isKindOfClass:PACBigView.class]) continue;
+        if ([NSStringFromClass(v.class) containsString:@"LGLiveBackdrop"]) {
+            if (fabs(v.alpha - a) > 0.01) v.alpha = a;
+            continue;
+        }
+        [queue addObjectsFromArray:v.subviews];
+    }
 }
 
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded) {
