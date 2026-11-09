@@ -421,6 +421,13 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+// The expanded Connectivity panel is as tall as the big Connectivity on a page.
+%hook CCUIConnectivityModuleViewController
+- (CGFloat)preferredExpandedContentHeight {
+    return gEnabled ? 526.0 : %orig;
+}
+%end
+
 %hook CCUISliderModuleViewController
 - (void)viewDidLayoutSubviews {
     %orig;

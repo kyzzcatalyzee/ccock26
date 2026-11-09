@@ -880,7 +880,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
             [existing removeFromSuperview];
             PACBigMask(host, nil, NO);
         }
-        if (kind) PACBigHideModuleMaterial(host, NO);
+        if (kind && !(expanded && kind == 1)) PACBigHideModuleMaterial(host, NO);
         return;
     }
     PACBigHideModuleMaterial(host, YES);
@@ -922,6 +922,7 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     NSMutableArray *found = [NSMutableArray array];
     if (L) PACBigCollect(root, L, 0, found);
     if (!expanded) {
+        if (mine && !mine.hidden) PACBigHideModuleMaterial(root, NO);
         mine.hidden = YES;
         for (UIView *b in found) if (objc_getAssociatedObject(b, "pacHidden")) { b.alpha = 1.0; objc_setAssociatedObject(b, "pacHidden", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
         return;
@@ -933,8 +934,9 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     }
     mine.apple = root;
     mine.hidden = NO;
-    CGFloat pad = 14.0;
-    mine.frame = CGRectInset(root.bounds, pad, pad + 6.0);
+    // same layout as the Connectivity on a page: no plate behind it, the cards fill the whole space
+    PACBigHideModuleMaterial(root, YES);
+    mine.frame = root.bounds;
     [root bringSubviewToFront:mine];
     for (UIView *b in found) {
         if (b.alpha != 0.0) { b.alpha = 0.0; objc_setAssociatedObject(b, "pacHidden", @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
