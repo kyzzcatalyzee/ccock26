@@ -426,6 +426,24 @@ BOOL gPagerScrubbing = NO;
 - (CGFloat)preferredExpandedContentHeight {
     return gEnabled ? 526.0 : %orig;
 }
+// ControlCenter26's modules draw their own platter (providesOwnPlatter): while expanded, Apple's plate and LiquidAss's backdrop
+// behind the cards are not made at all, so nothing has to be hidden afterwards.
+- (BOOL)providesOwnPlatter {
+    if (gEnabled) {
+        UIViewController *vc = (UIViewController *)self;
+        CGSize size = vc.isViewLoaded ? vc.view.bounds.size : CGSizeZero;
+        BOOL expanded = size.width >= 190.0 || size.height >= 190.0;
+        if (!expanded) {
+            @try {
+                id parent = vc.parentViewController;
+                if ([parent respondsToSelector:NSSelectorFromString(@"isExpanded")])
+                    expanded = ((BOOL (*)(id, SEL))objc_msgSend)(parent, NSSelectorFromString(@"isExpanded"));
+            } @catch (__unused NSException *e) {}
+        }
+        if (expanded) return YES;
+    }
+    return %orig;
+}
 %end
 
 %hook CCUISliderModuleViewController
