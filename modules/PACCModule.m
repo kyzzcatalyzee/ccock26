@@ -75,6 +75,8 @@ static UIColor *PACCModOnColor(void) {
 @implementation PACC_VC_CLASS {
     UIView *_fill;
     UIImageView *_glyph;
+    UILabel *_title;
+    UILabel *_sub;
     NSTimer *_timer;
     NSInteger _last;
 }
@@ -99,18 +101,48 @@ static UIColor *PACCModOnColor(void) {
     _glyph.tintColor = UIColor.whiteColor;
     _glyph.userInteractionEnabled = NO;
     [v addSubview:_glyph];
+    _title = [UILabel new];
+    _title.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
+    _title.textColor = UIColor.whiteColor;
+    _title.userInteractionEnabled = NO;
+    [v addSubview:_title];
+    _sub = [UILabel new];
+    _sub.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
+    _sub.textColor = [UIColor colorWithWhite:1 alpha:0.7];
+    _sub.userInteractionEnabled = NO;
+    [v addSubview:_sub];
     [v addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped)]];
     _last = -2;
     self.view = v;
 }
 
+- (BOOL)isWide {
+    CGSize z = self.view.bounds.size;
+    return z.width > z.height * 1.4;
+}
+
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGRect b = self.view.bounds;
-    _fill.frame = b;
-    _fill.layer.cornerRadius = MIN(b.size.width, b.size.height) * 0.5;
-    _glyph.frame = b;
-    _glyph.image = PACCModGlyph(MIN(b.size.width, b.size.height) * 0.36);
+    BOOL wide = [self isWide];
+    CGRect circle = b;
+    if (wide) {
+        CGFloat d = MIN(b.size.height - 20.0, 52.0);
+        circle = CGRectMake((b.size.height - d) * 0.5, (b.size.height - d) * 0.5, d, d);
+    }
+    _fill.frame = circle;
+    _fill.layer.cornerRadius = MIN(circle.size.width, circle.size.height) * 0.5;
+    _glyph.frame = circle;
+    _glyph.image = PACCModGlyph(MIN(circle.size.width, circle.size.height) * (wide ? 0.46 : 0.36));
+    _title.hidden = !wide; _sub.hidden = !wide;
+    if (wide) {
+        CGFloat tx = CGRectGetMaxX(circle) + 10.0;
+        CGFloat tw = MAX(0, b.size.width - tx - 10.0);
+        _title.frame = CGRectMake(tx, b.size.height * 0.5 - 18.0, tw, 18.0);
+        _sub.frame = CGRectMake(tx, b.size.height * 0.5 + 1.0, tw, 16.0);
+    }
+    _last = -2;     // redraw the state for the new shape
+    [self refresh];
 }
 
 - (NSInteger)state {
@@ -122,12 +154,32 @@ static UIColor *PACCModOnColor(void) {
 
 - (void)refresh {
     NSInteger st = [self state];
+    BOOL wide = [self isWide];
     if (st == _last) return;
     _last = st;
     BOOL on = (st == 1);
+    NSString *name = @"";
+#if PACC_KIND == 0
+    name = @"Wi-Fi";
+#elif PACC_KIND == 1
+    name = @"Cellular Data";
+#elif PACC_KIND == 2
+    name = @"Bluetooth";
+#else
+    name = @"Hotspot";
+#endif
+    _title.text = name;
+    _sub.text = (st < 0) ? @"Unavailable" : (on ? @"On" : @"Off");
     [UIView animateWithDuration:0.2 animations:^{
-        self->_fill.backgroundColor = PACCModOnColor();
-        self->_fill.alpha = on ? 1.0 : 0.0;
+        if (on) {
+            self->_fill.backgroundColor = PACCModOnColor();
+            self->_fill.alpha = 1.0;
+        } else if (wide) {
+            self->_fill.backgroundColor = [UIColor colorWithWhite:1 alpha:0.2];
+            self->_fill.alpha = 1.0;
+        } else {
+            self->_fill.alpha = 0.0;
+        }
         self->_glyph.alpha = (st < 0) ? 0.45 : 1.0;
     }];
 }
