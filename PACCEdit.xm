@@ -1169,6 +1169,34 @@ static void PACDumpGlassTree(UIViewController *ov, NSString *mid) {
     PACLog(@"%@", out);
 }
 
+// While modules change size / move, LiquidAss's glass bends into diamonds (its lens is not made for a size that animates).
+// The glass of every module is hidden for the animation and fades back in once everything has settled.
+static NSInteger gPACGlassHoldToken = 0;
+
+static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
+    if (!ov || !PACCLIQIsActive()) return;
+    NSMutableArray<UIView *> *glass = [NSMutableArray array];
+    for (UIViewController *m in ModuleControllers(ov)) {
+        if (!m.view) continue;
+        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:m.view.subviews];
+        NSUInteger n = 0;
+        while (q.count && n++ < 80) {
+            UIView *v = q.lastObject; [q removeLastObject];
+            NSString *c = NSStringFromClass(v.class);
+            if ([c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) { [glass addObject:v]; continue; }
+            [q addObjectsFromArray:v.subviews];
+        }
+    }
+    if (!glass.count) return;
+    NSInteger token = ++gPACGlassHoldToken;
+    for (UIView *g in glass) { [g.layer removeAllAnimations]; g.alpha = 0.0; }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(hold * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (token != gPACGlassHoldToken) return;      // a newer animation took over
+        for (UIView *g in glass) g.alpha = 0.0;
+        [UIView animateWithDuration:0.22 animations:^{ for (UIView *g in glass) g.alpha = 1.0; }];
+    });
+}
+
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
     if (CACurrentMediaTime() < gPACRotationQuietUntil) {
         [UIView performWithoutAnimation:^{
@@ -3903,6 +3931,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov {
     PACEnsureStore();
     if (!PACSizeAllowedFor(mid, w, h)) return;
+    PACHoldAllGlass(ov, 0.85);
 
     NSArray<NSNumber *> *o = PACGetOrigin(mid);
     if (o.count < 2) return;
@@ -4002,6 +4031,28 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         objc_setAssociatedObject(UIApplication.sharedApplication, kPACResizedSetKey, resized, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     [resized addObject:mid];
+
+    if (PACCLIQIsActive()) {
+        // Same way as Control26: Control Center's own relayout, run inside one spring animation. With LiquidAss this
+        // animates the glass along with the modules instead of leaving it behind.
+        UIViewController *colvc = ModuleCollection(ov);
+        Class IM = NSClassFromString(@"CCUIModuleInstanceManager");
+        id im = [IM respondsToSelector:NSSelectorFromString(@"sharedInstance")]
+            ? ((id (*)(id, SEL))objc_msgSend)(IM, NSSelectorFromString(@"sharedInstance")) : nil;
+        SEL lay = NSSelectorFromString(@"moduleInstancesLayoutChangedForModuleInstanceManager:");
+        SEL ref = NSSelectorFromString(@"_refreshPositionProviders");
+        [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.82 initialSpringVelocity:0
+                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                         animations:^{
+            @try {
+                if ([ov respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(ov, lay, im);
+                else if ([colvc respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(colvc, lay, im);
+                if ([colvc respondsToSelector:ref]) ((void (*)(id, SEL))objc_msgSend)(colvc, ref);
+                [colvc.view setNeedsLayout]; [colvc.view layoutIfNeeded];
+                [ov.view setNeedsLayout]; [ov.view layoutIfNeeded];
+            } @catch (__unused NSException *e) {}
+        } completion:nil];
+    }
 
     for (UIViewController *m in ModuleControllers(ov)) {
         if (![PACMid(m) isEqualToString:mid]) continue;
