@@ -1219,7 +1219,7 @@ static NSInteger gPACGlassHoldToken = 0;
 
 static PACGlassHolder *gPACGlassHolder;
 
-static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
+__attribute__((unused)) static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
     if (!ov || !ov.view || !PACCLIQIsActive()) return;
     [gPACGlassHolder.link invalidate];
     PACGlassHolder *h = [PACGlassHolder new];
@@ -1231,7 +1231,9 @@ static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
     gPACGlassHolder = h;
 }
 
-// Control26's way of changing a layout: Control Center's own relayout inside one spring animation.
+// LiquidAss works out the glass shape in layoutSubviews from the module's current bounds. If those bounds animate, it sees
+// in-between sizes (166x120, ...) and rounds them like pills, which is the diamond / octagon. So with LiquidAss a layout
+// change is applied in one step: the module has its final size on the first layout and the glass is right at once.
 static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
     UIViewController *colvc = ModuleCollection(ov);
     Class IM = NSClassFromString(@"CCUIModuleInstanceManager");
@@ -1239,9 +1241,9 @@ static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
         ? ((id (*)(id, SEL))objc_msgSend)(IM, NSSelectorFromString(@"sharedInstance")) : nil;
     SEL lay = NSSelectorFromString(@"moduleInstancesLayoutChangedForModuleInstanceManager:");
     SEL ref = NSSelectorFromString(@"_refreshPositionProviders");
-    [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.82 initialSpringVelocity:0
-                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
-                     animations:^{
+    [UIView performWithoutAnimation:^{
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
         @try {
             if (extra) extra();
             if ([ov respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(ov, lay, im);
@@ -1250,7 +1252,8 @@ static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
             [colvc.view setNeedsLayout]; [colvc.view layoutIfNeeded];
             [ov.view setNeedsLayout]; [ov.view layoutIfNeeded];
         } @catch (__unused NSException *e) {}
-    } completion:nil];
+        [CATransaction commit];
+    }];
 }
 
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
@@ -3647,7 +3650,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         for (UIViewController *m in ModuleControllers(ov)) PACApplyRadiusToModule(m);
     };
 
-    if (gExperimentalPagingEnabled) {
+    if (gExperimentalPagingEnabled && !PACCLIQIsActive()) {
         UIViewPropertyAnimator *relayout = PACBezierAnimator(0.58, 0.32, 0.72, 0.0, 1.0);
         [relayout addAnimations:^{
             for (UIViewController *m in ModuleControllers(ov)) [m.view layoutIfNeeded];
@@ -3928,8 +3931,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                                        overlay:ov];
             }
 
-            PACHoldAllGlass(ov, 0.9);
-            if (PACCLIQIsActive()) PACSpringRelayout(ov, ^{ [self relayout:ov]; });
+                    if (PACCLIQIsActive()) PACSpringRelayout(ov, ^{ [self relayout:ov]; });
             else [self relayout:ov];
             PACSettleEditLayout(ov);
         }
@@ -3989,7 +3991,6 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov {
     PACEnsureStore();
     if (!PACSizeAllowedFor(mid, w, h)) return;
-    PACHoldAllGlass(ov, 0.9);
 
     NSArray<NSNumber *> *o = PACGetOrigin(mid);
     if (o.count < 2) return;
@@ -4102,7 +4103,11 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         id ctx = nil;
         @try { ctx = [contentModule valueForKey:@"contentModuleContext"]; } @catch (__unused NSException *e) {}
         if ([ctx respondsToSelector:NSSelectorFromString(@"requestLayoutSizeUpdate")]) {
-            ((void (*)(id, SEL))objc_msgSend)(ctx, NSSelectorFromString(@"requestLayoutSizeUpdate"));
+            if (PACCLIQIsActive()) {
+                [UIView performWithoutAnimation:^{ ((void (*)(id, SEL))objc_msgSend)(ctx, NSSelectorFromString(@"requestLayoutSizeUpdate")); }];
+            } else {
+                ((void (*)(id, SEL))objc_msgSend)(ctx, NSSelectorFromString(@"requestLayoutSizeUpdate"));
+            }
         }
         break;
     }
