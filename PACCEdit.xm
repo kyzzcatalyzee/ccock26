@@ -1174,27 +1174,45 @@ static void PACDumpGlassTree(UIViewController *ov, NSString *mid) {
 static NSInteger gPACGlassHoldToken = 0;
 
 @interface PACGlassHolder : NSObject
-@property (nonatomic, strong) UIView *root;
+@property (nonatomic, weak) UIViewController *ov;
 @property (nonatomic, strong) CADisplayLink *link;
 @property (nonatomic) CFTimeInterval until;
 @property (nonatomic) NSInteger token;
 @end
 @implementation PACGlassHolder
 - (void)collect:(UIView *)v into:(NSMutableArray<UIView *> *)out depth:(int)d {
-    if (d > 14) return;
+    if (d > 8) return;
     NSString *c = NSStringFromClass(v.class);
     if ([c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) { [out addObject:v]; return; }
     for (UIView *s in v.subviews) [self collect:s into:out depth:d + 1];
 }
+// Locks LiquidAss's glass to the module's outline: same size every frame and the corner radius of the size it is going to.
 - (void)tick:(CADisplayLink *)l {
-    if (self.token != gPACGlassHoldToken || !self.root) { [l invalidate]; return; }
-    NSMutableArray<UIView *> *g = [NSMutableArray array];
-    [self collect:self.root.window ?: self.root into:g depth:0];
-    if (CACurrentMediaTime() < self.until) {
-        for (UIView *v in g) { [v.layer removeAllAnimations]; v.alpha = 0.0; }
-    } else {
-        [l invalidate];
-        [UIView animateWithDuration:0.22 animations:^{ for (UIView *v in g) v.alpha = 1.0; }];
+    UIViewController *ov = self.ov;
+    if (self.token != gPACGlassHoldToken || !ov || CACurrentMediaTime() > self.until) { [l invalidate]; return; }
+    for (UIViewController *m in ModuleControllers(ov)) {
+        UIView *mv = m.view;
+        NSString *mid = PACMid(m);
+        if (!mv || !mid.length || PACModuleIsExpanded(m)) continue;
+        CALayer *pl = mv.layer.presentationLayer ?: mv.layer;
+        CGSize sz = pl.bounds.size;
+        if (sz.width < 1 || sz.height < 1) continue;
+        NSUInteger w = 1, h = 1;
+        PACEffectiveSize(mid, &w, &h);
+        CGFloat r = MIN(PACRadiusForSize(w, h), MIN(sz.width, sz.height) * 0.5);
+        NSMutableArray<UIView *> *g = [NSMutableArray array];
+        for (UIView *sv in mv.subviews) [self collect:sv into:g depth:0];
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        for (UIView *v in g) {
+            [v.layer removeAllAnimations];
+            v.bounds = CGRectMake(0, 0, sz.width, sz.height);
+            v.center = CGPointMake(sz.width * 0.5, sz.height * 0.5);
+            v.layer.cornerRadius = r;
+            @try { [v setValue:[NSValue valueWithCGRect:CGRectMake(0, 0, sz.width, sz.height)] forKey:@"_lgShapeRect"]; } @catch (__unused NSException *e) {}
+            @try { [v setValue:@(r) forKey:@"_lgShapeCornerRadius"]; } @catch (__unused NSException *e) {}
+        }
+        [CATransaction commit];
     }
 }
 @end
@@ -1205,7 +1223,7 @@ static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
     if (!ov || !ov.view || !PACCLIQIsActive()) return;
     [gPACGlassHolder.link invalidate];
     PACGlassHolder *h = [PACGlassHolder new];
-    h.root = ov.view;
+    h.ov = ov;
     h.token = ++gPACGlassHoldToken;
     h.until = CACurrentMediaTime() + hold;
     h.link = [CADisplayLink displayLinkWithTarget:h selector:@selector(tick:)];
@@ -1215,6 +1233,7 @@ static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
 
 // Control26's way of changing a layout: Control Center's own relayout inside one spring animation.
 static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
+    PACLockGlassShape(ov, 0.8);
     UIViewController *colvc = ModuleCollection(ov);
     Class IM = NSClassFromString(@"CCUIModuleInstanceManager");
     id im = [IM respondsToSelector:NSSelectorFromString(@"sharedInstance")]
@@ -1233,6 +1252,71 @@ static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
             [ov.view setNeedsLayout]; [ov.view layoutIfNeeded];
         } @catch (__unused NSException *e) {}
     } completion:nil];
+}
+
+// Locks LiquidAss's glass to the module's own shape while a size animates: every frame the glass gets the module's
+// current (animating) bounds and the radius of the module's size, the same radius the edit outline uses.
+@interface PACGlassLock : NSObject
+@property (nonatomic, weak) UIViewController *ov;
+@property (nonatomic, strong) CADisplayLink *link;
+@property (nonatomic) CFTimeInterval until;
+@end
+@implementation PACGlassLock
+- (void)tick:(CADisplayLink *)l {
+    if (CACurrentMediaTime() > self.until || !self.ov) { [l invalidate]; return; }
+    for (UIViewController *m in ModuleControllers(self.ov)) {
+        UIView *mv = m.view;
+        NSString *mid = PACMid(m);
+        if (!mv || !mid.length || mv.hidden || PACModuleIsExpanded(m)) continue;
+        NSUInteger w = 1, h = 1;
+        PACEffectiveSize(mid, &w, &h);
+        CGFloat radius = PACRadiusForSize(w, h);
+        CALayer *pl = mv.layer.presentationLayer ?: mv.layer;
+        CGSize size = pl.bounds.size;
+        if (size.width < 1 || size.height < 1) continue;
+        CGFloat r = MIN(radius, MIN(size.width, size.height) * 0.5);
+        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:mv.subviews];
+        NSUInteger n = 0;
+        while (q.count && n++ < 80) {
+            UIView *v = q.lastObject; [q removeLastObject];
+            NSString *c = NSStringFromClass(v.class);
+            if ([c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) {
+                [CATransaction begin];
+                [CATransaction setDisableActions:YES];
+                [v.layer removeAllAnimations];
+                v.frame = CGRectMake(0, 0, size.width, size.height);
+                v.layer.cornerRadius = r;
+                v.layer.masksToBounds = YES;
+                @try {
+                    [v setValue:[NSValue valueWithCGRect:CGRectMake(0, 0, size.width, size.height)] forKey:@"_lgShapeRect"];
+                    [v setValue:@(r) forKey:@"_lgShapeCornerRadius"];
+                } @catch (__unused NSException *e) {}
+                [CATransaction commit];
+                continue;
+            }
+            [q addObjectsFromArray:v.subviews];
+        }
+    }
+}
+@end
+
+static PACGlassLock *gPACGlassLock;
+static void PACLockGlassShape(UIViewController *ov, NSTimeInterval duration) {
+    if (!ov || !PACCLIQIsActive()) return;
+    if (gPACGlassLock) {
+        gPACGlassLock.until = MAX(gPACGlassLock.until, CACurrentMediaTime() + duration);
+        gPACGlassLock.ov = ov;
+        return;
+    }
+    PACGlassLock *k = [PACGlassLock new];
+    k.ov = ov;
+    k.until = CACurrentMediaTime() + duration;
+    k.link = [CADisplayLink displayLinkWithTarget:k selector:@selector(tick:)];
+    [k.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    gPACGlassLock = k;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((duration + 0.1) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (gPACGlassLock == k && CACurrentMediaTime() > k.until) gPACGlassLock = nil;
+    });
 }
 
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
@@ -3910,6 +3994,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                                        overlay:ov];
             }
 
+            PACHoldAllGlass(ov, 0.9);
             if (PACCLIQIsActive()) PACSpringRelayout(ov, ^{ [self relayout:ov]; });
             else [self relayout:ov];
             PACSettleEditLayout(ov);
@@ -3970,6 +4055,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov {
     PACEnsureStore();
     if (!PACSizeAllowedFor(mid, w, h)) return;
+    PACHoldAllGlass(ov, 0.9);
 
     NSArray<NSNumber *> *o = PACGetOrigin(mid);
     if (o.count < 2) return;
