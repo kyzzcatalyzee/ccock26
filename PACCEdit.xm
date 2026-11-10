@@ -1105,14 +1105,16 @@ static void PACFixGlassIn(UIView *container) {
     }
 }
 
-static void PACSwizzleLayout(Class c, void (^after)(UIView *)) {
-    Method m = class_getInstanceMethod(c, @selector(layoutSubviews));
+static void PACSwizzleAfter(Class c, SEL sel, void (^after)(UIView *)) {
+    Method m = class_getInstanceMethod(c, sel);
     if (!m) return;
     __block IMP orig = method_getImplementation(m);
-    method_setImplementation(m, imp_implementationWithBlock(^(UIView *self_) {
-        ((void (*)(id, SEL))orig)(self_, @selector(layoutSubviews));
+    IMP repl = imp_implementationWithBlock(^(UIView *self_) {
+        ((void (*)(id, SEL))orig)(self_, sel);
         after(self_);
-    }));
+    });
+    // If the class only inherits the method, add our own to the class (never change the superclass, i.e. UIView itself).
+    if (!class_addMethod(c, sel, repl, method_getTypeEncoding(m))) method_setImplementation(m, repl);
 }
 
 // Installed once LiquidAss is loaded, so these wrap its own hooks and run after them.
@@ -1122,10 +1124,12 @@ static void PACInstallGlassFix(void) {
     Class glass = NSClassFromString(@"LGLiveBackdropView");
     if (!glass) return;
     done = YES;
-    PACSwizzleLayout(glass, ^(UIView *v) { PACFixGlassRadius(v); });
+    PACSwizzleAfter(glass, @selector(layoutSubviews), ^(UIView *v) { PACFixGlassRadius(v); });
+    // LiquidAss calls updateSpecular whenever it sets a radius, so the fix also follows that (it can set it between layouts)
+    PACSwizzleAfter(glass, NSSelectorFromString(@"updateSpecular"), ^(UIView *v) { PACFixGlassRadius(v); });
     for (NSString *cn in @[@"CCUIContentModuleContentContainerView", @"CCUIContentModuleContentContainer"]) {
         Class c = NSClassFromString(cn);
-        if (c) PACSwizzleLayout(c, ^(UIView *v) { PACFixGlassIn(v); });
+        if (c) PACSwizzleAfter(c, @selector(layoutSubviews), ^(UIView *v) { PACFixGlassIn(v); });
     }
 }
 
