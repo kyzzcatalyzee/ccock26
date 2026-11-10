@@ -1173,28 +1173,44 @@ static void PACDumpGlassTree(UIViewController *ov, NSString *mid) {
 // The glass of every module is hidden for the animation and fades back in once everything has settled.
 static NSInteger gPACGlassHoldToken = 0;
 
-static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
-    if (!ov || !PACCLIQIsActive()) return;
-    NSMutableArray<UIView *> *glass = [NSMutableArray array];
-    for (UIViewController *m in ModuleControllers(ov)) {
-        if (!m.view) continue;
-        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:m.view.subviews];
-        NSUInteger n = 0;
-        while (q.count && n++ < 80) {
-            UIView *v = q.lastObject; [q removeLastObject];
-            NSString *c = NSStringFromClass(v.class);
-            if ([c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) { [glass addObject:v]; continue; }
-            [q addObjectsFromArray:v.subviews];
-        }
+@interface PACGlassHolder : NSObject
+@property (nonatomic, strong) UIView *root;
+@property (nonatomic, strong) CADisplayLink *link;
+@property (nonatomic) CFTimeInterval until;
+@property (nonatomic) NSInteger token;
+@end
+@implementation PACGlassHolder
+- (void)collect:(UIView *)v into:(NSMutableArray<UIView *> *)out depth:(int)d {
+    if (d > 14) return;
+    NSString *c = NSStringFromClass(v.class);
+    if ([c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) { [out addObject:v]; return; }
+    for (UIView *s in v.subviews) [self collect:s into:out depth:d + 1];
+}
+- (void)tick:(CADisplayLink *)l {
+    if (self.token != gPACGlassHoldToken || !self.root) { [l invalidate]; return; }
+    NSMutableArray<UIView *> *g = [NSMutableArray array];
+    [self collect:self.root.window ?: self.root into:g depth:0];
+    if (CACurrentMediaTime() < self.until) {
+        for (UIView *v in g) { [v.layer removeAllAnimations]; v.alpha = 0.0; }
+    } else {
+        [l invalidate];
+        [UIView animateWithDuration:0.22 animations:^{ for (UIView *v in g) v.alpha = 1.0; }];
     }
-    if (!glass.count) return;
-    NSInteger token = ++gPACGlassHoldToken;
-    for (UIView *g in glass) { [g.layer removeAllAnimations]; g.alpha = 0.0; }
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(hold * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (token != gPACGlassHoldToken) return;      // a newer animation took over
-        for (UIView *g in glass) g.alpha = 0.0;
-        [UIView animateWithDuration:0.22 animations:^{ for (UIView *g in glass) g.alpha = 1.0; }];
-    });
+}
+@end
+
+static PACGlassHolder *gPACGlassHolder;
+
+static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
+    if (!ov || !ov.view || !PACCLIQIsActive()) return;
+    [gPACGlassHolder.link invalidate];
+    PACGlassHolder *h = [PACGlassHolder new];
+    h.root = ov.view;
+    h.token = ++gPACGlassHoldToken;
+    h.until = CACurrentMediaTime() + hold;
+    h.link = [CADisplayLink displayLinkWithTarget:h selector:@selector(tick:)];
+    [h.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    gPACGlassHolder = h;
 }
 
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
@@ -3931,7 +3947,6 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov {
     PACEnsureStore();
     if (!PACSizeAllowedFor(mid, w, h)) return;
-    PACHoldAllGlass(ov, 0.85);
 
     NSArray<NSNumber *> *o = PACGetOrigin(mid);
     if (o.count < 2) return;
@@ -4033,17 +4048,16 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     [resized addObject:mid];
 
     if (PACCLIQIsActive()) {
-        // Same way as Control26: Control Center's own relayout, run inside one spring animation. With LiquidAss this
-        // animates the glass along with the modules instead of leaving it behind.
+        // With LiquidAss the resize is instant: Control Center's own relayout with no animation, so the glass cannot bend.
         UIViewController *colvc = ModuleCollection(ov);
         Class IM = NSClassFromString(@"CCUIModuleInstanceManager");
         id im = [IM respondsToSelector:NSSelectorFromString(@"sharedInstance")]
             ? ((id (*)(id, SEL))objc_msgSend)(IM, NSSelectorFromString(@"sharedInstance")) : nil;
         SEL lay = NSSelectorFromString(@"moduleInstancesLayoutChangedForModuleInstanceManager:");
         SEL ref = NSSelectorFromString(@"_refreshPositionProviders");
-        [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.82 initialSpringVelocity:0
-                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
-                         animations:^{
+        [UIView performWithoutAnimation:^{
+            [CATransaction begin];
+            [CATransaction setDisableActions:YES];
             @try {
                 if ([ov respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(ov, lay, im);
                 else if ([colvc respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(colvc, lay, im);
@@ -4051,7 +4065,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                 [colvc.view setNeedsLayout]; [colvc.view layoutIfNeeded];
                 [ov.view setNeedsLayout]; [ov.view layoutIfNeeded];
             } @catch (__unused NSException *e) {}
-        } completion:nil];
+            [CATransaction commit];
+        }];
     }
 
     for (UIViewController *m in ModuleControllers(ov)) {
