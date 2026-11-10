@@ -4504,6 +4504,12 @@ static void PACApplyChrome(UIViewController *m, UIViewController *ov) {
     PACApplyRadiusToModule(m);
 
     CGFloat radius = view.layer.cornerRadius;
+    if (PACCLIQIsActive() && !PACModuleIsExpanded(m)) {
+        // The layer's own radius is mid-change after a resize, which gave odd outlines. Use the size's real radius.
+        NSUInteger ew = 1, eh = 1;
+        PACEffectiveSize(mid, &ew, &eh);
+        radius = PACRadiusForSize(ew, eh);
+    }
     if (radius < 1.0) radius = MIN(CGRectGetWidth(vis), CGRectGetHeight(vis)) * 0.5;
 
     UIView *border = objc_getAssociatedObject(view, kPACBorderKey);
