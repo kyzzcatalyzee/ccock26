@@ -1213,6 +1213,28 @@ static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
     gPACGlassHolder = h;
 }
 
+// Control26's way of changing a layout: Control Center's own relayout inside one spring animation.
+static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
+    UIViewController *colvc = ModuleCollection(ov);
+    Class IM = NSClassFromString(@"CCUIModuleInstanceManager");
+    id im = [IM respondsToSelector:NSSelectorFromString(@"sharedInstance")]
+        ? ((id (*)(id, SEL))objc_msgSend)(IM, NSSelectorFromString(@"sharedInstance")) : nil;
+    SEL lay = NSSelectorFromString(@"moduleInstancesLayoutChangedForModuleInstanceManager:");
+    SEL ref = NSSelectorFromString(@"_refreshPositionProviders");
+    [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.82 initialSpringVelocity:0
+                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                     animations:^{
+        @try {
+            if (extra) extra();
+            if ([ov respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(ov, lay, im);
+            else if ([colvc respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(colvc, lay, im);
+            if ([colvc respondsToSelector:ref]) ((void (*)(id, SEL))objc_msgSend)(colvc, ref);
+            [colvc.view setNeedsLayout]; [colvc.view layoutIfNeeded];
+            [ov.view setNeedsLayout]; [ov.view layoutIfNeeded];
+        } @catch (__unused NSException *e) {}
+    } completion:nil];
+}
+
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
     if (CACurrentMediaTime() < gPACRotationQuietUntil) {
         [UIView performWithoutAnimation:^{
@@ -3888,7 +3910,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                                        overlay:ov];
             }
 
-            [self relayout:ov];
+            if (PACCLIQIsActive()) PACSpringRelayout(ov, ^{ [self relayout:ov]; });
+            else [self relayout:ov];
             PACSettleEditLayout(ov);
         }
 
@@ -4048,25 +4071,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     [resized addObject:mid];
 
     if (PACCLIQIsActive()) {
-        // With LiquidAss the resize is instant: Control Center's own relayout with no animation, so the glass cannot bend.
-        UIViewController *colvc = ModuleCollection(ov);
-        Class IM = NSClassFromString(@"CCUIModuleInstanceManager");
-        id im = [IM respondsToSelector:NSSelectorFromString(@"sharedInstance")]
-            ? ((id (*)(id, SEL))objc_msgSend)(IM, NSSelectorFromString(@"sharedInstance")) : nil;
-        SEL lay = NSSelectorFromString(@"moduleInstancesLayoutChangedForModuleInstanceManager:");
-        SEL ref = NSSelectorFromString(@"_refreshPositionProviders");
-        [UIView performWithoutAnimation:^{
-            [CATransaction begin];
-            [CATransaction setDisableActions:YES];
-            @try {
-                if ([ov respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(ov, lay, im);
-                else if ([colvc respondsToSelector:lay]) ((void (*)(id, SEL, id))objc_msgSend)(colvc, lay, im);
-                if ([colvc respondsToSelector:ref]) ((void (*)(id, SEL))objc_msgSend)(colvc, ref);
-                [colvc.view setNeedsLayout]; [colvc.view layoutIfNeeded];
-                [ov.view setNeedsLayout]; [ov.view layoutIfNeeded];
-            } @catch (__unused NSException *e) {}
-            [CATransaction commit];
-        }];
+        // With LiquidAss the resize follows Control26 exactly: one spring relayout.
+        PACSpringRelayout(ov, nil);
     }
 
     for (UIViewController *m in ModuleControllers(ov)) {
