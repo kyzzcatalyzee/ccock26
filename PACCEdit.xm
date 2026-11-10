@@ -1140,6 +1140,47 @@ static void PACResyncGlass(UIViewController *m) {
     }];
 }
 
+static const void *kPACGlassHoldKey = &kPACGlassHoldKey;
+
+static BOOL PACIsGlassClass(UIView *v) {
+    NSString *c = NSStringFromClass(v.class);
+    return [c hasPrefix:@"LG"] || [c containsString:@"LiquidGlass"];
+}
+
+// While a module changes size, LiquidAss's glass is hidden: its lens shape would bend into a diamond / octagon on the way.
+// It fades back in once the size has settled.
+static void PACHoldGlassWhileResizing(UIViewController *m) {
+    if (!m.view || !PACCLIQIsActive()) return;
+    NSMutableArray<UIView *> *glass = [NSMutableArray array];
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:m.view.subviews];
+    NSUInteger n = 0;
+    while (q.count && n++ < 200) {
+        UIView *v = q.lastObject; [q removeLastObject];
+        if (PACIsGlassClass(v)) [glass addObject:v];
+        [q addObjectsFromArray:v.subviews];
+    }
+    CGRect mf = m.view.frame;
+    for (UIView *sv in m.view.superview.subviews) {
+        if (sv == m.view || !PACIsGlassClass(sv)) continue;
+        if (fabs(sv.frame.size.width - mf.size.width) < 40.0 && fabs(sv.frame.size.height - mf.size.height) < 40.0 &&
+            fabs(CGRectGetMidX(sv.frame) - CGRectGetMidX(mf)) < 40.0 && fabs(CGRectGetMidY(sv.frame) - CGRectGetMidY(mf)) < 40.0) {
+            [glass addObject:sv];
+        }
+    }
+    if (!glass.count) return;
+    for (UIView *g in glass) { [g.layer removeAnimationForKey:@"pac.glassfade"]; g.alpha = 0.0; }
+    NSNumber *tok = @(([objc_getAssociatedObject(m.view, kPACGlassHoldKey) integerValue]) + 1);
+    objc_setAssociatedObject(m.view, kPACGlassHoldKey, tok, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIViewController *wm = m;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.75 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIViewController *mm = wm;
+        if (!mm.view) return;
+        if (![objc_getAssociatedObject(mm.view, kPACGlassHoldKey) isEqual:tok]) return;     // a newer resize took over
+        PACResyncGlass(mm);
+        [UIView animateWithDuration:0.2 animations:^{ for (UIView *g in glass) g.alpha = 1.0; }];
+    });
+}
+
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
     if (CACurrentMediaTime() < gPACRotationQuietUntil) {
         [UIView performWithoutAnimation:^{
@@ -1197,6 +1238,7 @@ static void PACApplyRadiusToModule(UIViewController *m) {
             return;
         }
     }
+    if (last != nil) PACHoldGlassWhileResizing(m);
     objc_setAssociatedObject(m.view, kPACLastRadiusKey,
                              [NSValue valueWithCGSize:moduleSize],
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -2445,8 +2487,40 @@ static UIImage *PACSnapshotContentOnly(UIView *src, BOOL liquidassActive) {
     return result;
 }
 
+// resize handles, minus buttons and outlines whose module or copy is gone (removed, replaced, moved away)
+static NSArray<UIView *> *PACOrphanChrome(UIViewController *ov) {
+    NSMutableSet<NSValue *> *owned = [NSMutableSet set];
+    const void *ks[3] = {kPACBorderKey, kPACRemoveKey, kPACResizeKey};
+    for (UIViewController *m in ModuleControllers(ov)) {
+        for (int i = 0; i < 3; i++) {
+            UIView *c = objc_getAssociatedObject(m.view, ks[i]);
+            if (c) [owned addObject:[NSValue valueWithNonretainedObject:c]];
+        }
+    }
+    for (UIView *sv in ModuleCollection(ov).view.subviews) {
+        if (sv.tag != kPACCloneTag) continue;
+        for (int i = 0; i < 3; i++) {
+            UIView *c = objc_getAssociatedObject(sv, ks[i]);
+            if (c) [owned addObject:[NSValue valueWithNonretainedObject:c]];
+        }
+    }
+    NSMutableArray<UIView *> *orphans = [NSMutableArray array];
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:ov.view];
+    NSUInteger visited = 0;
+    while (queue.count && visited < 600) {
+        UIView *v = queue.firstObject; [queue removeObjectAtIndex:0]; visited++;
+        for (UIView *sv in v.subviews) {
+            BOOL chrome = (sv.tag == kPACRemoveTag || sv.tag == kPACResizeTag || [sv isKindOfClass:PACGlassBorderView.class]);
+            if (chrome && ![owned containsObject:[NSValue valueWithNonretainedObject:sv]]) { [orphans addObject:sv]; continue; }
+            if (!chrome) [queue addObject:sv];
+        }
+    }
+    return orphans;
+}
+
 static void PACBringChromeToFront(UIViewController *ov) {
     if (!ov || !ov.view) return;
+    if (gEditModeActive) for (UIView *o in PACOrphanChrome(ov)) [o removeFromSuperview];
     UIView *shield = [ov.view viewWithTag:kPACShieldTag];
     if (shield) [ov.view bringSubviewToFront:shield];
     for (UIViewController *m in ModuleControllers(ov)) {
@@ -4221,6 +4295,15 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     BOOL isResizedFromOneByOne = PACWasResizedFromOneByOne(mid);
 
     UIView *pres = objc_getAssociatedObject(m.view, kPACPresKey);
+    if ([mid hasPrefix:@"zilvyn.ccock26.module."]) {
+        // our own modules (Wi-Fi, Cellular, Bluetooth, Hotspot) draw their own icon and name at every size
+        if (pres) {
+            objc_setAssociatedObject(m.view, kPACPresKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [pres removeFromSuperview];
+        }
+        objc_setAssociatedObject(m.view, kPACLastPresKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return;
+    }
     if (!isResizedFromOneByOne) {
         if (pres) {
             objc_setAssociatedObject(m.view, kPACPresKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
