@@ -1233,7 +1233,6 @@ static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
 
 // Control26's way of changing a layout: Control Center's own relayout inside one spring animation.
 static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
-    PACLockGlassShape(ov, 0.8);
     UIViewController *colvc = ModuleCollection(ov);
     Class IM = NSClassFromString(@"CCUIModuleInstanceManager");
     id im = [IM respondsToSelector:NSSelectorFromString(@"sharedInstance")]
@@ -1252,71 +1251,6 @@ static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
             [ov.view setNeedsLayout]; [ov.view layoutIfNeeded];
         } @catch (__unused NSException *e) {}
     } completion:nil];
-}
-
-// Locks LiquidAss's glass to the module's own shape while a size animates: every frame the glass gets the module's
-// current (animating) bounds and the radius of the module's size, the same radius the edit outline uses.
-@interface PACGlassLock : NSObject
-@property (nonatomic, weak) UIViewController *ov;
-@property (nonatomic, strong) CADisplayLink *link;
-@property (nonatomic) CFTimeInterval until;
-@end
-@implementation PACGlassLock
-- (void)tick:(CADisplayLink *)l {
-    if (CACurrentMediaTime() > self.until || !self.ov) { [l invalidate]; return; }
-    for (UIViewController *m in ModuleControllers(self.ov)) {
-        UIView *mv = m.view;
-        NSString *mid = PACMid(m);
-        if (!mv || !mid.length || mv.hidden || PACModuleIsExpanded(m)) continue;
-        NSUInteger w = 1, h = 1;
-        PACEffectiveSize(mid, &w, &h);
-        CGFloat radius = PACRadiusForSize(w, h);
-        CALayer *pl = mv.layer.presentationLayer ?: mv.layer;
-        CGSize size = pl.bounds.size;
-        if (size.width < 1 || size.height < 1) continue;
-        CGFloat r = MIN(radius, MIN(size.width, size.height) * 0.5);
-        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:mv.subviews];
-        NSUInteger n = 0;
-        while (q.count && n++ < 80) {
-            UIView *v = q.lastObject; [q removeLastObject];
-            NSString *c = NSStringFromClass(v.class);
-            if ([c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) {
-                [CATransaction begin];
-                [CATransaction setDisableActions:YES];
-                [v.layer removeAllAnimations];
-                v.frame = CGRectMake(0, 0, size.width, size.height);
-                v.layer.cornerRadius = r;
-                v.layer.masksToBounds = YES;
-                @try {
-                    [v setValue:[NSValue valueWithCGRect:CGRectMake(0, 0, size.width, size.height)] forKey:@"_lgShapeRect"];
-                    [v setValue:@(r) forKey:@"_lgShapeCornerRadius"];
-                } @catch (__unused NSException *e) {}
-                [CATransaction commit];
-                continue;
-            }
-            [q addObjectsFromArray:v.subviews];
-        }
-    }
-}
-@end
-
-static PACGlassLock *gPACGlassLock;
-static void PACLockGlassShape(UIViewController *ov, NSTimeInterval duration) {
-    if (!ov || !PACCLIQIsActive()) return;
-    if (gPACGlassLock) {
-        gPACGlassLock.until = MAX(gPACGlassLock.until, CACurrentMediaTime() + duration);
-        gPACGlassLock.ov = ov;
-        return;
-    }
-    PACGlassLock *k = [PACGlassLock new];
-    k.ov = ov;
-    k.until = CACurrentMediaTime() + duration;
-    k.link = [CADisplayLink displayLinkWithTarget:k selector:@selector(tick:)];
-    [k.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-    gPACGlassLock = k;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((duration + 0.1) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (gPACGlassLock == k && CACurrentMediaTime() > k.until) gPACGlassLock = nil;
-    });
 }
 
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
