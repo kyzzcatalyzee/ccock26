@@ -1069,13 +1069,18 @@ static void PACFixGlassRadius(UIView *g) {
     if (!module) return;
     CGSize gs = g.bounds.size, ms = module.bounds.size;
     if (gs.width < 30 || gs.height < 30) return;
-    if (fabs(gs.width - ms.width) > 14.0 || fabs(gs.height - ms.height) > 14.0) return;   // the module's own glass layers, inset or not
+    if (gs.width < ms.width * 0.8 || gs.height < ms.height * 0.8) return;   // the module's own glass layers, inset or not
     CGFloat r = MIN(floor(kPACCell * 0.5), MIN(gs.width, gs.height) * 0.5);
-    if (fabs(g.layer.cornerRadius - r) > 0.5) g.layer.cornerRadius = r;
+    BOOL changed = fabs(g.layer.cornerRadius - r) > 0.5;
+    if (changed) g.layer.cornerRadius = r;
     @try {
         CGRect sr = [[g valueForKey:@"lgShapeRect"] CGRectValue];
-        if (!CGRectIsEmpty(sr)) [g setValue:@(r) forKey:@"lgShapeCornerRadius"];
+        if (!CGRectIsEmpty(sr) && fabs([[g valueForKey:@"lgShapeCornerRadius"] doubleValue] - r) > 0.5) {
+            [g setValue:@(r) forKey:@"lgShapeCornerRadius"];
+            changed = YES;
+        }
     } @catch (__unused NSException *e) {}
+    if (changed) [g setNeedsLayout];   // its edge / specular layers take the radius on the next layout
 }
 
 static void PACFixGlassIn(UIView *container) {
