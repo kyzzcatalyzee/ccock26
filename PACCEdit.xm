@@ -1058,6 +1058,7 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
 
 // LiquidAss glass: every module keeps the corner radius of a 1x1 control, whatever its size (LiquidAss alone makes
 // wide / tall ones pills). Runs after the glass's own layout, so it has the last word whichever tweak loaded first.
+static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
     UIView *module = nil;
@@ -1080,7 +1081,14 @@ static void PACFixGlassRadius(UIView *g) {
             changed = YES;
         }
     } @catch (__unused NSException *e) {}
-    if (changed) [g setNeedsLayout];   // its edge / specular layers take the radius on the next layout
+    if (changed) {
+        // The lens is a filter built for the old shape; it only changes when LiquidAss is told to rebuild it.
+        g.layer.cornerCurve = kCACornerCurveContinuous;
+        if ([g respondsToSelector:NSSelectorFromString(@"updateSpecular")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"updateSpecular"));
+        if ([g respondsToSelector:NSSelectorFromString(@"applyFilters")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"applyFilters"));
+        static int logged = 0;
+        if (logged++ < 6) PACLog(@"glass fix %@ size=%@ module=%@ r=%.1f", NSStringFromClass(g.class), NSStringFromCGSize(gs), NSStringFromCGSize(ms), r);
+    }
 }
 
 static void PACFixGlassIn(UIView *container) {
