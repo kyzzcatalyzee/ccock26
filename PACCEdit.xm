@@ -1044,15 +1044,54 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
     CGFloat heightPt = (CGFloat)h * kPACCell + ((CGFloat)h - 1.0) * kPACgap;
     if (widthPt <= 0.0 || heightPt <= 0.0) return 22.0;
 
-    // LiquidAss rounds a squarish module with the radius of a 1x1 control and anything longer into a pill.
-    // Using the same numbers keeps its glass and our corners in step, so resizing back leaves no odd shape.
+    // LiquidAss turns anything that is not squarish into a pill. We make its glass use the 1x1 radius for every size
+    // (PACInstallGlassFix), and the outline uses the same number.
     if (PACCLIQIsActive()) {
         CGFloat mn = MIN(widthPt, heightPt), mx = MAX(widthPt, heightPt);
-        if (mx <= mn * 1.25) return floor(kPACCell * 0.5);
-        return floor(mn * 0.5);
+        (void)mx;
+        return MIN(floor(kPACCell * 0.5), floor(mn * 0.5));   // every size keeps the same corner, no pills
     }
 
     return calculatedRadius(CGRectMake(0.0, 0.0, widthPt, heightPt), 22.0);
+}
+
+
+// LiquidAss glass: every module keeps the corner radius of a 1x1 control, whatever its size (LiquidAss alone makes
+// wide / tall ones pills). Runs after the glass's own layout, so it has the last word whichever tweak loaded first.
+static void PACFixGlassRadius(UIView *g) {
+    if (!PACCLIQIsActive()) return;
+    UIView *module = nil;
+    for (UIView *a = g.superview; a; a = a.superview) {
+        NSString *n = NSStringFromClass(a.class);
+        if ([n containsString:@"Slider"]) return;
+        if ([n isEqualToString:@"CCUIContentModuleContainerView"]) { module = a; break; }
+    }
+    if (!module) return;
+    CGSize gs = g.bounds.size, ms = module.bounds.size;
+    if (gs.width < 30 || gs.height < 30) return;
+    if (fabs(gs.width - ms.width) > 3.0 || fabs(gs.height - ms.height) > 3.0) return;
+    CGFloat r = MIN(floor(kPACCell * 0.5), MIN(gs.width, gs.height) * 0.5);
+    if (fabs(g.layer.cornerRadius - r) > 0.5) g.layer.cornerRadius = r;
+    @try {
+        CGRect sr = [[g valueForKey:@"lgShapeRect"] CGRectValue];
+        if (!CGRectIsEmpty(sr)) [g setValue:@(r) forKey:@"lgShapeCornerRadius"];
+    } @catch (__unused NSException *e) {}
+}
+
+static void PACInstallGlassFix(void) {
+    static BOOL done = NO;
+    if (done) return;
+    Class c = NSClassFromString(@"LGLiveBackdropView");
+    if (!c) return;
+    Method m = class_getInstanceMethod(c, @selector(layoutSubviews));
+    if (!m) return;
+    done = YES;
+    __block IMP orig = method_getImplementation(m);
+    IMP repl = imp_implementationWithBlock(^(UIView *self_) {
+        ((void (*)(id, SEL))orig)(self_, @selector(layoutSubviews));
+        PACFixGlassRadius(self_);
+    });
+    method_setImplementation(m, repl);
 }
 
 static void PACRememberLayerState(UIView *v, NSMapTable<UIView *, NSDictionary *> *table) {
@@ -4903,6 +4942,9 @@ static void PACEditReload(__unused CFNotificationCenterRef c,
     @autoreleasepool {
         PACInitCachedClasses();
         %init(_ungrouped);
+        PACInstallGlassFix();
+        for (int i = 1; i <= 6; i++)
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(i * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ PACInstallGlassFix(); });
         CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(),
                                         NULL, PACEditReload,
                                         (__bridge CFStringRef)kReloadNotification,
