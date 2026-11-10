@@ -1069,7 +1069,7 @@ static void PACFixGlassRadius(UIView *g) {
     if (!module) return;
     CGSize gs = g.bounds.size, ms = module.bounds.size;
     if (gs.width < 30 || gs.height < 30) return;
-    if (fabs(gs.width - ms.width) > 3.0 || fabs(gs.height - ms.height) > 3.0) return;
+    if (fabs(gs.width - ms.width) > 14.0 || fabs(gs.height - ms.height) > 14.0) return;   // the module's own glass layers, inset or not
     CGFloat r = MIN(floor(kPACCell * 0.5), MIN(gs.width, gs.height) * 0.5);
     if (fabs(g.layer.cornerRadius - r) > 0.5) g.layer.cornerRadius = r;
     @try {
@@ -1078,20 +1078,42 @@ static void PACFixGlassRadius(UIView *g) {
     } @catch (__unused NSException *e) {}
 }
 
+static void PACFixGlassIn(UIView *container) {
+    if (!PACCLIQIsActive()) return;
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:container.subviews];
+    NSUInteger n = 0;
+    while (q.count && n++ < 60) {
+        UIView *v = q.lastObject; [q removeLastObject];
+        if ([NSStringFromClass(v.class) hasPrefix:@"LG"] && [NSStringFromClass(v.class) containsString:@"Backdrop"]) {
+            PACFixGlassRadius(v);
+            continue;
+        }
+        [q addObjectsFromArray:v.subviews];
+    }
+}
+
+static void PACSwizzleLayout(Class c, void (^after)(UIView *)) {
+    Method m = class_getInstanceMethod(c, @selector(layoutSubviews));
+    if (!m) return;
+    __block IMP orig = method_getImplementation(m);
+    method_setImplementation(m, imp_implementationWithBlock(^(UIView *self_) {
+        ((void (*)(id, SEL))orig)(self_, @selector(layoutSubviews));
+        after(self_);
+    }));
+}
+
+// Installed once LiquidAss is loaded, so these wrap its own hooks and run after them.
 static void PACInstallGlassFix(void) {
     static BOOL done = NO;
     if (done) return;
-    Class c = NSClassFromString(@"LGLiveBackdropView");
-    if (!c) return;
-    Method m = class_getInstanceMethod(c, @selector(layoutSubviews));
-    if (!m) return;
+    Class glass = NSClassFromString(@"LGLiveBackdropView");
+    if (!glass) return;
     done = YES;
-    __block IMP orig = method_getImplementation(m);
-    IMP repl = imp_implementationWithBlock(^(UIView *self_) {
-        ((void (*)(id, SEL))orig)(self_, @selector(layoutSubviews));
-        PACFixGlassRadius(self_);
-    });
-    method_setImplementation(m, repl);
+    PACSwizzleLayout(glass, ^(UIView *v) { PACFixGlassRadius(v); });
+    for (NSString *cn in @[@"CCUIContentModuleContentContainerView", @"CCUIContentModuleContentContainer"]) {
+        Class c = NSClassFromString(cn);
+        if (c) PACSwizzleLayout(c, ^(UIView *v) { PACFixGlassIn(v); });
+    }
 }
 
 static void PACRememberLayerState(UIView *v, NSMapTable<UIView *, NSDictionary *> *table) {
