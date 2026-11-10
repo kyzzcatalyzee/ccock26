@@ -1140,32 +1140,31 @@ static void PACResyncGlass(UIViewController *m) {
     }];
 }
 
-// Diagnostics: after a resize, writes the view tree of the resized module (and its glass) to the crash log
+// Diagnostics: after a resize, writes size / radius / glass of every module to the crash log
 static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void PACDumpGlassTree(UIViewController *ov, NSString *mid) {
     static int count = 0;
-    if (count >= 6 || !PACCLIQIsActive()) return;
-    UIViewController *target = nil;
-    for (UIViewController *m in ModuleControllers(ov)) if ([PACMid(m) isEqualToString:mid]) { target = m; break; }
-    if (!target.view) return;
+    if (count >= 8 || !PACCLIQIsActive()) return;
     count++;
-    NSMutableString *out = [NSMutableString stringWithFormat:@"glass dump after resize of %@ (module frame %@ radius %.1f)", mid,
-                            NSStringFromCGRect(target.view.frame), target.view.layer.cornerRadius];
-    NSMutableArray *queue = [NSMutableArray array];
-    UIView *top = target.view.superview ?: target.view;
-    [queue addObject:@[top, @0]];
-    NSUInteger n = 0;
-    while (queue.count && n < 160) {
-        NSArray *e = queue.firstObject; [queue removeObjectAtIndex:0]; n++;
-        UIView *v = e[0]; NSInteger d = [e[1] integerValue];
-        if (d > 6) continue;
-        BOOL near = (v == target.view) || [v isDescendantOfView:target.view] || v == top;
-        NSString *c = NSStringFromClass(v.class);
-        BOOL glass = [c hasPrefix:@"LG"] || [c containsString:@"LiquidGlass"];
-        if (!near && !glass) continue;
-        [out appendFormat:@"\n%*s%@ f=%@ r=%.1f a=%.2f h=%d%@", (int)d * 2, "", c, NSStringFromCGRect(v.frame),
-            v.layer.cornerRadius, v.alpha, v.hidden, v == target.view ? @" <== module" : @""];
-        for (UIView *sv in v.subviews) [queue addObject:@[sv, @(d + 1)]];
+    NSMutableString *out = [NSMutableString stringWithFormat:@"glass dump after resize of %@", mid];
+    for (UIViewController *m in ModuleControllers(ov)) {
+        UIView *mv = m.view;
+        if (!mv || mv.hidden || mv.alpha < 0.05) continue;
+        [out appendFormat:@"\n%@ f=%@ r=%.1f curve=%@ mask=%d xf=%@", PACMid(m), NSStringFromCGRect(mv.frame), mv.layer.cornerRadius,
+            mv.layer.cornerCurve, mv.layer.masksToBounds, NSStringFromCGAffineTransform(mv.transform)];
+        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:mv.subviews];
+        NSUInteger n = 0;
+        while (q.count && n++ < 60) {
+            UIView *v = q.firstObject; [q removeObjectAtIndex:0];
+            NSString *c = NSStringFromClass(v.class);
+            BOOL glass = [c hasPrefix:@"LG"] || [c containsString:@"LiquidGlass"] || [c containsString:@"Material"] ||
+                         [c containsString:@"ContentContainer"] || [c containsString:@"Background"] || [c containsString:@"ButtonModuleView"];
+            if (glass) {
+                [out appendFormat:@"\n    %@ f=%@ r=%.1f curve=%@ mask=%d a=%.2f h=%d xf=%@", c, NSStringFromCGRect(v.frame), v.layer.cornerRadius,
+                    v.layer.cornerCurve, v.layer.masksToBounds, v.alpha, v.hidden, NSStringFromCGAffineTransform(v.transform)];
+            }
+            [q addObjectsFromArray:v.subviews];
+        }
     }
     PACLog(@"%@", out);
 }
