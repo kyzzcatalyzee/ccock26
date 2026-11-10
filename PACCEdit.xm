@@ -1140,47 +1140,6 @@ static void PACResyncGlass(UIViewController *m) {
     }];
 }
 
-static const void *kPACGlassHoldKey = &kPACGlassHoldKey;
-
-static BOOL PACIsGlassClass(UIView *v) {
-    NSString *c = NSStringFromClass(v.class);
-    return [c hasPrefix:@"LG"] || [c containsString:@"LiquidGlass"];
-}
-
-// While a module changes size, LiquidAss's glass is hidden: its lens shape would bend into a diamond / octagon on the way.
-// It fades back in once the size has settled.
-static void PACHoldGlassWhileResizing(UIViewController *m) {
-    if (!m.view || !PACCLIQIsActive()) return;
-    NSMutableArray<UIView *> *glass = [NSMutableArray array];
-    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:m.view.subviews];
-    NSUInteger n = 0;
-    while (q.count && n++ < 200) {
-        UIView *v = q.lastObject; [q removeLastObject];
-        if (PACIsGlassClass(v)) [glass addObject:v];
-        [q addObjectsFromArray:v.subviews];
-    }
-    CGRect mf = m.view.frame;
-    for (UIView *sv in m.view.superview.subviews) {
-        if (sv == m.view || !PACIsGlassClass(sv)) continue;
-        if (fabs(sv.frame.size.width - mf.size.width) < 40.0 && fabs(sv.frame.size.height - mf.size.height) < 40.0 &&
-            fabs(CGRectGetMidX(sv.frame) - CGRectGetMidX(mf)) < 40.0 && fabs(CGRectGetMidY(sv.frame) - CGRectGetMidY(mf)) < 40.0) {
-            [glass addObject:sv];
-        }
-    }
-    if (!glass.count) return;
-    for (UIView *g in glass) { [g.layer removeAnimationForKey:@"pac.glassfade"]; g.alpha = 0.0; }
-    NSNumber *tok = @(([objc_getAssociatedObject(m.view, kPACGlassHoldKey) integerValue]) + 1);
-    objc_setAssociatedObject(m.view, kPACGlassHoldKey, tok, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    __weak UIViewController *wm = m;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.75 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIViewController *mm = wm;
-        if (!mm.view) return;
-        if (![objc_getAssociatedObject(mm.view, kPACGlassHoldKey) isEqual:tok]) return;     // a newer resize took over
-        PACResyncGlass(mm);
-        [UIView animateWithDuration:0.2 animations:^{ for (UIView *g in glass) g.alpha = 1.0; }];
-    });
-}
-
 static void PACRunMaybeWithoutAnimation(void (^block)(void)) {
     if (CACurrentMediaTime() < gPACRotationQuietUntil) {
         [UIView performWithoutAnimation:^{
@@ -1201,6 +1160,13 @@ static void PACApplyRadiusToModule(UIViewController *m) {
 
     NSString *mid = PACMid(m);
     if (!mid.length) return;
+
+    // With LiquidAss active the corner radius is left to Control Center and LiquidAss: they already follow every size
+    // natively. Writing our own radius into the module's layers is what bent its glass into a diamond.
+    if (PACCLIQIsActive()) {
+        if (objc_getAssociatedObject(m.view, kPACLastRadiusKey)) PACRestoreModuleRadius(m);
+        return;
+    }
 
     if (PACModuleIsExpanded(m)) {
         if (objc_getAssociatedObject(m.view, kPACLastRadiusKey)) PACRestoreModuleRadius(m);
@@ -1238,7 +1204,6 @@ static void PACApplyRadiusToModule(UIViewController *m) {
             return;
         }
     }
-    if (last != nil) PACHoldGlassWhileResizing(m);
     objc_setAssociatedObject(m.view, kPACLastRadiusKey,
                              [NSValue valueWithCGSize:moduleSize],
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
