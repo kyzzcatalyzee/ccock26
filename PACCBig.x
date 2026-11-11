@@ -753,6 +753,31 @@ static UIView *PACBigMediaMaterial(void) {
     return material;
 }
 
+// The real LiquidAss glass view (LGLiveBackdropView, ControlCenter filter), the same thing LiquidAss puts on modules.
+static BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
+    Class cls = NSClassFromString(@"LGLiveBackdropView");
+    SEL init3 = NSSelectorFromString(@"initWithFrame:groupName:filterType:");
+    if (!cls || ![cls instancesRespondToSelector:init3]) return NO;
+    UIView *old = [host viewWithTag:190001];   // our older PACCLIQ glass
+    if (old) { old.layer.filters = nil; [old removeFromSuperview]; }
+    UIView *g = [host viewWithTag:190002];
+    if (!g) {
+        g = ((id (*)(id, SEL, CGRect, id, id))objc_msgSend)([cls alloc], init3, host.bounds, nil, @"dylv.liquidglass.cc.r2");
+        if (!g) return NO;
+        g.tag = 190002;
+        g.userInteractionEnabled = NO;
+        [host insertSubview:g atIndex:0];
+    }
+    g.frame = host.bounds;
+    g.layer.cornerRadius = radius;
+    g.layer.cornerCurve = kCACornerCurveContinuous;
+    g.layer.masksToBounds = YES;
+    [host sendSubviewToBack:g];
+    for (NSString *sel in @[@"updateSpecular", @"applyFilters"])
+        if ([g respondsToSelector:NSSelectorFromString(sel)]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(sel));
+    return YES;
+}
+
 @implementation PACBigMusic {
     UIView *_blur;
     UIImageView *_art;
@@ -857,15 +882,10 @@ static UIView *PACBigMediaMaterial(void) {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
     self.layer.cornerRadius = MIN(34.0, h * 0.5);
-    if (PACCLIQIsActive()) {
-        // LiquidAss: only its glass is used. The old material is removed, together with the second glass LiquidAss
-        // would build on top of it (that one made two layers).
+    if (PACCLIQIsActive() && PACBigLGGlass(self, self.layer.cornerRadius)) {
+        // LiquidAss's own LGLiveBackdropView (same class and filter as on the modules) is the only layer: the old
+        // material and our PACCLIQ glass are gone.
         [_blur removeFromSuperview];
-        for (UIView *v in [self.subviews copy]) {
-            NSString *c = NSStringFromClass(v.class);
-            if (v.tag != 190001 && [c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) [v removeFromSuperview];
-        }
-        PACCLIQApplyGlass(self, self.layer.cornerRadius);
     } else {
         if (!_blur.superview) [self insertSubview:_blur atIndex:0];
         _blur.frame = self.bounds;
@@ -1036,6 +1056,7 @@ static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
         for (UIView *s in p.subviews) {
             if (s == child || [s isKindOfClass:PACBigView.class]) continue;
             NSString *n = NSStringFromClass(s.class);
+            if (PACCLIQIsActive() && ([n hasPrefix:@"LG"] || [n isEqualToString:@"MTMaterialView"])) continue;   // LiquidAss glass stays
             if (!([n containsString:@"Material"] || [n containsString:@"Backdrop"] || [n containsString:@"Background"] ||
                   [n containsString:@"Blur"] || [n containsString:@"Platter"])) continue;
             CGRect f = [s convertRect:s.bounds toView:nil];
@@ -1122,6 +1143,7 @@ void PACCBigStripContainer(UIView *container) {
             NSString *cn = NSStringFromClass(v.class);
             BOOL plate = [cn containsString:@"Material"] || [cn containsString:@"Backdrop"] || [cn containsString:@"LGLive"] ||
                          [cn containsString:@"Platter"] || [cn containsString:@"Background"];
+            if (plate && PACCLIQIsActive() && ([cn hasPrefix:@"LG"] || [cn isEqualToString:@"MTMaterialView"])) plate = NO;   // LiquidAss glass stays
             if (plate && ![mine isDescendantOfView:v] && !v.hidden) {
                 v.hidden = YES;
                 objc_setAssociatedObject(v, &kPACHiddenKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
