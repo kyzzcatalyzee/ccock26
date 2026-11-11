@@ -894,7 +894,11 @@ static BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
     self.layer.cornerRadius = MIN(34.0, h * 0.5);
-    if (PACCLIQIsActive() && PACBigLGGlass(self, self.layer.cornerRadius)) {
+    {
+        static int ln = 0;
+        if (ln++ < 3) PACBigLog([NSString stringWithFormat:@"music layout active=%d LGclass=%d standalone=%d", (int)PACCLIQIsActive(), NSClassFromString(@"LGLiveBackdropView") != nil, (int)self.standalone]);
+    }
+    if ((PACCLIQIsActive() || NSClassFromString(@"LGLiveBackdropView")) && PACBigLGGlass(self, self.layer.cornerRadius)) {
         // LiquidAss's own LGLiveBackdropView (same class and filter as on the modules) is the only layer: the old
         // material and our PACCLIQ glass are gone.
         [_blur removeFromSuperview];
