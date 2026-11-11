@@ -1134,7 +1134,6 @@ void PACCBigStripContainer(UIView *container) {
             NSString *cn = NSStringFromClass(v.class);
             BOOL plate = [cn containsString:@"Material"] || [cn containsString:@"Backdrop"] || [cn containsString:@"LGLive"] ||
                          [cn containsString:@"Platter"] || [cn containsString:@"Background"];
-            if (plate && PACCLIQIsActive() && ([cn hasPrefix:@"LG"] || [cn isEqualToString:@"MTMaterialView"])) plate = NO;   // LiquidAss glass stays
             if (plate && ![mine isDescendantOfView:v] && !v.hidden) {
                 v.hidden = YES;
                 objc_setAssociatedObject(v, &kPACHiddenKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);

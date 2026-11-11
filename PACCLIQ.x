@@ -184,6 +184,12 @@ static int PACCLIQSpecularMode(void) {
     return 2;
 }
 
+// LiquidAss > More Options > Specular Type: iOS 26 (default) or iOS 27 (Renderer.SpecularType = "ios27")
+static BOOL PACCLIQSpecularIOS27(void) {
+    id v = PACCLIQPref(@"Renderer.SpecularType");
+    return [v isKindOfClass:NSString.class] && [v isEqualToString:@"ios27"];
+}
+
 static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     id v = PACCLIQPref(key);
     return [v respondsToSelector:@selector(doubleValue)] ? [v doubleValue] : fallback;
@@ -195,6 +201,7 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     NSString *_appliedType;
     CGFloat _appliedScale, _appliedBlur;
     int _appliedMode;
+    BOOL _appliedIOS27;
     CGFloat _appliedOpacity, _appliedFresnel;
 }
 @property (nonatomic, assign) CGFloat glassCornerRadius;
@@ -383,7 +390,9 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     }
     [self.layer insertSublayer:_darkLayer below:_specLayer];
 
-    if (_appliedMode != 2 || fabs(_appliedOpacity - maxAlpha) > 0.001 || fabs(_appliedFresnel - fres) > 0.001) {
+    BOOL ios27 = PACCLIQSpecularIOS27();
+    if (_appliedMode != 2 || _appliedIOS27 != ios27 || fabs(_appliedOpacity - maxAlpha) > 0.001 || fabs(_appliedFresnel - fres) > 0.001) {
+        _appliedIOS27 = ios27;
         _fresnelLayer.colors = @[
             (id)[UIColor colorWithWhite:1 alpha:glare].CGColor,
             (id)[UIColor colorWithWhite:1 alpha:glare * 0.55].CGColor,
@@ -401,12 +410,25 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
             (id)[UIColor colorWithWhite:0 alpha:0.48].CGColor,
             (id)[UIColor colorWithWhite:0 alpha:0.36].CGColor,
             (id)[UIColor colorWithWhite:0 alpha:0.28].CGColor];
-        _specLayer.colors = @[
-            (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.45].CGColor,
-            (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.20].CGColor,
-            clear, clear,
-            (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.20].CGColor,
-            (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.45].CGColor];
+        if (ios27) {
+            // iOS 27 rim: one bright band across the shape, fading towards both ends (stops read from LiquidAss)
+            static const CGFloat stops[12] = {0.12, 0.25, 0.42, 0.62, 0.82, 0.95, 0.95, 0.82, 0.62, 0.42, 0.25, 0.12};
+            NSMutableArray *cols = [NSMutableArray array], *locs = [NSMutableArray array];
+            for (int k = 0; k < 12; k++) {
+                [cols addObject:(id)[UIColor colorWithWhite:1 alpha:stops[k] * maxAlpha].CGColor];
+                [locs addObject:@(k / 11.0)];
+            }
+            _specLayer.colors = cols;
+            _specLayer.locations = locs;
+        } else {
+            _specLayer.locations = @[@0.0, @0.055, @0.12, @0.88, @0.945, @1.0];
+            _specLayer.colors = @[
+                (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.45].CGColor,
+                (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.20].CGColor,
+                clear, clear,
+                (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.20].CGColor,
+                (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.45].CGColor];
+        }
         _appliedMode = 2; _appliedOpacity = maxAlpha; _appliedFresnel = fres;
     }
     CGRect sr = CGRectInset(rect, inset, inset);
@@ -422,10 +444,12 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     _specLayer.frame = sr;
     _specMask.frame = CGRectMake(0, 0, sr.size.width, sr.size.height);
     _specMask.cornerRadius = srad; _specMask.cornerCurve = curve;
-    // light from straight above (LiquidAss's rest angle, without motion)
-    _specLayer.startPoint = CGPointMake(0.5, 0.0); _specLayer.endPoint = CGPointMake(0.5, 1.0);
-    _darkLayer.startPoint = CGPointMake(0.5, 0.0); _darkLayer.endPoint = CGPointMake(0.5, 1.0);
-    _fresnelLayer.startPoint = CGPointMake(0.5, 0.0); _fresnelLayer.endPoint = CGPointMake(0.5, 1.0);
+    // LiquidAss's rest angle without motion: iOS 26 = -135 degrees (diagonal), iOS 27 = straight up / a horizontal band
+    CGFloat dx = ios27 ? 0.0 : cos(-3.0 * M_PI / 4.0) * 0.25;
+    _darkLayer.startPoint = CGPointMake(0.5 + dx, 0.0); _darkLayer.endPoint = CGPointMake(0.5 - dx, 1.0);
+    _fresnelLayer.startPoint = CGPointMake(0.5 + dx * 0.4, 0.0); _fresnelLayer.endPoint = CGPointMake(0.5 - dx * 0.4, 1.0);
+    if (ios27) { _specLayer.startPoint = CGPointMake(0.0, 0.5); _specLayer.endPoint = CGPointMake(1.0, 0.5); _fresnelLayer.hidden = YES; }
+    else { _specLayer.startPoint = CGPointMake(0.5 + dx, 0.0); _specLayer.endPoint = CGPointMake(0.5 - dx, 1.0); }
     [CATransaction commit];
 }
 
