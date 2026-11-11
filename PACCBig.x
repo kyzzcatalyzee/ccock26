@@ -347,10 +347,8 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 - (void)layoutSubviews {
     [self pacLayoutCore];
     // custom control: LiquidAss's real LGLiveBackdropView replaces the old material
-    if ((PACCLIQIsActive() || NSClassFromString(@"LGLiveBackdropView")) && PACBigLGGlass(self, self.layer.cornerRadius)) {
-        [_material removeFromSuperview];
-        _material = nil;
-    }
+    if (PACCLIQIsActive()) _material.hidden = PACBigLGGlass(self, self.layer.cornerRadius);
+    else _material.hidden = NO;
 }
 - (void)pacLayoutCore {
     [super layoutSubviews];
@@ -765,42 +763,12 @@ static UIView *PACBigMediaMaterial(void) {
     return material;
 }
 
-static void PACBigLog(NSString *msg) {
-    static int n = 0;
-    if (n++ >= 40) return;
-    FILE *f = fopen("/var/mobile/Library/Preferences/ccock26-crash.log", "a");
-    if (!f) return;
-    time_t t = time(NULL); struct tm tmv; gmtime_r(&t, &tmv); char ts[40]; strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S +0000", &tmv);
-    fprintf(f, "%s [PACBig] %s\n", ts, msg.UTF8String);
-    fclose(f);
-}
-
-// The real LiquidAss glass view (LGLiveBackdropView, ControlCenter filter), the same thing LiquidAss puts on modules.
+// Custom controls get the PACCLIQ glass: the LiquidAss lens filter plus the rim, blur and radius step read from the
+// LiquidAss settings (see PACCLIQ.x). YES when the glass is live and the old material can be hidden.
 BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
-    Class cls = NSClassFromString(@"LGLiveBackdropView");
-    SEL init3 = NSSelectorFromString(@"initWithFrame:groupName:filterType:");
-    if (!cls || ![cls instancesRespondToSelector:init3]) { PACBigLog([NSString stringWithFormat:@"LG class=%@ init3=%d", cls, cls ? (int)[cls instancesRespondToSelector:init3] : 0]); return NO; }
-    UIView *old = [host viewWithTag:190001];   // our older PACCLIQ glass
-    if (old) { old.layer.filters = nil; [old removeFromSuperview]; }
-    UIView *g = [host viewWithTag:190002];
-    if (!g) {
-        g = ((id (*)(id, SEL, CGRect, id, id))objc_msgSend)([cls alloc], init3, host.bounds, nil, @"dylv.liquidglass.cc");
-        if (!g) return NO;
-        g.tag = 190002;
-        g.userInteractionEnabled = NO;
-        [host insertSubview:g atIndex:0];
-    }
-    BOOL live = NO;
-    if ([g respondsToSelector:NSSelectorFromString(@"lgFilterAttached")]) live = ((BOOL (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"lgFilterAttached"));
-    PACBigLog([NSString stringWithFormat:@"music glass %@ frame=%@ live=%d window=%d", NSStringFromClass(g.class), NSStringFromCGRect(host.bounds), live, g.window != nil]);
-    g.frame = host.bounds;
-    g.layer.cornerRadius = radius;
-    g.layer.cornerCurve = kCACornerCurveContinuous;
-    g.layer.masksToBounds = YES;
-    [host sendSubviewToBack:g];
-    for (NSString *sel in @[@"updateSpecular", @"applyFilters"])
-        if ([g respondsToSelector:NSSelectorFromString(sel)]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(sel));
-    return YES;
+    UIView *stale = [host viewWithTag:190002];   // a LGLiveBackdropView from an earlier build
+    if (stale) [stale removeFromSuperview];
+    return PACCLIQApplyGlass(host, radius);
 }
 
 @implementation PACBigMusic {
@@ -911,22 +879,12 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
     self.layer.cornerRadius = MIN(34.0, h * 0.5);
-    {
-        static int ln = 0;
-        if (ln++ < 3) PACBigLog([NSString stringWithFormat:@"music layout active=%d LGclass=%d standalone=%d", (int)PACCLIQIsActive(), NSClassFromString(@"LGLiveBackdropView") != nil, (int)self.standalone]);
-    }
-    if ((PACCLIQIsActive() || NSClassFromString(@"LGLiveBackdropView")) && PACBigLGGlass(self, self.layer.cornerRadius)) {
-        // LiquidAss's own LGLiveBackdropView (same class and filter as on the modules) is the only layer: the old
-        // material and our PACCLIQ glass are gone.
-        [_blur removeFromSuperview];
-    } else {
-        if (!_blur.superview) [self insertSubview:_blur atIndex:0];
-        _blur.frame = self.bounds;
-        _blur.layer.cornerRadius = self.layer.cornerRadius;
-        _blur.layer.cornerCurve = kCACornerCurveContinuous;
-        _blur.clipsToBounds = YES;
-        _blur.hidden = PACCLIQApplyGlass(self, self.layer.cornerRadius);
-    }
+    if (!_blur.superview) [self insertSubview:_blur atIndex:0];
+    _blur.frame = self.bounds;
+    _blur.layer.cornerRadius = self.layer.cornerRadius;
+    _blur.layer.cornerCurve = kCACornerCurveContinuous;
+    _blur.clipsToBounds = YES;
+    _blur.hidden = (PACCLIQIsActive() && PACBigLGGlass(self, self.layer.cornerRadius));
     CGFloat pad = 14.0;
     BOOL full = !self.compact;
     _seek.hidden = _elapsed.hidden = _remaining.hidden = _vol.hidden = _volLo.hidden = _volHi.hidden = !full;

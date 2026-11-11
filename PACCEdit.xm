@@ -1077,7 +1077,7 @@ static void PACFixGlassRadius(UIView *g) {
     if (!module && !panel) { if (wide && skipLogged++ < 3) PACLog(@"glass skip (no module) %@", chain); return; }
     CGSize ms = panel ? gs : module.bounds.size;
     if (gs.width < 30 || gs.height < 30) return;
-    if (gs.width < ms.width * 0.8 || gs.height < ms.height * 0.8) {   // the module's own glass layers, inset or not
+    if (gs.width < ms.width * 0.8 && gs.height < ms.height * 0.8) {   // the module's own glass layers, inset or not
         if (wide && skipLogged2++ < 3) PACLog(@"glass skip (size) %@ module=%@ %@", NSStringFromCGSize(gs), NSStringFromCGSize(ms), chain);
         return;
     }
@@ -2439,7 +2439,7 @@ static void PACPositionPageAddButton(UIViewController *ov) {
     UIView *ind = [ov.view viewWithTag:kPageIndicatorTag];
     UIView *plus = [ov.view viewWithTag:kPACPageAddTag];
     if (!ind || !plus) return;
-    plus.center = CGPointMake(CGRectGetMidX(ind.frame), CGRectGetMaxY(ind.frame) + 30.0);
+    plus.center = CGPointMake(CGRectGetMidX(ind.frame), CGRectGetMaxY(ind.frame) + 22.0);
 }
 
 // Keeps the chrome of every module in step with the page the user is looking at while editing.
@@ -3233,7 +3233,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 
     UIButton *plus = (UIButton *)[ov.view viewWithTag:kPACPageAddTag];
     if (!plus) {
-        plus = PACMakeRoundButton(@"plus", 34.0, 15.0, kPACPageAddTag);
+        plus = PACMakeRoundButton(@"circle", 34.0, 12.0, kPACPageAddTag);   // an open ring: a page that is not there yet
         [plus addTarget:self action:@selector(addPageTap:) forControlEvents:UIControlEventTouchUpInside];
         [ov.view addSubview:plus];
     }

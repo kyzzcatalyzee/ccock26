@@ -148,7 +148,55 @@ id PACCLIQBuildGlassFilter(void) {
 }
 #endif
 
-@interface PACCLIQGlassView : UIView
+// LiquidAss settings for the Control Center (same keys LiquidAss reads: ControlCenter.SpecularMode / SpecularOpacity / Blur, Renderer.FresnelGlareStrength)
+static id PACCLIQPref(NSString *key) {
+    static NSMutableDictionary *cache;
+    static CFTimeInterval stamp = 0;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (!cache || now - stamp > 1.0) {
+        cache = [NSMutableDictionary dictionary];
+        stamp = now;
+        CFPreferencesAppSynchronize((__bridge CFStringRef)kPACCLIQPrefsDomain);
+    }
+    id cached = cache[key];
+    if (cached) return [cached isKindOfClass:NSNull.class] ? nil : cached;
+    id v = CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, (__bridge CFStringRef)kPACCLIQPrefsDomain));
+    cache[key] = v ?: NSNull.null;
+    return v;
+}
+
+// 0 = none, 1 = border, 2 = glass (the rim LiquidAss draws)
+static int PACCLIQSpecularMode(void) {
+    id m = PACCLIQPref(@"ControlCenter.SpecularMode");
+    if ([m isKindOfClass:NSString.class]) {
+        if ([m isEqualToString:@"none"]) return 0;
+        if ([m isEqualToString:@"border"]) return 1;
+        if ([m isEqualToString:@"glass"]) return 2;
+    }
+    id legacy = PACCLIQPref(@"ControlCenter.Specular.Mode");
+    if ([legacy isKindOfClass:NSString.class]) {
+        if ([legacy isEqualToString:@"none"]) return 0;
+        if ([legacy isEqualToString:@"border"]) return 1;
+        if ([legacy isEqualToString:@"glass"]) return 2;
+    }
+    id en = PACCLIQPref(@"ControlCenter.Specular.Enabled") ?: PACCLIQPref(@"ControlCenter.SpecularEnabled");
+    if ([en respondsToSelector:@selector(boolValue)]) return [en boolValue] ? 2 : 0;
+    return 2;
+}
+
+static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
+    id v = PACCLIQPref(key);
+    return [v respondsToSelector:@selector(doubleValue)] ? [v doubleValue] : fallback;
+}
+
+@interface PACCLIQGlassView : UIView {
+    CAGradientLayer *_specLayer, *_darkLayer, *_fresnelLayer;
+    CAShapeLayer *_specMask, *_darkMask, *_edgeLayer;
+    NSString *_appliedType;
+    CGFloat _appliedScale, _appliedBlur;
+    int _appliedMode;
+    CGFloat _appliedOpacity, _appliedFresnel;
+}
 @property (nonatomic, assign) CGFloat glassCornerRadius;
 - (instancetype)initWithFrame:(CGRect)frame cornerRadius:(CGFloat)radius;
 - (void)applyGlassFilter;
@@ -157,6 +205,7 @@ id PACCLIQBuildGlassFilter(void) {
 
 @interface PACCLIQGlassView ()
 - (BOOL)filterIsLive;
+- (void)updateSpecularLayers;
 @end
 
 @implementation PACCLIQGlassView
@@ -189,14 +238,26 @@ id PACCLIQBuildGlassFilter(void) {
     [super layoutSubviews];
     self.layer.cornerRadius = self.glassCornerRadius;
     [self applyGlassFilter];
+    [self updateSpecularLayers];
+}
+
+// LiquidAss appends the radius step (.rN, radius / shortest side in 1/32) and .dark to the Control Center type
+- (NSString *)wantedType {
+    CGSize b = self.bounds.size;
+    CGFloat shortest = MIN(b.width, b.height);
+    CGFloat ratio = shortest > 0 ? self.glassCornerRadius / shortest : 0;
+    NSInteger step = (NSInteger)llround(MAX(0.0, MIN(0.5, ratio)) * 32.0);
+    NSString *t = [NSString stringWithFormat:@"dylv.liquidglass.cc.r%ld", (long)step];
+    if (self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) t = [t stringByAppendingString:@".dark"];
+    return t;
 }
 
 - (BOOL)filterIsLive {
     NSArray *filters = self.layer.filters;
-    if (filters.count != 1 || !sPACCLIQActiveFilterType) return NO;
+    if (!filters.count || !_appliedType.length) return NO;
     NSString *type = nil;
     @try { type = [filters[0] valueForKey:@"type"]; } @catch (...) {}
-    return type.length && [type isEqualToString:sPACCLIQActiveFilterType];
+    return type.length && [type isEqualToString:_appliedType];
 }
 
 - (void)applyGlassFilter {
@@ -206,41 +267,175 @@ id PACCLIQBuildGlassFilter(void) {
 
     if (!PACCLIQShouldGlass()) {
         if (layer.filters.count) layer.filters = nil;
+        _appliedType = nil;
         sPACCLIQActiveFilterType = nil;
         return;
     }
-    if ([self filterIsLive]) return;
 
     @try {
         [layer setValue:@NO  forKey:@"layerUsesCoreImageFilters"];
-        [layer setValue:@YES forKey:@"windowServerAware"];
+        [layer setValue:@NO forKey:@"windowServerAware"];
         if (![layer valueForKey:@"groupName"]) {
-            [layer setValue:kPACCLIQGroupName forKey:@"groupName"];
+            [layer setValue:[NSString stringWithFormat:@"dylv.liquidglass.pacc.%p", self] forKey:@"groupName"];
         }
         [layer setValue:@"dylv.liquidglass" forKey:@"groupNamespace"];
-        [layer setValue:@(0.5) forKey:@"scale"];
+        [layer setValue:@YES forKey:@"ignoresScreenClip"];
 
-        NSString *previous = sPACCLIQActiveFilterType;
-        id glassFilter = PACCLIQMakeFilter(kPACCLIQControlCenterType);
-        if (glassFilter) {
-            sPACCLIQActiveFilterType = kPACCLIQControlCenterType;
-            if (![previous isEqualToString:kPACCLIQControlCenterType]) {
-                PACCLIQLog("active filter = %s", kPACCLIQControlCenterType.UTF8String);
-            }
-            layer.filters = @[glassFilter];
-            return;
+        CGFloat area = self.bounds.size.width * self.bounds.size.height;
+        CGFloat budget = PACCLIQNumPref(@"Global.ScaleBudget", 8000.0);
+        if (!isfinite(budget)) budget = 8000.0;
+        budget = MIN(32000.0, MAX(1000.0, budget));
+        CGFloat scale = area <= 1.0 ? 0.75 : MIN(0.75, MAX(0.25, sqrt(budget / area)));
+        if (fabs(scale - _appliedScale) > 0.02) {
+            [layer setValue:@(scale) forKey:@"scale"];
+            _appliedScale = scale;
         }
 
-        if (previous) PACCLIQLog("ControlCenter filter unavailable");
+        CGFloat blur = MAX(0.0, PACCLIQNumPref(@"ControlCenter.Blur", 1.0));
+        NSString *want = [self wantedType];
+        if ([self filterIsLive] && [_appliedType isEqualToString:want] && fabs(blur - _appliedBlur) < 0.01) return;
+
+        id glassFilter = PACCLIQMakeFilter(want);
+        if (glassFilter) {
+            NSMutableArray *chain = [NSMutableArray arrayWithObject:glassFilter];
+            if (blur > 0.01) {
+                id gb = PACCLIQMakeFilter(@"gaussianBlur");
+                if (gb) { [gb setValue:@(blur) forKey:@"inputRadius"]; [chain addObject:gb]; }
+            }
+            NSString *previous = sPACCLIQActiveFilterType;
+            sPACCLIQActiveFilterType = @"dylv.liquidglass.cc";
+            if (!previous) PACCLIQLog("active filter = %s", want.UTF8String);
+            layer.filters = chain;
+            _appliedType = want;
+            _appliedBlur = blur;
+            return;
+        }
+        if (sPACCLIQActiveFilterType) PACCLIQLog("ControlCenter filter unavailable");
         sPACCLIQActiveFilterType = nil;
+        _appliedType = nil;
     } @catch (NSException *e) {
         PACCLIQLog("applyGlassFilter exception: %s", e.reason.UTF8String);
     }
 }
 
+// The rim: same layers and numbers as LiquidAss's updateSpecular (none / border / glass from the LiquidAss settings)
+- (void)updateSpecularLayers {
+    if (CGRectIsEmpty(self.bounds)) return;
+    int mode = PACCLIQSpecularMode();
+    CGRect rect = self.bounds;
+    CGFloat shortest = MIN(rect.size.width, rect.size.height);
+    CGFloat radius = MIN(self.glassCornerRadius, shortest * 0.5);
+    BOOL circle = radius >= shortest * 0.5 - 1.5;
+    NSString *curve = circle ? kCACornerCurveCircular : kCACornerCurveContinuous;
+
+    if (mode == 0 || !PACCLIQShouldGlass()) {
+        _specLayer.hidden = _darkLayer.hidden = _fresnelLayer.hidden = YES;
+        _edgeLayer.hidden = YES;
+        return;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    if (mode == 1) {
+        _specLayer.hidden = _darkLayer.hidden = _fresnelLayer.hidden = YES;
+        if (!_edgeLayer) { _edgeLayer = [CAShapeLayer layer]; [self.layer addSublayer:_edgeLayer]; }
+        _edgeLayer.hidden = NO;
+        _edgeLayer.frame = rect;
+        _edgeLayer.cornerRadius = radius;
+        _edgeLayer.cornerCurve = curve;
+        CGFloat sc = self.window.screen.scale ?: UIScreen.mainScreen.scale;
+        _edgeLayer.borderWidth = 1.0 / MAX(sc, 1.0);
+        _edgeLayer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.42].CGColor;
+        [CATransaction commit];
+        return;
+    }
+    _edgeLayer.hidden = YES;
+
+    CGFloat maxAlpha = MAX(0.0, MIN(1.0, PACCLIQNumPref(@"ControlCenter.SpecularOpacity", 0.85)));
+    CGFloat fres = MAX(0.0, MIN(1.0, PACCLIQNumPref(@"Renderer.FresnelGlareStrength", 0.5)));
+    CGFloat glare = fres * 0.312 * maxAlpha;
+    id clear = (id)UIColor.clearColor.CGColor;
+    const CGFloat edgeW = 0.604, specW = 0.575, inset = 0.90;
+
+    if (!_fresnelLayer) {
+        _fresnelLayer = [CAGradientLayer layer];
+        _fresnelLayer.locations = @[@0.0, @0.035, @0.09, @0.18, @0.28, @0.72, @0.82, @0.91, @0.965, @1.0];
+        [self.layer insertSublayer:_fresnelLayer atIndex:0];
+    }
+    if (!_darkLayer) {
+        _darkLayer = [CAGradientLayer layer];
+        _darkLayer.locations = @[@0.0, @0.15, @0.30, @0.70, @0.85, @1.0];
+        _darkMask = [CAShapeLayer layer];
+        _darkMask.backgroundColor = UIColor.clearColor.CGColor;
+        _darkMask.borderColor = UIColor.whiteColor.CGColor;
+        _darkMask.borderWidth = edgeW;
+        _darkLayer.mask = _darkMask;
+        [self.layer addSublayer:_darkLayer];
+    }
+    if (!_specLayer) {
+        _specLayer = [CAGradientLayer layer];
+        _specLayer.locations = @[@0.0, @0.055, @0.12, @0.88, @0.945, @1.0];
+        _specMask = [CAShapeLayer layer];
+        _specMask.backgroundColor = UIColor.clearColor.CGColor;
+        _specMask.borderColor = UIColor.whiteColor.CGColor;
+        _specMask.borderWidth = specW;
+        _specLayer.mask = _specMask;
+        [self.layer addSublayer:_specLayer];
+    }
+    [self.layer insertSublayer:_darkLayer below:_specLayer];
+
+    if (_appliedMode != 2 || fabs(_appliedOpacity - maxAlpha) > 0.001 || fabs(_appliedFresnel - fres) > 0.001) {
+        _fresnelLayer.colors = @[
+            (id)[UIColor colorWithWhite:1 alpha:glare].CGColor,
+            (id)[UIColor colorWithWhite:1 alpha:glare * 0.55].CGColor,
+            (id)[UIColor colorWithWhite:1 alpha:glare * 0.22].CGColor,
+            (id)[UIColor colorWithWhite:1 alpha:glare * 0.06].CGColor,
+            clear, clear,
+            (id)[UIColor colorWithWhite:1 alpha:glare * 0.06].CGColor,
+            (id)[UIColor colorWithWhite:1 alpha:glare * 0.22].CGColor,
+            (id)[UIColor colorWithWhite:1 alpha:glare * 0.55].CGColor,
+            (id)[UIColor colorWithWhite:1 alpha:glare].CGColor];
+        _darkLayer.colors = @[
+            (id)[UIColor colorWithWhite:0 alpha:0.24].CGColor,
+            (id)[UIColor colorWithWhite:0 alpha:0.36].CGColor,
+            (id)[UIColor colorWithWhite:0 alpha:0.48].CGColor,
+            (id)[UIColor colorWithWhite:0 alpha:0.48].CGColor,
+            (id)[UIColor colorWithWhite:0 alpha:0.36].CGColor,
+            (id)[UIColor colorWithWhite:0 alpha:0.28].CGColor];
+        _specLayer.colors = @[
+            (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.45].CGColor,
+            (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.20].CGColor,
+            clear, clear,
+            (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.20].CGColor,
+            (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.45].CGColor];
+        _appliedMode = 2; _appliedOpacity = maxAlpha; _appliedFresnel = fres;
+    }
+    CGRect sr = CGRectInset(rect, inset, inset);
+    if (sr.size.width <= 0 || sr.size.height <= 0) sr = rect;
+    CGFloat srad = MAX(0.0, radius - inset);
+    _fresnelLayer.hidden = fres <= 0.001;
+    _fresnelLayer.frame = rect; _fresnelLayer.cornerRadius = radius; _fresnelLayer.cornerCurve = curve; _fresnelLayer.masksToBounds = YES;
+    _darkLayer.hidden = NO;
+    _darkLayer.frame = rect;
+    _darkMask.frame = CGRectMake(0, 0, rect.size.width, rect.size.height);
+    _darkMask.cornerRadius = radius; _darkMask.cornerCurve = curve;
+    _specLayer.hidden = NO;
+    _specLayer.frame = sr;
+    _specMask.frame = CGRectMake(0, 0, sr.size.width, sr.size.height);
+    _specMask.cornerRadius = srad; _specMask.cornerCurve = curve;
+    // light from straight above (LiquidAss's rest angle, without motion)
+    _specLayer.startPoint = CGPointMake(0.5, 0.0); _specLayer.endPoint = CGPointMake(0.5, 1.0);
+    _darkLayer.startPoint = CGPointMake(0.5, 0.0); _darkLayer.endPoint = CGPointMake(0.5, 1.0);
+    _fresnelLayer.startPoint = CGPointMake(0.5, 0.0); _fresnelLayer.endPoint = CGPointMake(0.5, 1.0);
+    [CATransaction commit];
+}
+
 - (void)forceReapply {
     self.layer.filters = nil;
+    _appliedType = nil;
+    _appliedScale = 0;
     [self applyGlassFilter];
+    _appliedMode = -1;
+    [self updateSpecularLayers];
 }
 
 @end
@@ -266,11 +461,6 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
         return nil;
     }
 
-    if (NSClassFromString(@"LGLiveBackdropView")) {
-        // LiquidAss's own glass view is available: never build our own look-alike
-        if (glass) { glass.layer.filters = nil; [glass removeFromSuperview]; }
-        return nil;
-    }
     if (!glass) {
         glass = [[PACCLIQGlassView alloc] initWithFrame:host.bounds cornerRadius:radius];
         glass.tag = kPACCLIQGlassTag;
@@ -289,7 +479,6 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
 // its own material (exactly what the old built-in music page does).
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius) {
     if (!host) return NO;
-    if (NSClassFromString(@"LGLiveBackdropView") && PACBigLGGlass(host, radius)) return YES;
     PACCLIQGlassView *glass = PACCLIQInstallGlass(host, radius);
     return glass && [glass filterIsLive];
 }
@@ -329,14 +518,6 @@ static void PACCLIQRemoveAllGlass(void) {
         return;
     }
 
-    // real LiquidAss glass (LGLiveBackdropView), the old PACCLIQ glass is removed by PACBigLGGlass
-    if (NSClassFromString(@"LGLiveBackdropView") && PACBigLGGlass(self, self.layer.cornerRadius)) {
-        @try {
-            UIView *blur = [self valueForKey:@"blurView"];
-            if ([blur isKindOfClass:UIView.class]) blur.hidden = YES;
-        } @catch (...) {}
-        return;
-    }
     PACCLIQGlassView *glass = PACCLIQInstallGlass(self, self.layer.cornerRadius);
     if (!glass) return;
     if ([glass filterIsLive]) {

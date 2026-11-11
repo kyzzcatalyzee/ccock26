@@ -61,6 +61,7 @@ static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) 
             return [bundled imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         }
     }
+    if ([name isEqualToString:@"circle.fill"]) pointSize *= 0.62;   // a plain page: a small dot
     UIImage *image = PACCBundledSymbol(name, UIColor.whiteColor, NO);
     if (!image) image = [UIImage systemImageNamed:name];
     if (!image && [name isEqualToString:@"network.connected.to.line.below.fill"]) image = [UIImage systemImageNamed:@"antenna.radiowaves.left.and.right"];
