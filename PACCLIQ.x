@@ -266,6 +266,11 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
         return nil;
     }
 
+    if (NSClassFromString(@"LGLiveBackdropView")) {
+        // LiquidAss's own glass view is available: never build our own look-alike
+        if (glass) { glass.layer.filters = nil; [glass removeFromSuperview]; }
+        return nil;
+    }
     if (!glass) {
         glass = [[PACCLIQGlassView alloc] initWithFrame:host.bounds cornerRadius:radius];
         glass.tag = kPACCLIQGlassTag;
