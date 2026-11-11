@@ -312,7 +312,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     return PACBigSymbol(@[@"circle.fill"], pt);
 }
 
-static BOOL PACBigLGGlass(UIView *host, CGFloat radius);
+BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 
 @implementation PACBigCard
 - (instancetype)initWithFrame:(CGRect)f {
@@ -773,7 +773,7 @@ static void PACBigLog(NSString *msg) {
 }
 
 // The real LiquidAss glass view (LGLiveBackdropView, ControlCenter filter), the same thing LiquidAss puts on modules.
-static BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
+BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     Class cls = NSClassFromString(@"LGLiveBackdropView");
     SEL init3 = NSSelectorFromString(@"initWithFrame:groupName:filterType:");
     if (!cls || ![cls instancesRespondToSelector:init3]) { PACBigLog([NSString stringWithFormat:@"LG class=%@ init3=%d", cls, cls ? (int)[cls instancesRespondToSelector:init3] : 0]); return NO; }

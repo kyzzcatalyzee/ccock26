@@ -98,6 +98,7 @@ void PACCSyncClones(UIViewController *overlay, BOOL animated);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);
 BOOL PACCLIQIsActive(void);
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius);
+BOOL PACBigLGGlass(UIView *host, CGFloat radius);   // real LiquidAss LGLiveBackdropView behind host
 
 #ifdef __cplusplus
 }

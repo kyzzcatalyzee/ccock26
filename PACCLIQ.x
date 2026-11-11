@@ -284,6 +284,7 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
 // its own material (exactly what the old built-in music page does).
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius) {
     if (!host) return NO;
+    if (NSClassFromString(@"LGLiveBackdropView") && PACBigLGGlass(host, radius)) return YES;
     PACCLIQGlassView *glass = PACCLIQInstallGlass(host, radius);
     return glass && [glass filterIsLive];
 }
@@ -323,6 +324,14 @@ static void PACCLIQRemoveAllGlass(void) {
         return;
     }
 
+    // real LiquidAss glass (LGLiveBackdropView), the old PACCLIQ glass is removed by PACBigLGGlass
+    if (NSClassFromString(@"LGLiveBackdropView") && PACBigLGGlass(self, self.layer.cornerRadius)) {
+        @try {
+            UIView *blur = [self valueForKey:@"blurView"];
+            if ([blur isKindOfClass:UIView.class]) blur.hidden = YES;
+        } @catch (...) {}
+        return;
+    }
     PACCLIQGlassView *glass = PACCLIQInstallGlass(self, self.layer.cornerRadius);
     if (!glass) return;
     if ([glass filterIsLive]) {
