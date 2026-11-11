@@ -1062,15 +1062,22 @@ static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
     UIView *module = nil;
+    NSMutableString *chain = [NSMutableString string];
     for (UIView *a = g.superview; a; a = a.superview) {
         NSString *n = NSStringFromClass(a.class);
-        if ([n containsString:@"Slider"]) return;
+        [chain appendFormat:@"%@ > ", n];
         if ([n isEqualToString:@"CCUIContentModuleContainerView"]) { module = a; break; }
     }
-    if (!module) return;
-    CGSize gs = g.bounds.size, ms = module.bounds.size;
+    CGSize gs = g.bounds.size;
+    BOOL wide = gs.width > 200 && g.layer.cornerRadius > 50;   // the pill we are after
+    static int skipLogged = 0;
+    if (!module) { if (wide && skipLogged++ < 4) PACLog(@"glass skip (no module) %@", chain); return; }
+    CGSize ms = module.bounds.size;
     if (gs.width < 30 || gs.height < 30) return;
-    if (gs.width < ms.width * 0.8 || gs.height < ms.height * 0.8) return;   // the module's own glass layers, inset or not
+    if (gs.width < ms.width * 0.8 || gs.height < ms.height * 0.8) {   // the module's own glass layers, inset or not
+        if (wide && skipLogged++ < 4) PACLog(@"glass skip (size) %@ module=%@ %@", NSStringFromCGSize(gs), NSStringFromCGSize(ms), chain);
+        return;
+    }
     CGFloat r = MIN(floor(kPACCell * 0.5), MIN(gs.width, gs.height) * 0.5);
     BOOL changed = fabs(g.layer.cornerRadius - r) > 0.5;
     if (changed) g.layer.cornerRadius = r;
@@ -1087,7 +1094,7 @@ static void PACFixGlassRadius(UIView *g) {
         if ([g respondsToSelector:NSSelectorFromString(@"updateSpecular")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"updateSpecular"));
         if ([g respondsToSelector:NSSelectorFromString(@"applyFilters")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"applyFilters"));
         static int logged = 0;
-        if (logged++ < 6) PACLog(@"glass fix %@ size=%@ module=%@ r=%.1f", NSStringFromClass(g.class), NSStringFromCGSize(gs), NSStringFromCGSize(ms), r);
+        if (logged++ < 8) PACLog(@"glass fix %@ size=%@ module=%@ r=%.1f", NSStringFromClass(g.class), NSStringFromCGSize(gs), NSStringFromCGSize(ms), r);
     }
 }
 
