@@ -753,11 +753,20 @@ static UIView *PACBigMediaMaterial(void) {
     return material;
 }
 
+static void PACBigLog(NSString *msg) {
+    static int n = 0;
+    if (n++ >= 10) return;
+    FILE *f = fopen("/var/mobile/Library/Preferences/ccock26-crash.log", "a");
+    if (!f) return;
+    fprintf(f, "[PACBig] %s\n", msg.UTF8String);
+    fclose(f);
+}
+
 // The real LiquidAss glass view (LGLiveBackdropView, ControlCenter filter), the same thing LiquidAss puts on modules.
 static BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     Class cls = NSClassFromString(@"LGLiveBackdropView");
     SEL init3 = NSSelectorFromString(@"initWithFrame:groupName:filterType:");
-    if (!cls || ![cls instancesRespondToSelector:init3]) return NO;
+    if (!cls || ![cls instancesRespondToSelector:init3]) { PACBigLog([NSString stringWithFormat:@"LG class=%@ init3=%d", cls, cls ? (int)[cls instancesRespondToSelector:init3] : 0]); return NO; }
     UIView *old = [host viewWithTag:190001];   // our older PACCLIQ glass
     if (old) { old.layer.filters = nil; [old removeFromSuperview]; }
     UIView *g = [host viewWithTag:190002];
@@ -768,6 +777,9 @@ static BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
         g.userInteractionEnabled = NO;
         [host insertSubview:g atIndex:0];
     }
+    BOOL live = NO;
+    if ([g respondsToSelector:NSSelectorFromString(@"lgFilterAttached")]) live = ((BOOL (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"lgFilterAttached"));
+    PACBigLog([NSString stringWithFormat:@"music glass %@ frame=%@ live=%d window=%d", NSStringFromClass(g.class), NSStringFromCGRect(host.bounds), live, g.window != nil]);
     g.frame = host.bounds;
     g.layer.cornerRadius = radius;
     g.layer.cornerCurve = kCACornerCurveContinuous;
