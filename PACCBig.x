@@ -856,13 +856,24 @@ static UIView *PACBigMediaMaterial(void) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
-    _blur.frame = self.bounds;
     self.layer.cornerRadius = MIN(34.0, h * 0.5);
-    _blur.layer.cornerRadius = self.layer.cornerRadius;
-    _blur.layer.cornerCurve = kCACornerCurveContinuous;
-    _blur.clipsToBounds = YES;
-    // LiquidAss: the glass sits behind everything and takes the place of the plain material (as on the old music page)
-    _blur.hidden = PACCLIQApplyGlass(self, self.layer.cornerRadius);
+    if (PACCLIQIsActive()) {
+        // LiquidAss: only its glass is used. The old material is removed, together with the second glass LiquidAss
+        // would build on top of it (that one made two layers).
+        [_blur removeFromSuperview];
+        for (UIView *v in [self.subviews copy]) {
+            NSString *c = NSStringFromClass(v.class);
+            if (v.tag != 190001 && [c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) [v removeFromSuperview];
+        }
+        PACCLIQApplyGlass(self, self.layer.cornerRadius);
+    } else {
+        if (!_blur.superview) [self insertSubview:_blur atIndex:0];
+        _blur.frame = self.bounds;
+        _blur.layer.cornerRadius = self.layer.cornerRadius;
+        _blur.layer.cornerCurve = kCACornerCurveContinuous;
+        _blur.clipsToBounds = YES;
+        _blur.hidden = PACCLIQApplyGlass(self, self.layer.cornerRadius);
+    }
     CGFloat pad = 14.0;
     BOOL full = !self.compact;
     _seek.hidden = _elapsed.hidden = _remaining.hidden = _vol.hidden = _volLo.hidden = _volHi.hidden = !full;

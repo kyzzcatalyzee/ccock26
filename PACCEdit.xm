@@ -1071,8 +1071,11 @@ static void PACFixGlassRadius(UIView *g) {
     CGSize gs = g.bounds.size;
     BOOL wide = gs.width > 200 && g.layer.cornerRadius > 50;   // the pill we are after
     static int skipLogged = 0, skipLogged2 = 0;
-    if (!module) { if (wide && skipLogged++ < 3) PACLog(@"glass skip (no module) %@", chain); return; }
-    CGSize ms = module.bounds.size;
+    // The opened (long-press) panel has no module container above it; its content container sits in the overlay itself.
+    BOOL panel = !module && g.superview && [NSStringFromClass(g.superview.class) hasPrefix:@"CCUIContentModuleContentContainer"]
+                 && gs.width > 300 && gs.height > 300;
+    if (!module && !panel) { if (wide && skipLogged++ < 3) PACLog(@"glass skip (no module) %@", chain); return; }
+    CGSize ms = panel ? gs : module.bounds.size;
     if (gs.width < 30 || gs.height < 30) return;
     if (gs.width < ms.width * 0.8 || gs.height < ms.height * 0.8) {   // the module's own glass layers, inset or not
         if (wide && skipLogged2++ < 3) PACLog(@"glass skip (size) %@ module=%@ %@", NSStringFromCGSize(gs), NSStringFromCGSize(ms), chain);
@@ -1281,46 +1284,24 @@ static NSInteger gPACGlassHoldToken = 0;
 @property (nonatomic) NSInteger token;
 @end
 @implementation PACGlassHolder
-- (void)collect:(UIView *)v into:(NSMutableArray<UIView *> *)out depth:(int)d {
-    if (d > 8) return;
-    NSString *c = NSStringFromClass(v.class);
-    if ([c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) { [out addObject:v]; return; }
-    for (UIView *s in v.subviews) [self collect:s into:out depth:d + 1];
-}
-// Locks LiquidAss's glass to the module's outline: same size every frame and the corner radius of the size it is going to.
+// Every frame for a short while after a layout change: the glass radius fix, so no wrong shape is ever shown.
 - (void)tick:(CADisplayLink *)l {
     UIViewController *ov = self.ov;
     if (self.token != gPACGlassHoldToken || !ov || CACurrentMediaTime() > self.until) { [l invalidate]; return; }
-    for (UIViewController *m in ModuleControllers(ov)) {
-        UIView *mv = m.view;
-        NSString *mid = PACMid(m);
-        if (!mv || !mid.length || PACModuleIsExpanded(m)) continue;
-        CALayer *pl = mv.layer.presentationLayer ?: mv.layer;
-        CGSize sz = pl.bounds.size;
-        if (sz.width < 1 || sz.height < 1) continue;
-        NSUInteger w = 1, h = 1;
-        PACEffectiveSize(mid, &w, &h);
-        CGFloat r = MIN(PACRadiusForSize(w, h), MIN(sz.width, sz.height) * 0.5);
-        NSMutableArray<UIView *> *g = [NSMutableArray array];
-        for (UIView *sv in mv.subviews) [self collect:sv into:g depth:0];
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        for (UIView *v in g) {
-            [v.layer removeAllAnimations];
-            v.bounds = CGRectMake(0, 0, sz.width, sz.height);
-            v.center = CGPointMake(sz.width * 0.5, sz.height * 0.5);
-            v.layer.cornerRadius = r;
-            @try { [v setValue:[NSValue valueWithCGRect:CGRectMake(0, 0, sz.width, sz.height)] forKey:@"_lgShapeRect"]; } @catch (__unused NSException *e) {}
-            @try { [v setValue:@(r) forKey:@"_lgShapeCornerRadius"]; } @catch (__unused NSException *e) {}
-        }
-        [CATransaction commit];
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:ov.view];
+    NSUInteger n = 0;
+    while (q.count && n++ < 900) {
+        UIView *v = q.lastObject; [q removeLastObject];
+        NSString *c = NSStringFromClass(v.class);
+        if ([c hasPrefix:@"LG"] && [c containsString:@"Backdrop"]) { PACFixGlassRadius(v); continue; }
+        [q addObjectsFromArray:v.subviews];
     }
 }
 @end
 
 static PACGlassHolder *gPACGlassHolder;
 
-__attribute__((unused)) static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
+static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
     if (!ov || !ov.view || !PACCLIQIsActive()) return;
     [gPACGlassHolder.link invalidate];
     PACGlassHolder *h = [PACGlassHolder new];
@@ -4032,7 +4013,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                                        overlay:ov];
             }
 
-                    if (PACCLIQIsActive()) PACSpringRelayout(ov, ^{ [self relayout:ov]; });
+                    PACHoldAllGlass(ov, 1.0);
+            if (PACCLIQIsActive()) PACSpringRelayout(ov, ^{ [self relayout:ov]; });
             else [self relayout:ov];
             PACSettleEditLayout(ov);
         }
@@ -4092,6 +4074,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov {
     PACEnsureStore();
     if (!PACSizeAllowedFor(mid, w, h)) return;
+    PACHoldAllGlass(ov, 1.0);
 
     NSArray<NSNumber *> *o = PACGetOrigin(mid);
     if (o.count < 2) return;
