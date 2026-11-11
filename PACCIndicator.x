@@ -39,7 +39,7 @@ static NSArray<NSString *> *PACCIndicatorIcons(void) {
 
 static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) {
     NSArray<NSString *> *icons = PACCIndicatorIcons();
-    NSString *name = @"circle";      // an open ring for a plain page
+    NSString *name = @"circle.fill";      // a plain page: filled dot, as in ControlCenter26
     if (index == 0) name = icons[0];
     else if ((NSInteger)index == PACCMediaPageIndex()) name = icons[1];
     else if ((NSInteger)index == PACCPromoPageIndex()) name = icons[2];
@@ -50,34 +50,17 @@ static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) 
         else if (kind == 2) name = @"music.note";
     }
 
-    // a plain page is a small open ring
-    if ([name isEqualToString:@"circle"]) pointSize *= 0.8;
-    // the music page: two beamed notes
-    if (name == icons[1] || [name isEqualToString:@"music.note"]) {
-        CGFloat h = pointSize * 1.25, w = pointSize * 1.15;
-        UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(w, h)];
-        UIImage *note = [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
-            CGFloat hr = w * 0.20;                                   // note head radius
-            CGFloat sw = MAX(1.4, w * 0.11);                         // stem width
-            CGPoint h1 = CGPointMake(w * 0.24, h - hr - 0.5), h2 = CGPointMake(w * 0.80, h - hr - 0.5 - h * 0.12);
-            [UIColor.blackColor setFill];
-            [[UIBezierPath bezierPathWithOvalInRect:CGRectMake(h1.x - hr * 1.15, h1.y - hr * 0.85, hr * 2.3, hr * 1.7)] fill];
-            [[UIBezierPath bezierPathWithOvalInRect:CGRectMake(h2.x - hr * 1.15, h2.y - hr * 0.85, hr * 2.3, hr * 1.7)] fill];
-            CGFloat s1x = h1.x + hr * 0.95 - sw * 0.5, s2x = h2.x + hr * 0.95 - sw * 0.5;
-            CGFloat top1 = h * 0.08, top2 = top1 - h * 0.02 + h * 0.0;
-            [[UIBezierPath bezierPathWithRect:CGRectMake(s1x, top1, sw, h1.y - top1)] fill];
-            [[UIBezierPath bezierPathWithRect:CGRectMake(s2x, top2 + h * 0.0, sw, h2.y - top2)] fill];
-            UIBezierPath *beam = [UIBezierPath bezierPath];          // slanted beam joining the stems
-            [beam moveToPoint:CGPointMake(s1x, top1)];
-            [beam addLineToPoint:CGPointMake(s2x + sw, top2 - h * 0.0)];
-            [beam addLineToPoint:CGPointMake(s2x + sw, top2 + h * 0.16)];
-            [beam addLineToPoint:CGPointMake(s1x, top1 + h * 0.16)];
-            [beam closePath];
-            [beam fill];
-        }];
-        return [note imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    // ControlCenter26 draws the music page from its bundled "music" symbol (PrivateSymbols.bundle), with SF "music.note" as fallback
+    if ([name isEqualToString:@"music.note"]) {
+        UIImage *bundled = PACCBundledSymbol(@"music", UIColor.whiteColor, NO);
+        if (bundled) {
+            if (!bundled.symbolConfiguration) {
+                UIImageSymbolConfiguration *mc = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:UIImageSymbolWeightSemibold];
+                bundled = [bundled imageByApplyingSymbolConfiguration:mc] ?: bundled;
+            }
+            return [bundled imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        }
     }
-
     UIImage *image = PACCBundledSymbol(name, UIColor.whiteColor, NO);
     if (!image) image = [UIImage systemImageNamed:name];
     if (!image && [name isEqualToString:@"network.connected.to.line.below.fill"]) image = [UIImage systemImageNamed:@"antenna.radiowaves.left.and.right"];
