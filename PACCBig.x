@@ -781,7 +781,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     if (old) { old.layer.filters = nil; [old removeFromSuperview]; }
     UIView *g = [host viewWithTag:190002];
     if (!g) {
-        g = ((id (*)(id, SEL, CGRect, id, id))objc_msgSend)([cls alloc], init3, host.bounds, nil, @"dylv.liquidglass.cc.r2");
+        g = ((id (*)(id, SEL, CGRect, id, id))objc_msgSend)([cls alloc], init3, host.bounds, nil, @"dylv.liquidglass.cc");
         if (!g) return NO;
         g.tag = 190002;
         g.userInteractionEnabled = NO;
