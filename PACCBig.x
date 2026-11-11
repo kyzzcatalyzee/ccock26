@@ -312,6 +312,8 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     return PACBigSymbol(@[@"circle.fill"], pt);
 }
 
+static BOOL PACBigLGGlass(UIView *host, CGFloat radius);
+
 @implementation PACBigCard
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
@@ -341,6 +343,14 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     return self;
 }
 - (void)layoutSubviews {
+    [self pacLayoutCore];
+    // custom control: LiquidAss's real LGLiveBackdropView replaces the old material
+    if ((PACCLIQIsActive() || NSClassFromString(@"LGLiveBackdropView")) && PACBigLGGlass(self, self.layer.cornerRadius)) {
+        [_material removeFromSuperview];
+        _material = nil;
+    }
+}
+- (void)pacLayoutCore {
     [super layoutSubviews];
     CGFloat h = self.bounds.size.height, w = self.bounds.size.width;
     if (_material) {
@@ -755,7 +765,7 @@ static UIView *PACBigMediaMaterial(void) {
 
 static void PACBigLog(NSString *msg) {
     static int n = 0;
-    if (n++ >= 10) return;
+    if (n++ >= 40) return;
     FILE *f = fopen("/var/mobile/Library/Preferences/ccock26-crash.log", "a");
     if (!f) return;
     fprintf(f, "[PACBig] %s\n", msg.UTF8String);
@@ -880,6 +890,10 @@ static BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
 }
 - (void)didMoveToWindow {
     [super didMoveToWindow];
+    if (self.window) {
+        UIView *lg = [self viewWithTag:190002];
+        if (lg && [lg respondsToSelector:NSSelectorFromString(@"lgInvalidateFilterContents")]) ((void (*)(id, SEL))objc_msgSend)(lg, NSSelectorFromString(@"lgInvalidateFilterContents"));
+    }
     [_timer invalidate]; _timer = nil;
     if (self.window) {
         [self refresh];
