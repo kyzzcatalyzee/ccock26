@@ -1282,12 +1282,13 @@ static NSInteger gPACGlassHoldToken = 0;
 @property (nonatomic, strong) CADisplayLink *link;
 @property (nonatomic) CFTimeInterval until;
 @property (nonatomic) NSInteger token;
+@property (nonatomic) BOOL keeper;
 @end
 @implementation PACGlassHolder
 // Every frame for a short while after a layout change: the glass radius fix, so no wrong shape is ever shown.
 - (void)tick:(CADisplayLink *)l {
     UIViewController *ov = self.ov;
-    if (self.token != gPACGlassHoldToken || !ov || CACurrentMediaTime() > self.until) { [l invalidate]; return; }
+    if ((!self.keeper && self.token != gPACGlassHoldToken) || !ov || CACurrentMediaTime() > self.until) { [l invalidate]; return; }
     NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:ov.view];
     NSUInteger n = 0;
     while (q.count && n++ < 900) {
@@ -1300,6 +1301,21 @@ static NSInteger gPACGlassHoldToken = 0;
 @end
 
 static PACGlassHolder *gPACGlassHolder;
+static PACGlassHolder *gPACGlassKeeper;   // runs the whole time Control Center is open (the shape snaps back when a control is held)
+
+static void PACKeepGlassLocked(UIViewController *ov, BOOL on) {
+    [gPACGlassKeeper.link invalidate];
+    gPACGlassKeeper = nil;
+    if (!on || !ov || !ov.view || !PACCLIQIsActive()) return;
+    PACGlassHolder *h = [PACGlassHolder new];
+    h.ov = ov;
+    h.keeper = YES;
+    h.until = CACurrentMediaTime() + 86400.0;
+    h.link = [CADisplayLink displayLinkWithTarget:h selector:@selector(tick:)];
+    h.link.preferredFramesPerSecond = 30;
+    [h.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    gPACGlassKeeper = h;
+}
 
 static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
     if (!ov || !ov.view || !PACCLIQIsActive()) return;
@@ -2178,6 +2194,20 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             if (animated) [UIView animateWithDuration:0.35 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ cl.alpha = alpha; } completion:nil];
             else cl.alpha = alpha;
         }
+        if (onPage) {
+            // a card on a fresh page was hidden (alpha 0) when its LiquidAss glass was built, so the backdrop never
+            // captured anything: rebuild the lens once the page is visible
+            UIView *lg = [cl viewWithTag:190002];
+            if (lg && ![objc_getAssociatedObject(lg, "pac.lgvis") boolValue]) {
+                objc_setAssociatedObject(lg, "pac.lgvis", @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                for (NSString *sn in @[@"lgInvalidateFilterContents", @"updateSpecular"])
+                    if ([lg respondsToSelector:NSSelectorFromString(sn)]) ((void (*)(id, SEL))objc_msgSend)(lg, NSSelectorFromString(sn));
+                [lg setNeedsLayout];
+            }
+        } else {
+            UIView *lg = [cl viewWithTag:190002];
+            if (lg) objc_setAssociatedObject(lg, "pac.lgvis", @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
 
         // edit mode: outline and the minus button, like on a real module
         if (gEditModeActive && onPage) {
@@ -3007,6 +3037,21 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         if (sv.tag == kPACCloneTag && [objc_getAssociatedObject(sv, kPACCloneIDKey) isEqualToString:cid]) { cl = sv; break; }
     }
     if (cl) {
+        __weak UIView *wcl = cl;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *c = wcl;
+            if (!c) return;
+            NSMutableString *out = [NSMutableString stringWithFormat:@"copy tree %@ f=%@ r=%.1f alpha=%.2f win=%d", NSStringFromClass(c.class), NSStringFromCGRect(c.frame), c.layer.cornerRadius, c.alpha, c.window != nil];
+            NSMutableArray *q = [NSMutableArray arrayWithObject:@[c, @0]];
+            NSUInteger n = 0;
+            while (q.count && n++ < 40) {
+                NSArray *e = q.firstObject; [q removeObjectAtIndex:0];
+                UIView *v = e[0]; NSInteger d = [e[1] integerValue];
+                if (d > 0) [out appendFormat:@"\n%*s%@ f=%@ r=%.1f h=%d a=%.2f", (int)d * 2, "", NSStringFromClass(v.class), NSStringFromCGRect(v.frame), v.layer.cornerRadius, v.hidden, v.alpha];
+                if (d < 3) for (UIView *sv in v.subviews) [q addObject:@[sv, @(d + 1)]];
+            }
+            PACLog(@"%@", out);
+        });
         cl.transform = CGAffineTransformMakeScale(0.4, 0.4);
         [UIView animateWithDuration:0.6 delay:0 usingSpringWithDamping:0.55 initialSpringVelocity:0.8 options:0 animations:^{
             cl.transform = CGAffineTransformIdentity;
@@ -4810,6 +4855,7 @@ static void PACInstallGestures(UIViewController *ov) {
         PACRefreshGridConstants();
         PACInstallGestures((UIViewController *)self);
         UIViewController *selfOv = (UIViewController *)self;
+        PACKeepGlassLocked(selfOv, YES);
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             PACUpdateGridMetrics(selfOv);
         });
@@ -4818,6 +4864,7 @@ static void PACInstallGestures(UIViewController *ov) {
 
 - (void)viewDidDisappear:(BOOL)animated {
     %orig;
+    if ([NSStringFromClass(self.class) containsString:@"ControlCenterOverlayViewController"]) PACKeepGlassLocked(nil, NO);
     if (!gEditModeActive) return;
     if ([NSStringFromClass(self.class) containsString:@"ControlCenterOverlayViewController"]) {
         [[PACEditProxy shared] exitEditOn:(UIViewController *)self];

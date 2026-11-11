@@ -11,6 +11,8 @@
 #import <CFNetwork/CFNetwork.h>
 #import <notify.h>
 #import <QuartzCore/QuartzCore.h>
+#include <time.h>
+#include <stdio.h>
 
 static const NSInteger kPACBigTag = 182100;
 static NSString * const kPACBigMaskName = @"pac.big";
@@ -768,7 +770,8 @@ static void PACBigLog(NSString *msg) {
     if (n++ >= 40) return;
     FILE *f = fopen("/var/mobile/Library/Preferences/ccock26-crash.log", "a");
     if (!f) return;
-    fprintf(f, "[PACBig] %s\n", msg.UTF8String);
+    time_t t = time(NULL); struct tm tmv; gmtime_r(&t, &tmv); char ts[40]; strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S +0000", &tmv);
+    fprintf(f, "%s [PACBig] %s\n", ts, msg.UTF8String);
     fclose(f);
 }
 
