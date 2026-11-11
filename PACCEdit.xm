@@ -1070,12 +1070,12 @@ static void PACFixGlassRadius(UIView *g) {
     }
     CGSize gs = g.bounds.size;
     BOOL wide = gs.width > 200 && g.layer.cornerRadius > 50;   // the pill we are after
-    static int skipLogged = 0;
-    if (!module) { if (wide && skipLogged++ < 4) PACLog(@"glass skip (no module) %@", chain); return; }
+    static int skipLogged = 0, skipLogged2 = 0;
+    if (!module) { if (wide && skipLogged++ < 3) PACLog(@"glass skip (no module) %@", chain); return; }
     CGSize ms = module.bounds.size;
     if (gs.width < 30 || gs.height < 30) return;
     if (gs.width < ms.width * 0.8 || gs.height < ms.height * 0.8) {   // the module's own glass layers, inset or not
-        if (wide && skipLogged++ < 4) PACLog(@"glass skip (size) %@ module=%@ %@", NSStringFromCGSize(gs), NSStringFromCGSize(ms), chain);
+        if (wide && skipLogged2++ < 3) PACLog(@"glass skip (size) %@ module=%@ %@", NSStringFromCGSize(gs), NSStringFromCGSize(ms), chain);
         return;
     }
     CGFloat r = MIN(floor(kPACCell * 0.5), MIN(gs.width, gs.height) * 0.5);
@@ -1209,6 +1209,7 @@ static void PACSetRadius(CALayer *layer, CGFloat radius, BOOL animate) {
 }
 
 // Makes LiquidAss lay its glass out again for the module's current size.
+static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void PACResyncGlass(UIViewController *m) {
     if (!m.view || !PACCLIQIsActive()) return;
     UIView *root = m.view.superview ?: m.view;
@@ -1223,6 +1224,21 @@ static void PACResyncGlass(UIViewController *m) {
         }
         [root layoutIfNeeded];
     }];
+    // Do the glass fix directly as well: it does not depend on LiquidAss calling our hooks.
+    PACFixGlassIn(root);
+    static int diag = 0;
+    if (diag < 6) {
+        NSMutableString *d = [NSMutableString string];
+        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
+        NSUInteger n = 0;
+        while (q.count && n++ < 300) {
+            UIView *v = q.lastObject; [q removeLastObject];
+            if ([NSStringFromClass(v.class) hasPrefix:@"LG"] && [NSStringFromClass(v.class) containsString:@"Backdrop"] && v.bounds.size.width > 200)
+                [d appendFormat:@" %@ r=%.0f |", NSStringFromCGSize(v.bounds.size), v.layer.cornerRadius];
+            [q addObjectsFromArray:v.subviews];
+        }
+        if (d.length) { diag++; PACLog(@"resync glass after fix:%@ root=%@", d, NSStringFromClass(root.class)); }
+    }
 }
 
 // Diagnostics: after a resize, writes size / radius / glass of every module to the crash log
