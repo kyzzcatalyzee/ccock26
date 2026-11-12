@@ -596,10 +596,23 @@ static CGPoint PACGridBase(UIViewController *overlay) {
         if (y < by) by = y;
     }
     if (bx == CGFLOAT_MAX) {
+        // no module on this page: the rows are the same on every page, so take the top from a module of any other page
         CGFloat w = CGRectGetWidth(overlay.view.bounds);
         CGFloat gw = kPACCols * kPACCell + (kPACCols - 1) * kPACgap;
         bx = (w - gw) * 0.5;
-        by = 100.0;
+        CGFloat top = CGFLOAT_MAX;
+        for (UIViewController *m in ModuleControllers(overlay)) {
+            NSString *mid = PACMid(m);
+            if (!mid.length) continue;
+            NSArray<NSNumber *> *o = PACGetOrigin(mid);
+            if (o.count < 2) continue;
+            CGRect f = PACVisibleFrame(m, overlay);
+            if (CGRectIsEmpty(f)) continue;
+            NSUInteger lr = o[1].unsignedIntegerValue % kPACStride;
+            CGFloat y = CGRectGetMinY(f) - (CGFloat)lr * kPACStep;
+            if (y < top) top = y;
+        }
+        by = (top == CGFLOAT_MAX) ? 157.0 : top;
     }
     return CGPointMake(bx, by);
 }
@@ -3049,6 +3062,7 @@ static void PACForceExitEdit(UIViewController *ov) {
     gPACPendingResizeSize = (CCUILayoutSize){0, 0};
     gPACPendingResizeLastTouch = 0;
     if (!ov || !ov.view) return;
+    PACUpdateSlots(ov);
     for (UIViewController *m in ModuleControllers(ov)) PACStripChrome(m);
     PACPruneEmptyPages(ov);
     [[ov.view viewWithTag:kPACShieldTag] removeFromSuperview];
@@ -3356,6 +3370,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     gPACPendingResizeSize = (CCUILayoutSize){0, 0};
     gPACPendingResizeLastTouch = 0;
     if (gHapticsEnabled) Haptic();
+    PACUpdateSlots(ov);      // the empty-cell circles are for edit mode only
 
     NSMutableArray<UIView *> *chromeViews = [NSMutableArray array];
     for (UIViewController *m in ModuleControllers(ov)) {
