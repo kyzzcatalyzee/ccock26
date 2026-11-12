@@ -778,6 +778,8 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     UIButton *_prev, *_play, *_next;
     PACBigBar *_seek, *_vol;
     UIImageView *_volLo, *_volHi;
+    UIView *_airBg;            // 2x2 tile: the AirPlay bubble
+    UIImageView *_airIcon;
     NSTimer *_timer;
     double _elapsedSec, _duration, _rate;
     NSDate *_stamp;
@@ -831,6 +833,17 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
             [self addSubview:l];
         }
         _remaining.textAlignment = NSTextAlignmentRight;
+
+        _airBg = [UIView new];
+        _airBg.backgroundColor = [UIColor colorWithWhite:1 alpha:0.14];
+        _airBg.userInteractionEnabled = NO;
+        _airBg.hidden = YES;
+        [self addSubview:_airBg];
+        _airIcon = [UIImageView new];
+        _airIcon.tintColor = [UIColor colorWithWhite:1 alpha:0.9];
+        _airIcon.contentMode = UIViewContentModeCenter;
+        _airIcon.hidden = YES;
+        [_airBg addSubview:_airIcon];
 
         _vol = [[PACBigBar alloc] initWithFrame:CGRectZero];
         _vol.onChange = ^(CGFloat v, BOOL finished) { PACBigSetVolume((float)v); };
@@ -886,8 +899,43 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     _blur.clipsToBounds = YES;
     _blur.hidden = (PACCLIQIsActive() && PACBigLGGlass(self, self.layer.cornerRadius));
     CGFloat pad = 14.0;
-    BOOL full = !self.compact;
+    BOOL tile = (w < 260.0 && h >= 120.0);
+    BOOL full = !self.compact && !tile;
     _seek.hidden = _elapsed.hidden = _remaining.hidden = _vol.hidden = _volLo.hidden = _volHi.hidden = !full;
+    _airBg.hidden = _airIcon.hidden = !tile;
+    _artist.hidden = tile && !_playing;
+    if (tile) {
+        // iOS 26 2x2 Now Playing: a big rounded artwork top left, the AirPlay bubble top right, the title and the transport row
+        CGFloat art = floor(w * 0.332);
+        CGFloat left = floor(w * 0.104), top = floor(h * 0.107);
+        _art.frame = CGRectMake(left, top, art, art);
+        _art.layer.cornerRadius = art * 0.24;
+        CGFloat air = floor(w * 0.26);
+        _airBg.frame = CGRectMake(w - left - air, top, air, air);
+        _airBg.layer.cornerRadius = air * 0.5;
+        UIImageSymbolConfiguration *ac = [UIImageSymbolConfiguration configurationWithPointSize:air * 0.36 weight:UIImageSymbolWeightMedium];
+        UIImage *ai = [UIImage systemImageNamed:@"airplayaudio" withConfiguration:ac] ?: [UIImage systemImageNamed:@"airplay.audio" withConfiguration:ac];
+        _airIcon.image = [ai imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        _airIcon.frame = _airBg.bounds;
+        _title.font = [UIFont systemFontOfSize:w * 0.093 weight:UIFontWeightBold];
+        CGFloat tx = floor(w * 0.12);
+        _title.frame = CGRectMake(tx, floor(h * 0.59) - w * 0.06, w - tx - left, w * 0.12);
+        _artist.font = [UIFont systemFontOfSize:w * 0.075 weight:UIFontWeightRegular];
+        _artist.frame = CGRectMake(tx, CGRectGetMaxY(_title.frame) - 2, w - tx - left, w * 0.1);
+        CGFloat cy = h * 0.82, bw = floor(w * 0.26), bh = floor(w * 0.2);
+        CGFloat cx[3] = { w * 0.23, w * 0.508, w * 0.77 };
+        _prev.frame = CGRectMake(cx[0] - bw * 0.5, cy - bh * 0.5, bw, bh);
+        _play.frame = CGRectMake(cx[1] - bw * 0.5, cy - bh * 0.5, bw, bh);
+        _next.frame = CGRectMake(cx[2] - bw * 0.5, cy - bh * 0.5, bw, bh);
+        [self setSymbol:@"backward.fill" size:w * 0.12 on:_prev];
+        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:w * 0.17 on:_play];
+        [self setSymbol:@"forward.fill" size:w * 0.12 on:_next];
+        _prev.alpha = _next.alpha = _playing ? 1.0 : 0.5;
+        return;
+    }
+    _title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
+    _artist.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
+    _prev.alpha = _next.alpha = 1.0;
 
     if (!full) {
         CGFloat a = h - pad * 2;
@@ -1066,7 +1114,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     UIView *existing = [host viewWithTag:kPACBigTag];
     BOOL big = NO;
     if (kind == 1) big = (w >= 4 && h >= 4);
-    else if (kind == 2) big = (w >= 4 && h >= 2);
+    else if (kind == 2) big = (w >= 4 && h >= 2);   // 2x2 stays Apple's view, laid out like iOS 26 by the MRU hooks below
     if (expanded || !big || !gEnabled || PACCBigKind(mid) == 0 ||
         host.bounds.size.width < 60 || host.bounds.size.height < 60) {
         if (existing) {
@@ -1255,3 +1303,110 @@ void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIVi
     }
     v.layer.cornerCurve = kCACornerCurveContinuous;
 }
+
+
+#pragma mark - 2x2 Now Playing: Apple's own views laid out like iOS 26 (as ControlCenter26 does with the MRU views)
+
+// the module container this view sits in, when that module is a 2x2-ish tile
+static BOOL PACMRUTile(UIView *v, CGSize *outSize) {
+    if (!gEnabled) return NO;
+    Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
+    int up = 0;
+    for (UIView *p = v.superview; p && up < 16; p = p.superview, up++) {
+        if (cc && [p isKindOfClass:cc]) {
+            CGSize z = p.bounds.size;
+            if (z.width >= 100 && z.width <= 260 && z.height >= 100 && z.height <= 260) { if (outSize) *outSize = z; return YES; }
+            return NO;
+        }
+    }
+    return NO;
+}
+
+static id PACMRUIvar(id obj, NSString *name) {
+    @try { return [obj valueForKey:name]; } @catch (...) { return nil; }
+}
+
+%hook MRUNowPlayingView
+- (void)layoutSubviews {
+    %orig;
+    CGSize z;
+    if (!PACMRUTile((UIView *)self, &z)) return;
+    CGRect b = ((UIView *)self).bounds;
+    UIView *header = PACMRUIvar(self, @"_headerView");
+    UIView *transport = PACMRUIvar(self, @"_transportControlsView");
+    for (NSString *n in @[@"_timeControlsView", @"_volumeControlsView"]) {
+        UIView *v = PACMRUIvar(self, n);
+        if ([v isKindOfClass:UIView.class]) v.hidden = YES;
+    }
+    if ([header isKindOfClass:UIView.class]) header.frame = b;
+    if ([transport isKindOfClass:UIView.class]) {
+        CGFloat bh = floor(b.size.width * 0.22);
+        transport.frame = CGRectMake(0, b.size.height * 0.82 - bh * 0.5, b.size.width, bh);
+    }
+}
+%end
+
+%hook MRUNowPlayingHeaderView
+- (void)layoutSubviews {
+    %orig;
+    CGSize z;
+    if (!PACMRUTile((UIView *)self, &z)) return;
+    CGFloat w = ((UIView *)self).bounds.size.width, h = ((UIView *)self).bounds.size.height;
+    CGFloat art = floor(w * 0.332), left = floor(w * 0.104), top = floor(h * 0.107), air = floor(w * 0.26);
+    UIView *artwork = PACMRUIvar(self, @"_artworkView");
+    UIView *route = PACMRUIvar(self, @"_routingButton");
+    UIView *label = PACMRUIvar(self, @"_labelView");
+    if ([artwork isKindOfClass:UIView.class]) {
+        artwork.frame = CGRectMake(left, top, art, art);
+        artwork.layer.cornerRadius = art * 0.24;
+        artwork.layer.cornerCurve = kCACornerCurveContinuous;
+        artwork.layer.masksToBounds = YES;
+    }
+    if ([route isKindOfClass:UIView.class]) {
+        route.frame = CGRectMake(w - left - air, top, air, air);
+        route.backgroundColor = [UIColor colorWithWhite:1 alpha:0.14];
+        route.layer.cornerRadius = air * 0.5;
+        route.layer.masksToBounds = YES;
+    }
+    if ([label isKindOfClass:UIView.class]) {
+        CGFloat tx = floor(w * 0.12);
+        label.frame = CGRectMake(tx, floor(h * 0.59) - w * 0.1, w - tx - left, w * 0.2);
+    }
+}
+%end
+
+%hook MRUArtworkView
+- (void)layoutSubviews {
+    %orig;
+    CGSize z;
+    if (!PACMRUTile((UIView *)self, &z)) return;
+    UIView *v = (UIView *)self;
+    // the picture inside follows the (already resized) artwork view
+    for (UIView *sub in v.subviews) {
+        if (![NSStringFromClass(sub.class) hasPrefix:@"MRU"] && ![sub isKindOfClass:UIImageView.class]) continue;
+        sub.frame = v.bounds;
+    }
+    v.layer.cornerRadius = v.bounds.size.width * 0.24;
+    v.layer.cornerCurve = kCACornerCurveContinuous;
+    v.layer.masksToBounds = YES;
+}
+%end
+
+%hook MRUNowPlayingTransportControlsView
+- (void)layoutSubviews {
+    %orig;
+    CGSize z;
+    if (!PACMRUTile((UIView *)self, &z)) return;
+    UIView *v = (UIView *)self;
+    NSMutableArray<UIView *> *btns = [NSMutableArray array];
+    for (UIView *sub in v.subviews) if ([NSStringFromClass(sub.class) hasPrefix:@"MRUTransportButton"] && !sub.hidden) [btns addObject:sub];
+    if (btns.count != 3) return;
+    [btns sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+        return CGRectGetMidX(a.frame) < CGRectGetMidX(b.frame) ? NSOrderedAscending : NSOrderedDescending;
+    }];
+    CGFloat w = v.bounds.size.width, h = v.bounds.size.height;
+    CGFloat cx[3] = { w * 0.23, w * 0.508, w * 0.77 };
+    CGFloat bw = floor(w * 0.26);
+    for (int i = 0; i < 3; i++) btns[i].frame = CGRectMake(cx[i] - bw * 0.5, (h - MIN(h, bw)) * 0.5, bw, MIN(h, bw));
+}
+%end
