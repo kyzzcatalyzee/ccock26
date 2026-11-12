@@ -99,6 +99,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
 BOOL PACCLIQIsActive(void);
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius);
 BOOL PACBigLGGlass(UIView *host, CGFloat radius);
+BOOL PACCLIQStyleDarkEdge(CAGradientLayer *g);
 BOOL PACCLIQStyleRim(CAGradientLayer *g);   // LiquidAss rim (mode, opacity, iOS 26/27) on a gradient layer   // real LiquidAss LGLiveBackdropView behind host
 
 #ifdef __cplusplus

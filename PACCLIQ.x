@@ -680,3 +680,22 @@ BOOL PACCLIQStyleRim(CAGradientLayer *g) {
     }
     return YES;
 }
+
+
+// The dark edge LiquidAss draws under the rim (3D look); only in "glass" mode
+BOOL PACCLIQStyleDarkEdge(CAGradientLayer *g) {
+    if (!g || !PACCLIQShouldGlass()) return NO;
+    int mode = PACCLIQSpecularMode();
+    g.hidden = (mode != 2);
+    if (mode != 2) return YES;
+    g.colors = @[(id)[UIColor colorWithWhite:0 alpha:0.24].CGColor,
+                 (id)[UIColor colorWithWhite:0 alpha:0.36].CGColor,
+                 (id)[UIColor colorWithWhite:0 alpha:0.48].CGColor,
+                 (id)[UIColor colorWithWhite:0 alpha:0.48].CGColor,
+                 (id)[UIColor colorWithWhite:0 alpha:0.36].CGColor,
+                 (id)[UIColor colorWithWhite:0 alpha:0.28].CGColor];
+    g.locations = @[@0.0, @0.15, @0.30, @0.70, @0.85, @1.0];
+    CGFloat dx = PACCLIQSpecularIOS27() ? 0.0 : cos(-3.0 * M_PI / 4.0) * 0.25;
+    g.startPoint = CGPointMake(0.5 + dx, 0.0); g.endPoint = CGPointMake(0.5 - dx, 1.0);
+    return YES;
+}

@@ -1614,13 +1614,6 @@ static void PACGlassBackdrop(UIView *host, CGFloat radius) {
     UIBezierPath *rimPath = [outer copy];
     [rimPath appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectInset(b, 3.0, 3.0) cornerRadius:MAX(0.0, r - 3.0)]];
     _rimMask.path = rimPath.CGPath;
-    if (PACCLIQIsActive()) {
-        // LiquidAss is on: the outline takes its rim (thin, same mode / opacity / Specular Type)
-        UIBezierPath *thin = [outer copy];
-        [thin appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectInset(b, 1.5, 1.5) cornerRadius:MAX(0.0, r - 1.5)]];
-        _rimMask.path = thin.CGPath;
-        PACCLIQStyleRim(_rim);
-    }
 }
 @end
 
@@ -1671,17 +1664,23 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
     [b addSubview:icon];
     PACGlassBackdrop(b, 15.0);
     if (PACCLIQIsActive()) {
+        // LiquidAss is on: no white fill, only the thin LiquidAss rim over a dark edge (3D look)
+        CAGradientLayer *dark = [CAGradientLayer layer];
         CAGradientLayer *ring = [CAGradientLayer layer];
-        ring.frame = b.bounds;
+        dark.frame = ring.frame = b.bounds;
         if (PACCLIQStyleRim(ring)) {
-            CAShapeLayer *m = [CAShapeLayer layer];
-            m.fillColor = UIColor.clearColor.CGColor;
-            m.strokeColor = UIColor.blackColor.CGColor;
-            m.lineWidth = 1.2;
-            m.path = [UIBezierPath bezierPathWithOvalInRect:CGRectInset(b.bounds, 0.6, 0.6)].CGPath;
-            ring.mask = m;
+            PACCLIQStyleDarkEdge(dark);
+            for (CAGradientLayer *g in @[dark, ring]) {
+                CAShapeLayer *m = [CAShapeLayer layer];
+                m.fillColor = UIColor.clearColor.CGColor;
+                m.strokeColor = UIColor.blackColor.CGColor;
+                m.lineWidth = (g == dark) ? 1.0 : 0.6;
+                m.path = [UIBezierPath bezierPathWithOvalInRect:CGRectInset(b.bounds, 0.5, 0.5)].CGPath;
+                g.mask = m;
+                [b.layer addSublayer:g];
+            }
+            b.backgroundColor = UIColor.clearColor;
             b.layer.borderWidth = 0;
-            [b.layer addSublayer:ring];
         }
     }
 
@@ -1732,6 +1731,17 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     rim.endPoint = CGPointMake(1.0, 1.0);
     rim.mask = rimEdge;
     BOOL laRim = PACCLIQIsActive() && PACCLIQStyleRim(rim);   // LiquidAss rim (mode / opacity / Specular Type)
+    if (laRim) {
+        rimEdge.lineWidth = 0.6;                               // thin, like LiquidAss
+        CAGradientLayer *dark = [CAGradientLayer layer];       // dark edge under the rim: 3D look
+        dark.frame = b.bounds;
+        PACCLIQStyleDarkEdge(dark);
+        CAShapeLayer *dm = [CAShapeLayer layer];
+        dm.path = rimEdge.path; dm.fillColor = UIColor.clearColor.CGColor;
+        dm.strokeColor = UIColor.blackColor.CGColor; dm.lineWidth = 1.0;
+        dark.mask = dm;
+        [b.layer addSublayer:dark];
+    }
     [b.layer addSublayer:rim];
 
     CAShapeLayer *gloss = [CAShapeLayer layer];              // small specular streak on the curve
