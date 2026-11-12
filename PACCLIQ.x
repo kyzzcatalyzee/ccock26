@@ -472,8 +472,34 @@ static void PACCLIQRestoreBlur(UIView *mediaPlayer) {
     } @catch (...) {}
 }
 
+// YES when the module this host sits in already carries LiquidAss's own LGLiveBackdropView (a real module that was
+// made bigger): then PACCLIQ glass would double it, so ours is not built and a leftover one is removed
+static BOOL PACCLIQModuleHasLG(UIView *host) {
+    UIView *module = nil;
+    int up = 0;
+    for (UIView *p = host.superview; p && up < 16; p = p.superview, up++) {
+        if ([NSStringFromClass(p.class) isEqualToString:@"CCUIContentModuleContainerView"]) { module = p; break; }
+    }
+    if (!module) return NO;
+    CGFloat mw = module.bounds.size.width;
+    NSMutableArray *queue = [NSMutableArray arrayWithObject:module];
+    NSUInteger seen = 0;
+    while (queue.count && seen++ < 160) {
+        UIView *v = queue.firstObject; [queue removeObjectAtIndex:0];
+        if (v == host) continue;
+        if ([NSStringFromClass(v.class) isEqualToString:@"LGLiveBackdropView"] && !v.hidden && v.alpha > 0.01 && v.bounds.size.width >= mw * 0.5) return YES;
+        [queue addObjectsFromArray:v.subviews];
+    }
+    return NO;
+}
+
 static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
     if (!host) return nil;
+    if (PACCLIQShouldGlass() && PACCLIQModuleHasLG(host)) {
+        UIView *own = [host viewWithTag:kPACCLIQGlassTag];
+        if (own) { own.layer.filters = nil; [own removeFromSuperview]; }
+        return nil;
+    }
 
     PACCLIQGlassView *glass = (PACCLIQGlassView *)[host viewWithTag:kPACCLIQGlassTag];
 
@@ -504,6 +530,7 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius) {
     if (!host) return NO;
     PACCLIQGlassView *glass = PACCLIQInstallGlass(host, radius);
+    if (!glass && PACCLIQShouldGlass() && PACCLIQModuleHasLG(host)) return YES;   // LiquidAss glass is there, hide the old material
     return glass && [glass filterIsLive];
 }
 
@@ -543,7 +570,12 @@ static void PACCLIQRemoveAllGlass(void) {
     }
 
     PACCLIQGlassView *glass = PACCLIQInstallGlass(self, self.layer.cornerRadius);
-    if (!glass) return;
+    if (!glass) {
+        if (PACCLIQModuleHasLG(self)) {
+            @try { UIView *blur = [self valueForKey:@"blurView"]; if ([blur isKindOfClass:UIView.class]) blur.hidden = YES; } @catch (...) {}
+        }
+        return;
+    }
     if ([glass filterIsLive]) {
         @try {
             UIView *blur = [self valueForKey:@"blurView"];
@@ -610,4 +642,41 @@ static void PACCLIQPrefsReloadCallback(CFNotificationCenterRef center,
 
         PACCLIQScheduleReapply();
     }
+}
+
+// Styles a gradient layer (masked to a thin outline by the caller) like the LiquidAss rim: the mode (none / border / glass),
+// opacity and Specular Type (iOS 26 / iOS 27) all come from the LiquidAss settings. NO = LiquidAss glass is off, keep your own look.
+BOOL PACCLIQStyleRim(CAGradientLayer *g) {
+    if (!g || !PACCLIQShouldGlass()) return NO;
+    int mode = PACCLIQSpecularMode();
+    g.hidden = (mode == 0);
+    if (mode == 0) return YES;
+    CGFloat maxAlpha = MAX(0.0, MIN(1.0, PACCLIQNumPref(@"ControlCenter.SpecularOpacity", 0.85)));
+    id clear = (id)UIColor.clearColor.CGColor;
+    if (mode == 1) {
+        id c = (id)[UIColor colorWithWhite:1.0 alpha:0.42].CGColor;
+        g.colors = @[c, c]; g.locations = @[@0.0, @1.0];
+        g.startPoint = CGPointMake(0.5, 0.0); g.endPoint = CGPointMake(0.5, 1.0);
+        return YES;
+    }
+    if (PACCLIQSpecularIOS27()) {
+        static const CGFloat stops[12] = {0.12, 0.25, 0.42, 0.62, 0.82, 0.95, 0.95, 0.82, 0.62, 0.42, 0.25, 0.12};
+        NSMutableArray *cols = [NSMutableArray array], *locs = [NSMutableArray array];
+        for (int k = 0; k < 12; k++) {
+            [cols addObject:(id)[UIColor colorWithWhite:1 alpha:stops[k] * maxAlpha].CGColor];
+            [locs addObject:@(k / 11.0)];
+        }
+        g.colors = cols; g.locations = locs;
+        g.startPoint = CGPointMake(0.0, 0.5); g.endPoint = CGPointMake(1.0, 0.5);
+    } else {
+        CGFloat dx = cos(-3.0 * M_PI / 4.0) * 0.25;
+        g.colors = @[(id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.9].CGColor,
+                     (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.4].CGColor,
+                     clear, clear,
+                     (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.4].CGColor,
+                     (id)[UIColor colorWithWhite:1 alpha:maxAlpha * 0.9].CGColor];
+        g.locations = @[@0.0, @0.055, @0.12, @0.88, @0.945, @1.0];
+        g.startPoint = CGPointMake(0.5 + dx, 0.0); g.endPoint = CGPointMake(0.5 - dx, 1.0);
+    }
+    return YES;
 }

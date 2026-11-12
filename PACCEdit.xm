@@ -1614,6 +1614,13 @@ static void PACGlassBackdrop(UIView *host, CGFloat radius) {
     UIBezierPath *rimPath = [outer copy];
     [rimPath appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectInset(b, 3.0, 3.0) cornerRadius:MAX(0.0, r - 3.0)]];
     _rimMask.path = rimPath.CGPath;
+    if (PACCLIQIsActive()) {
+        // LiquidAss is on: the outline takes its rim (thin, same mode / opacity / Specular Type)
+        UIBezierPath *thin = [outer copy];
+        [thin appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectInset(b, 1.5, 1.5) cornerRadius:MAX(0.0, r - 1.5)]];
+        _rimMask.path = thin.CGPath;
+        PACCLIQStyleRim(_rim);
+    }
 }
 @end
 
@@ -1663,6 +1670,20 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
     icon.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [b addSubview:icon];
     PACGlassBackdrop(b, 15.0);
+    if (PACCLIQIsActive()) {
+        CAGradientLayer *ring = [CAGradientLayer layer];
+        ring.frame = b.bounds;
+        if (PACCLIQStyleRim(ring)) {
+            CAShapeLayer *m = [CAShapeLayer layer];
+            m.fillColor = UIColor.clearColor.CGColor;
+            m.strokeColor = UIColor.blackColor.CGColor;
+            m.lineWidth = 1.2;
+            m.path = [UIBezierPath bezierPathWithOvalInRect:CGRectInset(b.bounds, 0.6, 0.6)].CGPath;
+            ring.mask = m;
+            b.layer.borderWidth = 0;
+            [b.layer addSublayer:ring];
+        }
+    }
 
     objc_setAssociatedObject(b, kPACMidKey, mid, OBJC_ASSOCIATION_COPY_NONATOMIC);
     return b;
@@ -1710,6 +1731,7 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     rim.startPoint = CGPointMake(0.0, 0.0);
     rim.endPoint = CGPointMake(1.0, 1.0);
     rim.mask = rimEdge;
+    BOOL laRim = PACCLIQIsActive() && PACCLIQStyleRim(rim);   // LiquidAss rim (mode / opacity / Specular Type)
     [b.layer addSublayer:rim];
 
     CAShapeLayer *gloss = [CAShapeLayer layer];              // small specular streak on the curve
@@ -1721,6 +1743,7 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     gloss.transform = CATransform3DMakeTranslation(-1.5, -2.5, 0);
     gloss.strokeStart = 0.12;
     gloss.strokeEnd = 0.7;
+    gloss.hidden = laRim;
     [b.layer addSublayer:gloss];
 
     b.layer.shadowColor = UIColor.blackColor.CGColor;     // drop shadow under the handle (3D look)
