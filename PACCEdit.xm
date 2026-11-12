@@ -56,6 +56,7 @@ static const NSInteger kPACPickerTag       = 182009;
 static const NSInteger kPACToastTag        = 182010;
 static const NSInteger kPACPageAddTag      = 182011;
 static const NSInteger kPACLayersTag       = 182012;
+static const NSInteger kPACSlotTag         = 182060;   // empty-cell placeholders shown while editing
 
 static const void *kPACBorderKey   = &kPACBorderKey;
 static const void *kPACRemoveKey   = &kPACRemoveKey;
@@ -1617,6 +1618,9 @@ static void PACGlassBackdrop(UIView *host, CGFloat radius) {
 }
 @end
 
+// the outline sits right on the LiquidAss glass edge (the stock inset left a gap)
+static inline CGFloat PACBorderInset(void) { return PACCLIQIsActive() ? 0.0 : kPACBorderInset; }
+
 static UIView *PACMakeBorder(void) {
     UIView *v = [PACGlassBorderView new];
     v.userInteractionEnabled = NO;
@@ -1679,8 +1683,7 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
                 g.mask = m;
                 [b.layer addSublayer:g];
             }
-            b.backgroundColor = UIColor.clearColor;
-            b.layer.borderWidth = 0;
+            b.layer.borderWidth = 0;   // the white fill stays
         }
     }
 
@@ -1730,18 +1733,6 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     rim.startPoint = CGPointMake(0.0, 0.0);
     rim.endPoint = CGPointMake(1.0, 1.0);
     rim.mask = rimEdge;
-    BOOL laRim = PACCLIQIsActive() && PACCLIQStyleRim(rim);   // LiquidAss rim (mode / opacity / Specular Type)
-    if (laRim) {
-        rimEdge.lineWidth = 0.6;                               // thin, like LiquidAss
-        CAGradientLayer *dark = [CAGradientLayer layer];       // dark edge under the rim: 3D look
-        dark.frame = b.bounds;
-        PACCLIQStyleDarkEdge(dark);
-        CAShapeLayer *dm = [CAShapeLayer layer];
-        dm.path = rimEdge.path; dm.fillColor = UIColor.clearColor.CGColor;
-        dm.strokeColor = UIColor.blackColor.CGColor; dm.lineWidth = 1.0;
-        dark.mask = dm;
-        [b.layer addSublayer:dark];
-    }
     [b.layer addSublayer:rim];
 
     CAShapeLayer *gloss = [CAShapeLayer layer];              // small specular streak on the curve
@@ -1753,7 +1744,6 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     gloss.transform = CATransform3DMakeTranslation(-1.5, -2.5, 0);
     gloss.strokeStart = 0.12;
     gloss.strokeEnd = 0.7;
-    gloss.hidden = laRim;
     [b.layer addSublayer:gloss];
 
     b.layer.shadowColor = UIColor.blackColor.CGColor;     // drop shadow under the handle (3D look)
@@ -2254,8 +2244,8 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
                 objc_setAssociatedObject(cl, kPACBorderKey, border, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             }
             if (border.superview != ov.view) [ov.view addSubview:border];
-            border.frame = CGRectInset(vis, -kPACBorderInset, -kPACBorderInset);
-            border.layer.cornerRadius = kPACCell * 0.5 + kPACBorderInset;
+            border.frame = CGRectInset(vis, -PACBorderInset(), -PACBorderInset());
+            border.layer.cornerRadius = kPACCell * 0.5 + PACBorderInset();
             border.hidden = NO;
             UIButton *rm = objc_getAssociatedObject(cl, kPACRemoveKey);
             if (!rm) {
@@ -2744,8 +2734,70 @@ static NSArray<UIView *> *PACOrphanChrome(UIViewController *ov) {
     return orphans;
 }
 
+// Edit mode: a faint circle in every free cell of the page you are on (page 0 and the pages you added)
+static void PACUpdateSlots(UIViewController *ov) {
+    if (!ov || !ov.view) return;
+    NSMutableArray<UIView *> *have = [NSMutableArray array];
+    for (UIView *sv in ov.view.subviews) if (sv.tag == kPACSlotTag) [have addObject:sv];
+    NSInteger cp = MAX((NSInteger)0, gCurrentPage);
+    BOOL canHold = gEditModeActive && (cp == 0 || PACIsUserPage((NSUInteger)cp));
+    if (!canHold) { for (UIView *v in have) [v removeFromSuperview]; return; }
+
+    PACRefreshGridConstants();
+    PACEnsureStore();
+    NSMutableArray<NSValue *> *occ = [NSMutableArray array];
+    for (UIViewController *m in ModuleControllers(ov)) {
+        NSString *mid = PACMid(m);
+        if (!mid.length) continue;
+        NSArray<NSNumber *> *o = PACGetOrigin(mid);
+        if (o.count < 2) continue;
+        NSUInteger a = o[1].unsignedIntegerValue;
+        if ((NSInteger)(a / kPACStride) != cp) continue;
+        NSUInteger ow = 1, oh = 1;
+        PACEffectiveSize(mid, &ow, &oh);
+        PACRect pr = {o[0].unsignedIntegerValue, a % kPACStride, ow, oh};
+        [occ addObject:[NSValue value:&pr withObjCType:@encode(PACRect)]];
+    }
+    PACEnsureClones();
+    for (NSDictionary *cd in gPACClones) {
+        NSUInteger a = [cd[@"a"] unsignedIntegerValue];
+        if ((NSInteger)(a / kPACStride) != cp) continue;
+        PACRect pr = {[cd[@"c"] unsignedIntegerValue], a % kPACStride, [cd[@"w"] unsignedIntegerValue], [cd[@"h"] unsignedIntegerValue]};
+        [occ addObject:[NSValue value:&pr withObjCType:@encode(PACRect)]];
+    }
+    CGPoint base = PACGridBase(ov);
+    NSUInteger maxRow = PACVisibleRowCap(ov);
+    NSUInteger used = 0;
+    for (NSUInteger r = 0; r <= maxRow; r++) {
+        for (NSUInteger c = 0; c < kPACCols; c++) {
+            PACRect t = {c, r, 1, 1};
+            BOOL free = YES;
+            for (NSValue *v in occ) { PACRect o = {}; [v getValue:&o]; if (PACRectsOverlap(t, o)) { free = NO; break; } }
+            if (!free) continue;
+            UIView *slot = used < have.count ? have[used] : nil;
+            used++;
+            if (!slot) {
+                slot = [UIView new];
+                slot.tag = kPACSlotTag;
+                slot.userInteractionEnabled = NO;
+                slot.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.07];
+                slot.layer.borderWidth = 0.5;
+                slot.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.10].CGColor;
+                slot.layer.cornerCurve = kCACornerCurveContinuous;
+                [ov.view addSubview:slot];
+                have = [have arrayByAddingObject:slot].mutableCopy;
+            }
+            slot.frame = CGRectMake(base.x + (CGFloat)c * kPACStep, base.y + (CGFloat)r * kPACStep, kPACCell, kPACCell);
+            slot.layer.cornerRadius = kPACCell * 0.5;
+            slot.hidden = NO;
+        }
+    }
+    for (NSUInteger i = used; i < have.count; i++) [have[i] removeFromSuperview];
+}
+
 static void PACBringChromeToFront(UIViewController *ov) {
     if (!ov || !ov.view) return;
+    PACUpdateSlots(ov);
     if (gEditModeActive) for (UIView *o in PACOrphanChrome(ov)) [o removeFromSuperview];
     UIView *shield = [ov.view viewWithTag:kPACShieldTag];
     if (shield) [ov.view bringSubviewToFront:shield];
@@ -4713,12 +4765,12 @@ static void PACApplyChrome(UIViewController *m, UIViewController *ov) {
     }
     [ov.view addSubview:border];
 
-    border.frame = CGRectInset(vis, -kPACBorderInset, -kPACBorderInset);
+    border.frame = CGRectInset(vis, -PACBorderInset(), -PACBorderInset());
     CGFloat anchorRadius = radius;
     if (anchorRadius < 1.0) {
         anchorRadius = MIN(CGRectGetWidth(vis), CGRectGetHeight(vis)) * 0.5;
     }
-    border.layer.cornerRadius = anchorRadius + kPACBorderInset;
+    border.layer.cornerRadius = anchorRadius + PACBorderInset();
     border.hidden = NO;
     if (borderIsNew) PACAnimateChromeEntry(border);
 
