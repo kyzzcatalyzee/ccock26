@@ -95,13 +95,15 @@ static UIColor *PACCModOnColor(void) {
     _glyph.userInteractionEnabled = NO;
     [v addSubview:_glyph];
     _title = [UILabel new];
-    _title.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
+    _title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
     _title.textColor = UIColor.whiteColor;
+    _title.numberOfLines = 2;
+    _title.lineBreakMode = NSLineBreakByTruncatingTail;
     _title.userInteractionEnabled = NO;
     [v addSubview:_title];
     _sub = [UILabel new];
-    _sub.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
-    _sub.textColor = [UIColor colorWithWhite:1 alpha:0.7];
+    _sub.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
+    _sub.textColor = [UIColor colorWithWhite:1 alpha:0.6];
     _sub.userInteractionEnabled = NO;
     [v addSubview:_sub];
     [v addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped)]];
@@ -155,25 +157,40 @@ static UIColor *PACCModOnColor(void) {
     }
 }
 
+- (CGFloat)hostRadius {
+    UIView *v = self.view.superview;
+    for (int i = 0; i < 6 && v; i++, v = v.superview) {
+        if (v.layer.cornerRadius > 1.0) return v.layer.cornerRadius;
+    }
+    CGSize z = self.view.bounds.size;
+    return MIN(MIN(z.width, z.height) * 0.5, 38.0);
+}
+
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGRect b = self.view.bounds;
     BOOL wide = [self isWide];
-    CGRect circle = b;
+    CGFloat H = b.size.height;
+    _fill.frame = b;
+    _fill.layer.cornerRadius = [self hostRadius];
+    CGRect glyphBox = b;
     if (wide) {
-        CGFloat d = MIN(b.size.height - 20.0, 52.0);
-        circle = CGRectMake((b.size.height - d) * 0.5, (b.size.height - d) * 0.5, d, d);
+        CGFloat d = round(H * 0.6);
+        glyphBox = CGRectMake(round(H * 0.2), round((H - d) * 0.5), d, d);
     }
-    _fill.frame = circle;
-    _fill.layer.cornerRadius = MIN(circle.size.width, circle.size.height) * 0.5;
-    _glyph.frame = circle;
-    _glyph.image = PACCModGlyph(MIN(circle.size.width, circle.size.height) * (wide ? 0.46 : 0.36));
+    _glyph.frame = glyphBox;
+    _glyph.image = PACCModGlyph(wide ? H * 0.34 : MIN(b.size.width, b.size.height) * 0.4);
     _title.hidden = !wide; _sub.hidden = !wide;
     if (wide) {
-        CGFloat tx = CGRectGetMaxX(circle) + 10.0;
-        CGFloat tw = MAX(0, b.size.width - tx - 10.0);
-        _title.frame = CGRectMake(tx, b.size.height * 0.5 - 18.0, tw, 18.0);
-        _sub.frame = CGRectMake(tx, b.size.height * 0.5 + 1.0, tw, 16.0);
+        CGFloat tx = round(H * 0.93);
+        CGFloat tw = MAX(0, b.size.width - tx - round(H * 0.14));
+        CGSize ts = [_title sizeThatFits:CGSizeMake(tw, CGFLOAT_MAX)];
+        CGFloat th = MIN(ceil(ts.height), ceil(_title.font.lineHeight) * 2.0);
+        CGFloat sh = ceil(_sub.font.lineHeight);
+        CGFloat total = th + sh;
+        CGFloat y = round((H - total) * 0.5);
+        _title.frame = CGRectMake(tx, y, tw, th);
+        _sub.frame = CGRectMake(tx, y + th, tw, sh);
     }
     _last = -2;
     [self refresh];
@@ -192,7 +209,7 @@ static UIColor *PACCModOnColor(void) {
 
 - (void)refresh {
     NSInteger st = [self state];
-    BOOL wide = [self isWide];
+    __unused BOOL wide = [self isWide];
     if (st == _last) return;
     _last = st;
     BOOL on = (st == 1);
@@ -208,17 +225,13 @@ static UIColor *PACCModOnColor(void) {
 #endif
     _title.text = name;
     _sub.text = (st < 0) ? @"Unavailable" : (on ? @"On" : @"Off");
+    _title.textColor = on ? UIColor.blackColor : UIColor.whiteColor;
+    _sub.textColor = on ? [UIColor colorWithWhite:0 alpha:0.5] : [UIColor colorWithWhite:1 alpha:0.6];
     [UIView animateWithDuration:0.2 animations:^{
-        if (on) {
-            self->_fill.backgroundColor = PACCModOnColor();
-            self->_fill.alpha = 1.0;
-        } else if (wide) {
-            self->_fill.backgroundColor = [UIColor colorWithWhite:1 alpha:0.2];
-            self->_fill.alpha = 1.0;
-        } else {
-            self->_fill.alpha = 0.0;
-        }
-        self->_glyph.alpha = (st < 0) ? 0.45 : 1.0;
+        self->_fill.backgroundColor = UIColor.whiteColor;
+        self->_fill.alpha = on ? 1.0 : 0.0;
+        self->_glyph.tintColor = on ? PACCModOnColor() : UIColor.whiteColor;
+        self->_glyph.alpha = (st < 0) ? 0.4 : 1.0;
     }];
 }
 
