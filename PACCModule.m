@@ -1,8 +1,3 @@
-// PACCModule.m - real Control Center modules (Wi-Fi, Cellular Data, Bluetooth, Hotspot) for CCock26 (zilvyn)
-//
-// One source file, built four times with -DPACC_KIND / -DPACC_MODULE / -DPACC_VC_CLASS. Each bundle shows up in
-// Settings > Control Center like any other module. The module only draws the tile; the switching is done by the
-// CCock26 tweak (class PACCRadioBridge), which presses the real Connectivity button.
 
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
@@ -33,7 +28,6 @@ static UIImage *PACCModGlyph(CGFloat pt) {
     UIImage *i = nil;
 #endif
     if (i) return [i imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-    // Bluetooth and Hotspot marks are drawn
     CGFloat s = ceil(pt * 1.4);
     UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(s, s)];
     UIImage *img = [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
@@ -81,7 +75,6 @@ static UIColor *PACCModOnColor(void) {
     NSInteger _last;
 }
 
-// Control Center expects the content view controller to adopt its protocol
 + (void)load {
     Protocol *p = objc_getProtocol("CCUIContentModuleContentViewController");
     if (p && !class_conformsToProtocol(self, p)) class_addProtocol(self, p);
@@ -102,13 +95,15 @@ static UIColor *PACCModOnColor(void) {
     _glyph.userInteractionEnabled = NO;
     [v addSubview:_glyph];
     _title = [UILabel new];
-    _title.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
+    _title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
     _title.textColor = UIColor.whiteColor;
+    _title.numberOfLines = 2;
+    _title.lineBreakMode = NSLineBreakByTruncatingTail;
     _title.userInteractionEnabled = NO;
     [v addSubview:_title];
     _sub = [UILabel new];
-    _sub.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
-    _sub.textColor = [UIColor colorWithWhite:1 alpha:0.7];
+    _sub.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
+    _sub.textColor = [UIColor colorWithWhite:1 alpha:0.6];
     _sub.userInteractionEnabled = NO;
     [v addSubview:_sub];
     [v addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped)]];
@@ -121,17 +116,40 @@ static UIColor *PACCModOnColor(void) {
     return z.width > z.height * 1.4;
 }
 
-// Control Center draws its own name label on a wide module (lower case, taken from the bundle id); ours replaces it
+- (void)dumpTree:(UIView *)root {
+    static BOOL done = NO;
+    if (done) return;
+    done = YES;
+    NSMutableString *out = [NSMutableString stringWithFormat:@"\n[module %d tree]\n", (int)PACC_KIND];
+    NSMutableArray *queue = [NSMutableArray arrayWithObject:@[root, @0]];
+    NSUInteger n = 0;
+    while (queue.count && n < 250) {
+        NSArray *e = queue.firstObject; [queue removeObjectAtIndex:0]; n++;
+        UIView *v = e[0]; NSInteger d = [e[1] integerValue];
+        NSString *txt = [v isKindOfClass:UILabel.class] ? [NSString stringWithFormat:@" text='%@'", ((UILabel *)v).text] : @"";
+        [out appendFormat:@"%*s%@ %@ hidden=%d%@%@\n", (int)d * 2, "", NSStringFromClass(v.class), NSStringFromCGRect(v.frame), v.hidden, txt,
+            v == self.view ? @"  <== our view" : @""];
+        for (UIView *sv in v.subviews) [queue addObject:@[sv, @(d + 1)]];
+    }
+    NSFileHandle *h = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Preferences/ccock26-crash.log"];
+    if (!h) { [@"" writeToFile:@"/var/mobile/Library/Preferences/ccock26-crash.log" atomically:NO encoding:NSUTF8StringEncoding error:nil];
+              h = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Preferences/ccock26-crash.log"]; }
+    [h seekToEndOfFile];
+    [h writeData:[out dataUsingEncoding:NSUTF8StringEncoding]];
+    [h closeFile];
+}
+
 - (void)hideStrayLabels {
     NSString *last = [[[NSBundle bundleForClass:self.class].bundleIdentifier componentsSeparatedByString:@"."].lastObject lowercaseString];
     UIView *root = self.view;
-    for (int i = 0; i < 4 && root.superview; i++) root = root.superview;
+    for (int i = 0; i < 5 && root.superview; i++) root = root.superview;
+    [self dumpTree:root];
     NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
     NSUInteger visited = 0;
     while (queue.count && visited < 400) {
         UIView *v = queue.firstObject; [queue removeObjectAtIndex:0]; visited++;
         if (v == _title || v == _sub) continue;
-        if ([v isKindOfClass:UILabel.class] && ![v isDescendantOfView:self.view]) {
+        if ([v isKindOfClass:UILabel.class]) {
             NSString *t = ((UILabel *)v).text.lowercaseString;
             if (t.length && [t isEqualToString:last] && !v.hidden) v.hidden = YES;
         }
@@ -139,27 +157,42 @@ static UIColor *PACCModOnColor(void) {
     }
 }
 
+- (CGFloat)hostRadius {
+    UIView *v = self.view.superview;
+    for (int i = 0; i < 6 && v; i++, v = v.superview) {
+        if (v.layer.cornerRadius > 1.0) return v.layer.cornerRadius;
+    }
+    CGSize z = self.view.bounds.size;
+    return MIN(MIN(z.width, z.height) * 0.5, 38.0);
+}
+
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGRect b = self.view.bounds;
     BOOL wide = [self isWide];
-    CGRect circle = b;
+    CGFloat H = b.size.height;
+    _fill.frame = b;
+    _fill.layer.cornerRadius = [self hostRadius];
+    CGRect glyphBox = b;
     if (wide) {
-        CGFloat d = MIN(b.size.height - 20.0, 52.0);
-        circle = CGRectMake((b.size.height - d) * 0.5, (b.size.height - d) * 0.5, d, d);
+        CGFloat d = round(H * 0.6);
+        glyphBox = CGRectMake(round(H * 0.2), round((H - d) * 0.5), d, d);
     }
-    _fill.frame = circle;
-    _fill.layer.cornerRadius = MIN(circle.size.width, circle.size.height) * 0.5;
-    _glyph.frame = circle;
-    _glyph.image = PACCModGlyph(MIN(circle.size.width, circle.size.height) * (wide ? 0.46 : 0.36));
+    _glyph.frame = glyphBox;
+    _glyph.image = PACCModGlyph(wide ? H * 0.34 : MIN(b.size.width, b.size.height) * 0.4);
     _title.hidden = !wide; _sub.hidden = !wide;
     if (wide) {
-        CGFloat tx = CGRectGetMaxX(circle) + 10.0;
-        CGFloat tw = MAX(0, b.size.width - tx - 10.0);
-        _title.frame = CGRectMake(tx, b.size.height * 0.5 - 18.0, tw, 18.0);
-        _sub.frame = CGRectMake(tx, b.size.height * 0.5 + 1.0, tw, 16.0);
+        CGFloat tx = round(H * 0.93);
+        CGFloat tw = MAX(0, b.size.width - tx - round(H * 0.14));
+        CGSize ts = [_title sizeThatFits:CGSizeMake(tw, CGFLOAT_MAX)];
+        CGFloat th = MIN(ceil(ts.height), ceil(_title.font.lineHeight) * 2.0);
+        CGFloat sh = ceil(_sub.font.lineHeight);
+        CGFloat total = th + sh;
+        CGFloat y = round((H - total) * 0.5);
+        _title.frame = CGRectMake(tx, y, tw, th);
+        _sub.frame = CGRectMake(tx, y + th, tw, sh);
     }
-    _last = -2;     // redraw the state for the new shape
+    _last = -2;
     [self refresh];
     if (wide) {
         [self hideStrayLabels];
@@ -176,7 +209,7 @@ static UIColor *PACCModOnColor(void) {
 
 - (void)refresh {
     NSInteger st = [self state];
-    BOOL wide = [self isWide];
+    __unused BOOL wide = [self isWide];
     if (st == _last) return;
     _last = st;
     BOOL on = (st == 1);
@@ -192,17 +225,13 @@ static UIColor *PACCModOnColor(void) {
 #endif
     _title.text = name;
     _sub.text = (st < 0) ? @"Unavailable" : (on ? @"On" : @"Off");
+    _title.textColor = on ? UIColor.blackColor : UIColor.whiteColor;
+    _sub.textColor = on ? [UIColor colorWithWhite:0 alpha:0.5] : [UIColor colorWithWhite:1 alpha:0.6];
     [UIView animateWithDuration:0.2 animations:^{
-        if (on) {
-            self->_fill.backgroundColor = PACCModOnColor();
-            self->_fill.alpha = 1.0;
-        } else if (wide) {
-            self->_fill.backgroundColor = [UIColor colorWithWhite:1 alpha:0.2];
-            self->_fill.alpha = 1.0;
-        } else {
-            self->_fill.alpha = 0.0;
-        }
-        self->_glyph.alpha = (st < 0) ? 0.45 : 1.0;
+        self->_fill.backgroundColor = UIColor.whiteColor;
+        self->_fill.alpha = on ? 1.0 : 0.0;
+        self->_glyph.tintColor = on ? PACCModOnColor() : UIColor.whiteColor;
+        self->_glyph.alpha = (st < 0) ? 0.4 : 1.0;
     }];
 }
 
@@ -239,7 +268,6 @@ static UIColor *PACCModOnColor(void) {
 @end
 
 @implementation PACC_MODULE
-// Control Center expects the principal class to adopt its module protocol
 + (void)load {
     Protocol *p = objc_getProtocol("CCUIContentModule");
     if (p && !class_conformsToProtocol(self, p)) class_addProtocol(self, p);
