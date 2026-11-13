@@ -466,7 +466,7 @@ BOOL gPACCRevealAll = NO;
     if (!indicator) return;
     if (indicator.scrubbing)
 return;
-    CGFloat step = 39.0;
+    CGFloat step = 50.0;
     CGFloat width = 42.0;
     CGFloat height = step * MAX((NSUInteger)1, indicator.pageCount);
     CGFloat screenRight = CGRectGetWidth(overlay.view.bounds);

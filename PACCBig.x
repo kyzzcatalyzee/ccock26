@@ -905,32 +905,30 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     _airBg.hidden = _airIcon.hidden = !tile;
     _artist.hidden = tile && !_playing;
     if (tile) {
-        // iOS 26 2x2 Now Playing: a big rounded artwork top left, the AirPlay bubble top right, the title and the transport row
-        CGFloat art = floor(w * 0.332);
-        CGFloat left = floor(w * 0.104), top = floor(h * 0.107);
-        _art.frame = CGRectMake(left, top, art, art);
-        _art.layer.cornerRadius = art * 0.24;
-        CGFloat air = floor(w * 0.26);
-        _airBg.frame = CGRectMake(w - left - air, top, air, air);
-        _airBg.layer.cornerRadius = air * 0.5;
-        UIImageSymbolConfiguration *ac = [UIImageSymbolConfiguration configurationWithPointSize:air * 0.36 weight:UIImageSymbolWeightMedium];
+        // iOS 26 2x2 Now Playing, same numbers as Control26's compact player (scaled from a 163 pt tile)
+        CGFloat sc = w / 163.0, m = 14.0 * sc, art = round(56.0 * sc), d = round(42.0 * sc);
+        _art.frame = CGRectMake(m, m, art, art);
+        _art.layer.cornerRadius = 12.0 * sc;
+        _airBg.frame = CGRectMake(w - m - d, m, d, d);
+        _airBg.layer.cornerRadius = d * 0.5;
+        UIImageSymbolConfiguration *ac = [UIImageSymbolConfiguration configurationWithPointSize:d * 0.4 weight:UIImageSymbolWeightMedium];
         UIImage *ai = [UIImage systemImageNamed:@"airplayaudio" withConfiguration:ac] ?: [UIImage systemImageNamed:@"airplay.audio" withConfiguration:ac];
         _airIcon.image = [ai imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         _airIcon.frame = _airBg.bounds;
-        _title.font = [UIFont systemFontOfSize:w * 0.093 weight:UIFontWeightBold];
-        CGFloat tx = floor(w * 0.12);
-        _title.frame = CGRectMake(tx, floor(h * 0.59) - w * 0.06, w - tx - left, w * 0.12);
-        _artist.font = [UIFont systemFontOfSize:w * 0.075 weight:UIFontWeightRegular];
-        _artist.frame = CGRectMake(tx, CGRectGetMaxY(_title.frame) - 2, w - tx - left, w * 0.1);
-        CGFloat cy = h * 0.82, bw = floor(w * 0.26), bh = floor(w * 0.2);
-        CGFloat cx[3] = { w * 0.23, w * 0.508, w * 0.77 };
-        _prev.frame = CGRectMake(cx[0] - bw * 0.5, cy - bh * 0.5, bw, bh);
-        _play.frame = CGRectMake(cx[1] - bw * 0.5, cy - bh * 0.5, bw, bh);
-        _next.frame = CGRectMake(cx[2] - bw * 0.5, cy - bh * 0.5, bw, bh);
-        [self setSymbol:@"backward.fill" size:w * 0.12 on:_prev];
-        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:w * 0.17 on:_play];
-        [self setSymbol:@"forward.fill" size:w * 0.12 on:_next];
-        _prev.alpha = _next.alpha = _playing ? 1.0 : 0.5;
+        UIFont *tf = [UIFont systemFontOfSize:14.5 * sc * (_playing ? 1.0 : 0.9) weight:UIFontWeightSemibold];
+        UIFont *af = [UIFont systemFontOfSize:14.5 * sc weight:UIFontWeightRegular];
+        _title.font = tf; _artist.font = af;
+        CGFloat ty = _playing ? m + art + 7.0 * sc : m + art + 16.0 * sc;
+        _title.frame = CGRectMake(m + 2.0 * sc, ty, w - 2.0 * m, ceil(tf.lineHeight));
+        _artist.frame = CGRectMake(m + 2.0 * sc, ty + ceil(tf.lineHeight), w - 2.0 * m, ceil(af.lineHeight));
+        CGFloat cy = round(h * 0.84), bw = round(42.0 * sc);
+        _prev.frame = CGRectMake(round(w / 2 - 46.0 * sc - bw / 2), cy - bw / 2, bw, bw);
+        _play.frame = CGRectMake(round(w / 2 - bw / 2), cy - bw / 2, bw, bw);
+        _next.frame = CGRectMake(round(w / 2 + 46.0 * sc - bw / 2), cy - bw / 2, bw, bw);
+        [self setSymbol:@"backward.fill" size:22 on:_prev];
+        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:30 on:_play];
+        [self setSymbol:@"forward.fill" size:22 on:_next];
+        _prev.alpha = _next.alpha = 1.0;
         return;
     }
     _title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
@@ -1114,7 +1112,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     UIView *existing = [host viewWithTag:kPACBigTag];
     BOOL big = NO;
     if (kind == 1) big = (w >= 4 && h >= 4);
-    else if (kind == 2) big = (w >= 4 && h >= 2);   // 2x2 stays Apple's view, laid out like iOS 26 by the MRU hooks below
+    else if (kind == 2) big = (w >= 2 && h >= 2);   // 2x2 is our own tile (Control26 layout)
     if (expanded || !big || !gEnabled || PACCBigKind(mid) == 0 ||
         host.bounds.size.width < 60 || host.bounds.size.height < 60) {
         if (existing) {
@@ -1309,6 +1307,7 @@ void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIVi
 
 // the module container this view sits in, when that module is a 2x2-ish tile
 static BOOL PACMRUTile(UIView *v, CGSize *outSize) {
+    return NO;   // v0.5.0: the MRU hooks are off; Control26 draws its own tile and so do we
     if (!gEnabled) return NO;
     Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
     int up = 0;

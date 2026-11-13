@@ -139,7 +139,10 @@ static const NSUInteger kPACMaxPages = 6;
 
 static NSUInteger PACBasePageCount(void) { return PACCBasePageCount(); }
 
+static void PACSeedDefaultPages(void);
+
 static void PACEnsureUserPages(void) {
+    PACSeedDefaultPages();
     if (gPACUserPagesLoaded) return;
     gPACUserPagesLoaded = YES;
     CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditUserPages"), CFSTR("pawxed.ccock18.preferences"));
@@ -180,6 +183,40 @@ static BOOL PACFlagIsSet(CFStringRef key) {
 
 static void PACSetFlag(CFStringRef key) {
     CFPreferencesSetAppValue(key, kCFBooleanTrue, CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+}
+
+// First install: start with a Connectivity page and a Music Player page, like the pages Control Center used to have.
+// They are ordinary user pages, so they go away by themselves when their control is removed.
+static BOOL PACPrefKeyExists(CFStringRef key) {
+    CFPropertyListRef v = CFPreferencesCopyAppValue(key, CFSTR("pawxed.ccock18.preferences"));
+    BOOL has = (v != NULL);
+    if (v) CFRelease(v);
+    return has;
+}
+
+static void PACSeedDefaultPages(void) {
+    static BOOL done = NO;
+    if (done) return;
+    if (PACFlagIsSet(CFSTR("DefaultPagesSeeded"))) { done = YES; return; }
+    if (PACIsLandscape()) return;                       // the page stride is only valid in portrait: try again later
+    done = YES;
+    BOOL fresh = !PACPrefKeyExists(CFSTR("EditUserPages")) && !PACPrefKeyExists(CFSTR("EditClones")) &&
+                 !PACPrefKeyExists(CFSTR("EditGridOrigins"));
+    PACSetFlag(CFSTR("DefaultPagesSeeded"));
+    if (!fresh) return;                                  // an existing setup keeps what it has
+    PACRefreshGridConstants();
+    NSUInteger base = PACBasePageCount();
+    NSUInteger conn = base * kPACStride, music = (base + 1) * kPACStride;
+    NSArray *clones = @[
+        @{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(conn),  @"w": @4, @"h": @6},
+        @{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @(music), @"w": @4, @"h": @6},
+    ];
+    CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)clones, CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(CFSTR("EditUserPages"), (__bridge CFPropertyListRef)@(2), CFSTR("pawxed.ccock18.preferences"));
+    // nothing to move: the built-in pages are gone, so the old-layout migrations must not run on these
+    CFPreferencesSetAppValue(CFSTR("BuiltinPagesGone"), kCFBooleanTrue, CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(CFSTR("BuiltinPagesGoneClones"), kCFBooleanTrue, CFSTR("pawxed.ccock18.preferences"));
     CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
 }
 
@@ -2003,6 +2040,7 @@ static NSMutableArray<NSMutableDictionary *> *gPACClones;      // {id, mid, c, a
 static void PACSaveClones(void);
 
 static void PACEnsureClones(void) {
+    PACSeedDefaultPages();
     if (gPACClones) return;
     gPACClones = [NSMutableArray array];
     CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditClones"), CFSTR("pawxed.ccock18.preferences"));

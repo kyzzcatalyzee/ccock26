@@ -492,7 +492,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (self.pageCount == 0) return;
     CGFloat overlayH = self.overlay ? CGRectGetHeight(self.overlay.view.bounds) : CGRectGetHeight(UIScreen.mainScreen.bounds);
 
-    CGFloat step = scrubbing ? 58.0 : 39.0;
+    CGFloat step = scrubbing ? 58.0 : 50.0;
     CGFloat hostH = step * (CGFloat)self.pageCount;
 
     [CATransaction begin];
