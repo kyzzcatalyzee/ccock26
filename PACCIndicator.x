@@ -39,18 +39,16 @@ static NSArray<NSString *> *PACCIndicatorIcons(void) {
 
 static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) {
     NSArray<NSString *> *icons = PACCIndicatorIcons();
-    NSString *name = @"circle.fill";      // a plain page: filled dot, as in ControlCenter26
+    NSString *name = @"circle.fill";
     if (index == 0) name = icons[0];
     else if ((NSInteger)index == PACCMediaPageIndex()) name = icons[1];
     else if ((NSInteger)index == PACCPromoPageIndex()) name = icons[2];
     else {
-        // a page of your own: antenna when it holds Connectivity, music note when it holds Music Player
         int kind = PACCPageContentKind(index);
         if (kind == 1) name = @"antenna.radiowaves.left.and.right";
         else if (kind == 2) name = @"music.note";
     }
 
-    // ControlCenter26 draws the music page from its bundled "music" symbol (PrivateSymbols.bundle), with SF "music.note" as fallback
     if ([name isEqualToString:@"music.note"]) {
         UIImage *bundled = PACCBundledSymbol(@"music", UIColor.whiteColor, NO);
         if (bundled) {
@@ -61,7 +59,7 @@ static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) 
             return [bundled imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         }
     }
-    if ([name isEqualToString:@"circle.fill"]) pointSize *= 0.62;   // a plain page: a small dot
+    if ([name isEqualToString:@"circle.fill"]) pointSize *= 0.62;
     UIImage *image = PACCBundledSymbol(name, UIColor.whiteColor, NO);
     if (!image) image = [UIImage systemImageNamed:name];
     if (!image && [name isEqualToString:@"network.connected.to.line.below.fill"]) image = [UIImage systemImageNamed:@"antenna.radiowaves.left.and.right"];
@@ -76,8 +74,6 @@ static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) 
     return [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
 }
 
-// Page slide without overshoot.
-// the page swipe slides without overshoot (damping above critical); the jelly is added on top of it
 static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
     CASpringAnimation *spring = [CASpringAnimation animationWithKeyPath:@"sublayerTransform.translation.y"];
     spring.fromValue = @(from.m42);
@@ -91,7 +87,6 @@ static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D
     [layer addAnimation:spring forKey:key];
 }
 
-// the jelly: the page squashes and stretches a little as it lands
 static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
     CAKeyframeAnimation *jy = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.y"];
     jy.values = @[@(startY), @0.945, @1.032, @0.985, @1.0];
@@ -116,7 +111,7 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     spring.toValue   = @(to.m42);
     spring.mass = 1.0;
     spring.stiffness = 170.0;
-    spring.damping = 28.0;          // no overshoot anywhere
+    spring.damping = 28.0;
     spring.initialVelocity = 0.0;
     spring.duration = spring.settlingDuration;
     spring.fillMode = kCAFillModeBackwards;
@@ -217,7 +212,7 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
 - (void)forwardInvocation:(NSInvocation *)anInvocation { }
 
 - (void)pulseCurrentButton {
-    return;     // no bounce on the pager icon either
+    return;
     if (self.currentPage >= self.subviews.count) return;
     UIView *button = self.subviews[self.currentPage];
     [button.layer removeAnimationForKey:@"PACCIndicatorPulse"];
@@ -229,13 +224,8 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     [button.layer addAnimation:pulse forKey:@"PACCIndicatorPulse"];
 }
 
-// Apple's pans (the ones that pull Control Center down to close it) must wait for the page swipe: when ours takes
-// the touch, theirs fails and nothing drags the panel or the status bar along. On the first page ours never begins
-// for a downward drag, so closing works as before.
 static NSHashTable<UIGestureRecognizer *> *gPACCBoundPans;
 
-// The panel is pulled down by the overlay's own scroll view (it bounces at the top and Apple turns that into "close"),
-// so its pan is the one to hold back too. Control26 gets the same effect by scrolling that view itself.
 static NSMutableArray<UIGestureRecognizer *> *gPACCHeldPans;
 
 static NSArray<UIView *> *PACCOverlayScrollers(UIViewController *overlay) {
@@ -273,7 +263,6 @@ static void PACCBindOtherPans(UIViewController *overlay, UIGestureRecognizer *ou
     }
 }
 
-// if one of them already started pulling, cancel it and put the panel back
 __attribute__((unused)) static void PACCHoldScrollPans(UIViewController *overlay, UIGestureRecognizer *ours) {
     gPACCHeldPans = [NSMutableArray array];
     for (UIView *v in PACCOverlayScrollers(overlay)) {
@@ -293,12 +282,9 @@ static void PACCReleaseScrollPans(void) {
 static const void *kPACCSwipeKey = &kPACCSwipeKey;
 static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
-// Swipe up on the page area to go to the next page (and down to come back), with the same springy page slide and jelly as scrubbing the pager.
 - (void)installSwipe {
     UIView *host = self.overlay.view;
     if (!host) return;
-    // The panel's view ignores touches on its empty space (that is how tapping outside closes it), so a page with few
-    // controls had nothing under the finger. The recognizer lives on the window instead and sees every touch.
     UIView *target = host;
     UIGestureRecognizer *old = objc_getAssociatedObject(self, kPACCSwipeKey);
     if (old) [old.view removeGestureRecognizer:old];
@@ -326,7 +312,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         self.dragStartPage = self.currentPage;
         self.dragging = YES;
         gPageAnimating = YES;
-        gPagerScrubbing = YES;          // keeps the layout pass from snapping the page back to its rest spot
+        gPagerScrubbing = YES;
         gPACCRevealAll = YES;
         [cv.layer removeAnimationForKey:@"PAnimPageSlide"];
         [cv.layer removeAnimationForKey:@"PAnimJelly"];
@@ -337,11 +323,10 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat rest = -(CGFloat)self.dragStartPage * span;
     CGFloat y = rest + ty;
     CGFloat top = 0.0, bottom = -(CGFloat)maxPage * span;
-    if (y > top) y = top + (y - top) * 0.15;                    // rubber band at the ends
+    if (y > top) y = top + (y - top) * 0.15;
     else if (y < bottom) y = bottom + (y - bottom) * 0.15;
 
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
-        // keep the panel's own scroll view at rest, so Apple's pull-down-to-close never gets a drag to work with
         for (UIView *sv in PACCOverlayScrollers(self.overlay)) {
             if ([sv isKindOfClass:UIScrollView.class]) {
                 UIScrollView *u = (UIScrollView *)sv;
@@ -349,7 +334,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
                 if (u.contentOffset.y != rest0 && u.contentOffset.y < 0.0) u.contentOffset = CGPointMake(u.contentOffset.x, rest0);
             }
         }
-        CGFloat stretch = MIN(0.07, fabs(vy) / 9000.0);        // the page stretches a little while it is dragged fast
+        CGFloat stretch = MIN(0.07, fabs(vy) / 9000.0);
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
         CATransform3D sub = cv.layer.sublayerTransform;
@@ -360,14 +345,11 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         return;
     }
 
-    // finger lifted: pick the page, then let it spring in with a jelly wobble
     NSInteger target = (NSInteger)self.dragStartPage;
-    // a cancelled touch (the system took it over, a module button was under the finger) counts like a lifted finger
     if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
         if (ty < -span * 0.12 || vy < -350.0) target += 1;
         else if (ty > span * 0.12 || vy > 350.0) target -= 1;
     }
-    // the system often cancels a slow swipe right after it started (translation already reset to 0): go by direction
     if (g.state == UIGestureRecognizerStateCancelled && target == (NSInteger)self.dragStartPage) {
         if (vy < -120.0) target += 1;
         else if (vy > 120.0) target -= 1;
@@ -420,15 +402,12 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (gr == objc_getAssociatedObject(self, kPACCSwipeRecKey) && self.overlay.view) {
         UIView *host = self.overlay.view;
         PACCBindOtherPans(self.overlay, gr);
-        // Only the middle band pages (like ControlCenter26): the top strip with the status bar and the bottom edge stay Apple's, so closing still works there.
         CGPoint p = [touch locationInView:self.overlay.view];
         if (p.y < 60.0 || p.y > CGRectGetHeight(self.overlay.view.bounds) - 110.0) return NO;
     }
     return YES;
 }
 
-// As in ControlCenter26: every other pan around the panel (Apple's scroll and close pans) waits until the page swipe has decided.
-// Asking the delegate does this from the very first touch, which binding them afterwards could not.
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gr shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)other {
     if (gr != objc_getAssociatedObject(self, kPACCSwipeRecKey)) return NO;
     if (![other isKindOfClass:UIPanGestureRecognizer.class] || other == gr) return NO;
@@ -438,7 +417,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
-    return NO;      // exclusive, as in ControlCenter26: Apple's pans wait for the page swipe
+    return NO;
 }
 
 - (void)setOverlay:(UIViewController *)overlay {
@@ -522,7 +501,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
             CGFloat rawSize = (index == 0 ? 16.0 : 12.0) * scale;
             CGFloat pointSize = rawSize < 38.0 ? rawSize : 38.0;
             CGFloat slideOut = 24.0 * proximity;
-            CGFloat alpha = MIN(1.0, (selected ? 0.86 : 0.42) + 0.36 * proximity);   // same dim grey as at rest
+            CGFloat alpha = MIN(1.0, (selected ? 0.86 : 0.42) + 0.36 * proximity);
             CGFloat tintWhite = 1.0;
 
             button.bounds = CGRectMake(0.0, 0.0, 58.0, step);
@@ -543,7 +522,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
             CGFloat pointSize = (index == 0) ? 16.0 : 12.0;
             UIImage *image = PACCIndicatorSymbolForPage(index, pointSize);
             if (image) [b setImage:image forState:UIControlStateNormal];
-            button.alpha = selected ? 1.0 : 0.42;       // selected white, the others a dim grey
+            button.alpha = selected ? 1.0 : 0.42;
             button.tintColor = UIColor.whiteColor;
         }
     }
@@ -757,7 +736,6 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
 
-    // letting go of the pager: from the held size straight into the jelly (no shrink and no extra bounce)
     CGFloat heldX = fromTrans.m11, heldY = fromTrans.m22;
     if (fabs(heldX - 1.0) < 0.004 && fabs(heldY - 1.0) < 0.004) { heldX = 0.986; heldY = 1.035; }
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];

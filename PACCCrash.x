@@ -1,7 +1,3 @@
-// PACCCrash.x - crash and activity log for CCock26 (written for CCock26, zilvyn)
-//
-// Writes to /var/mobile/Library/Preferences/ccock26-crash.log. Settings > CCock26 > Crash Log shows it.
-// A fatal signal or an uncaught exception adds the reason, the last steps taken by the tweak and a backtrace.
 #import "PACC.h"
 #import <signal.h>
 #import <execinfo.h>
@@ -28,7 +24,6 @@ static void PACCCrashWrite(const char *s) {
     ssize_t r = write(gLogFD, s, strlen(s)); (void)r;
 }
 
-// Remembers the last few steps (no allocation, safe to read from a signal handler).
 void PACCCrumb(const char *label) {
     if (!label) return;
     unsigned i = gCrumbIndex++ % kPACCCrumbCount;

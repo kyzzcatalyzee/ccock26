@@ -1,8 +1,8 @@
-Package: pawxed.ccock18
+Package: zilvyn.ccock26
 Name: CCock26
 Version: 0.1b
 Architecture: iphoneos-arm
-Description: iOS 26 style control center with a working media page and Add a Control
+Description: iOS 26 style control center
 Maintainer: zilvyn
 Author: pawxed (modified by zilvyn)
 Section: Tweaks

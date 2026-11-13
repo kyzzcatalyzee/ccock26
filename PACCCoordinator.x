@@ -200,7 +200,6 @@ BOOL gPACCRevealAll = NO;
     UIViewController *collection = ModuleCollection(overlay);
     if (!collection.view) return;
 
-    // module container view -> identifier, so every module follows the page it was placed on
     NSMutableDictionary<NSValue *, NSString *> *midByView = [NSMutableDictionary dictionary];
     NSDictionary *containers = nil;
     @try { containers = [(id)collection valueForKey:@"moduleContainerViewByIdentifier"]; }
@@ -270,7 +269,7 @@ BOOL gPACCRevealAll = NO;
             for (UIView *child in v.subviews) {
                 NSString *cn = NSStringFromClass(child.class);
                 if ([cn isEqualToString:@"MTMaterialView"] || [cn containsString:@"Separator"] || [cn containsString:@"Backdrop"]) {
-                    child.hidden = YES;     // the blur strip (and its line) under the status bar is always off
+                    child.hidden = YES;
                 }
             }
         }

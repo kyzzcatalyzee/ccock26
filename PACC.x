@@ -12,8 +12,8 @@ const void *PACCKeyCompactRadius = &PACCKeyCompactRadius;
 const void *PACCKeyMediaMode = &PACCKeyMediaMode;
 const void *PACCKeyMiniGlyphBaseSize = &PACCKeyMiniGlyphBaseSize;
 
-static const CFStringRef kPrefsDomain = CFSTR("pawxed.ccock18.preferences");
-NSString *const kReloadNotification = @"pawxed.ccock18/ReloadPrefs";
+static const CFStringRef kPrefsDomain = CFSTR("pawxed.ccock26.preferences");
+NSString *const kReloadNotification = @"pawxed.ccock26/ReloadPrefs";
 
 BOOL gEnabled = YES;
 BOOL gQuickAccessButtonsEnabled = YES;
@@ -74,7 +74,7 @@ void LoadPrefs(void) {
     gEditModeEnabled             = PrefBool(@"EditModeEnabled", YES);
     gCircularModulesEnabled      = PrefBool(@"CircularModules", YES);
     gPromoPageEnabled            = PrefBool(@"PromoPageEnabled", YES);
-    gMediaPageEnabled            = NO;   // the built-in music page and the paw page are removed
+    gMediaPageEnabled            = NO;
     gPromoPageEnabled            = NO;
     if (!gEditModeEnabled) gEditModeActive = NO;
 }
@@ -86,8 +86,6 @@ void Haptic(void) {
     [g impactOccurred];
 }
 
-// The size of the control grid differs per device (a 67 pt cell on small phones, 74 pt on the Plus models).
-// PACCEdit measures the real layout and reports it here; until then a guess from the screen width is used.
 static CGFloat gPACCGridCell = 0.0;
 static CGFloat gPACCGridGap  = 0.0;
 
@@ -108,7 +106,6 @@ CGFloat PACCGridGap(void) {
     return UIScreen.mainScreen.bounds.size.width >= 414.0 ? 16.0 : 12.0;
 }
 
-// Page order: 0 controls, then the music page (unless removed), then the promo page, then the user's own pages.
 NSInteger PACCMediaPageIndex(void) { return gMediaPageEnabled ? 1 : -1; }
 NSInteger PACCPromoPageIndex(void) { return gPromoPageEnabled ? (gMediaPageEnabled ? 2 : 1) : -1; }
 NSUInteger PACCBasePageCount(void) { return 1 + (gMediaPageEnabled ? 1 : 0) + (gPromoPageEnabled ? 1 : 0); }
@@ -341,7 +338,6 @@ NSArray *PACCConnectivityVibrantFilters(UIView *root) {
     return nil;
 }
 
-// The three small Connectivity buttons are Apple's own. Their glyphs are replaced with the ones ControlCenter26 uses.
 static void PACCReplaceMiniGlyph(UIView *root, NSString *symbol, NSString *fallback, CGFloat cell) {
     UIView *button = nil;
     NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
@@ -408,12 +404,11 @@ UIImage *PACCBundledSymbol(NSString *name, UIColor *color, BOOL hierarchical) {
         NSString *path = @"/var/jb/Library/Application Support/CC18/CC18.bundle";
         if (![NSFileManager.defaultManager fileExistsAtPath:path]) path = @"/Library/Application Support/CC18/CC18.bundle";
         bundle = [NSBundle bundleWithPath:path];
-        // CCock26 ships its own iOS 26 private symbols (Connectivity, Music); find them next to the tweak, then at the usual paths
         NSMutableArray<NSString *> *cands = [NSMutableArray array];
         Dl_info info;
         if (dladdr((const void *)&PACCBundledSymbol, &info) && info.dli_fname) {
-            NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];   // .../MobileSubstrate/DynamicLibraries
-            NSString *lib = [[dir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];          // .../Library
+            NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];
+            NSString *lib = [[dir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
             [cands addObject:[lib stringByAppendingPathComponent:@"Application Support/CCock26/PrivateSymbols.bundle"]];
         }
         [cands addObject:@"/var/jb/Library/Application Support/CCock26/PrivateSymbols.bundle"];
@@ -429,7 +424,6 @@ UIImage *PACCBundledSymbol(NSString *name, UIColor *color, BOOL hierarchical) {
     BOOL privateSymbol = [name isEqualToString:@"calculator.fill"] || [name isEqualToString:@"music"] || [name isEqualToString:@"network.connected.to.line.below.fill"];
     UIImage *image = nil;
     if (privateSymbol) {
-        // try every copy of the private symbols: a folder that is there without its Assets.car must not hide a good one
         for (NSBundle *b in privateBundles) {
             image = [UIImage imageNamed:name inBundle:b compatibleWithTraitCollection:nil];
             if (image) break;

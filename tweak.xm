@@ -421,7 +421,6 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
-// Like ControlCenter26: whenever the module container lays out, Apple's chrome around an expanded Connectivity is stripped.
 %hook CCUIContentModuleContainerView
 - (void)layoutSubviews {
     %orig;
@@ -429,13 +428,10 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
-// The expanded Connectivity panel is as tall as the big Connectivity on a page.
 %hook CCUIConnectivityModuleViewController
 - (CGFloat)preferredExpandedContentHeight {
     return gEnabled ? 526.0 : %orig;
 }
-// ControlCenter26's modules draw their own platter (providesOwnPlatter): while expanded, Apple's plate and LiquidAss's backdrop
-// behind the cards are not made at all, so nothing has to be hidden afterwards.
 - (BOOL)providesOwnPlatter {
     if (gEnabled) {
         UIViewController *vc = (UIViewController *)self;

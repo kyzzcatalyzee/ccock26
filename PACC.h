@@ -39,7 +39,7 @@ extern BOOL gEditModeEnabled;
 extern BOOL gEditModeActive;
 extern BOOL gCircularModulesEnabled;
 extern BOOL gPromoPageEnabled;
-extern BOOL gPACCRevealAll;      // while a page swipe is in progress every page is drawn
+extern BOOL gPACCRevealAll;
 extern BOOL gMediaPageEnabled;
 void PACCLoadEditPrefs(void);
 NSUInteger PACCUserPageCount(void);
@@ -74,7 +74,6 @@ UIImage *PACCBundledSymbol(NSString *name, UIColor *color, BOOL hierarchical);
 void PACCConfigureConnectivity(UIViewController *controller);
 CGRect PACCVisibleModuleBounds(UIViewController *overlay);
 
-// PACCBig.x: big Connectivity / Music layouts
 NSInteger PACCMediaPageIndex(void);
 NSInteger PACCPromoPageIndex(void);
 NSUInteger PACCBasePageCount(void);
@@ -90,17 +89,18 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded);
 void PACCBigStripContainer(UIView *container);
 UIView *PACCBigNewClone(int kind);
 void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIView *apple);
-int PACCPageContentKind(NSUInteger page);   // 0 other, 1 Connectivity, 2 Music Player
+int PACCPageContentKind(NSUInteger page);
 void PACCCrumb(const char *label);
 void PACCClonesRelayout(UIView *collectionView);
 void PACCCrashLog(NSString *line);
 void PACCSyncClones(UIViewController *overlay, BOOL animated);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);
 BOOL PACCLIQIsActive(void);
+BOOL PACCLIQGlassOn(void);
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius);
 BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 BOOL PACCLIQStyleDarkEdge(CAGradientLayer *g);
-BOOL PACCLIQStyleRim(CAGradientLayer *g);   // LiquidAss rim (mode, opacity, iOS 26/27) on a gradient layer   // real LiquidAss LGLiveBackdropView behind host
+BOOL PACCLIQStyleRim(CAGradientLayer *g);
 
 #ifdef __cplusplus
 }

@@ -1,8 +1,3 @@
-// PACCModule.m - real Control Center modules (Wi-Fi, Cellular Data, Bluetooth, Hotspot) for CCock26 (zilvyn)
-//
-// One source file, built four times with -DPACC_KIND / -DPACC_MODULE / -DPACC_VC_CLASS. Each bundle shows up in
-// Settings > Control Center like any other module. The module only draws the tile; the switching is done by the
-// CCock26 tweak (class PACCRadioBridge), which presses the real Connectivity button.
 
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
@@ -33,7 +28,6 @@ static UIImage *PACCModGlyph(CGFloat pt) {
     UIImage *i = nil;
 #endif
     if (i) return [i imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-    // Bluetooth and Hotspot marks are drawn
     CGFloat s = ceil(pt * 1.4);
     UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(s, s)];
     UIImage *img = [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
@@ -81,7 +75,6 @@ static UIColor *PACCModOnColor(void) {
     NSInteger _last;
 }
 
-// Control Center expects the content view controller to adopt its protocol
 + (void)load {
     Protocol *p = objc_getProtocol("CCUIContentModuleContentViewController");
     if (p && !class_conformsToProtocol(self, p)) class_addProtocol(self, p);
@@ -121,6 +114,47 @@ static UIColor *PACCModOnColor(void) {
     return z.width > z.height * 1.4;
 }
 
+- (void)dumpTree:(UIView *)root {
+    static BOOL done = NO;
+    if (done) return;
+    done = YES;
+    NSMutableString *out = [NSMutableString stringWithFormat:@"\n[module %d tree]\n", (int)PACC_KIND];
+    NSMutableArray *queue = [NSMutableArray arrayWithObject:@[root, @0]];
+    NSUInteger n = 0;
+    while (queue.count && n < 250) {
+        NSArray *e = queue.firstObject; [queue removeObjectAtIndex:0]; n++;
+        UIView *v = e[0]; NSInteger d = [e[1] integerValue];
+        NSString *txt = [v isKindOfClass:UILabel.class] ? [NSString stringWithFormat:@" text='%@'", ((UILabel *)v).text] : @"";
+        [out appendFormat:@"%*s%@ %@ hidden=%d%@%@\n", (int)d * 2, "", NSStringFromClass(v.class), NSStringFromCGRect(v.frame), v.hidden, txt,
+            v == self.view ? @"  <== our view" : @""];
+        for (UIView *sv in v.subviews) [queue addObject:@[sv, @(d + 1)]];
+    }
+    NSFileHandle *h = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Preferences/ccock26-crash.log"];
+    if (!h) { [@"" writeToFile:@"/var/mobile/Library/Preferences/ccock26-crash.log" atomically:NO encoding:NSUTF8StringEncoding error:nil];
+              h = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Preferences/ccock26-crash.log"]; }
+    [h seekToEndOfFile];
+    [h writeData:[out dataUsingEncoding:NSUTF8StringEncoding]];
+    [h closeFile];
+}
+
+- (void)hideStrayLabels {
+    NSString *last = [[[NSBundle bundleForClass:self.class].bundleIdentifier componentsSeparatedByString:@"."].lastObject lowercaseString];
+    UIView *root = self.view;
+    for (int i = 0; i < 5 && root.superview; i++) root = root.superview;
+    [self dumpTree:root];
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
+    NSUInteger visited = 0;
+    while (queue.count && visited < 400) {
+        UIView *v = queue.firstObject; [queue removeObjectAtIndex:0]; visited++;
+        if (v == _title || v == _sub) continue;
+        if ([v isKindOfClass:UILabel.class]) {
+            NSString *t = ((UILabel *)v).text.lowercaseString;
+            if (t.length && [t isEqualToString:last] && !v.hidden) v.hidden = YES;
+        }
+        [queue addObjectsFromArray:v.subviews];
+    }
+}
+
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGRect b = self.view.bounds;
@@ -141,8 +175,12 @@ static UIColor *PACCModOnColor(void) {
         _title.frame = CGRectMake(tx, b.size.height * 0.5 - 18.0, tw, 18.0);
         _sub.frame = CGRectMake(tx, b.size.height * 0.5 + 1.0, tw, 16.0);
     }
-    _last = -2;     // redraw the state for the new shape
+    _last = -2;
     [self refresh];
+    if (wide) {
+        [self hideStrayLabels];
+        dispatch_async(dispatch_get_main_queue(), ^{ [self hideStrayLabels]; });
+    }
 }
 
 - (NSInteger)state {
@@ -217,7 +255,6 @@ static UIColor *PACCModOnColor(void) {
 @end
 
 @implementation PACC_MODULE
-// Control Center expects the principal class to adopt its module protocol
 + (void)load {
     Protocol *p = objc_getProtocol("CCUIContentModule");
     if (p && !class_conformsToProtocol(self, p)) class_addProtocol(self, p);

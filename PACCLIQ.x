@@ -23,6 +23,7 @@ static BOOL      sPACCLIQLoggedProbe = NO;
 extern "C" {
 #endif
 BOOL PACCLIQIsActive(void);
+BOOL PACCLIQGlassOn(void);
 id PACCLIQBuildGlassFilter(void);
 #ifdef __cplusplus
 }
@@ -111,8 +112,7 @@ static BOOL PACCLIQProbeLiquidass(void) {
     return NO;
 }
 
-static BOOL PACCLIQShouldGlass(void) {
-    // asked on every layout: look at the settings at most twice a second
+static BOOL PACCLIQLiquidassLive(void) {
     static CFTimeInterval lastCheck = 0;
     static BOOL lastResult = NO;
     CFTimeInterval now = CACurrentMediaTime();
@@ -120,6 +120,10 @@ static BOOL PACCLIQShouldGlass(void) {
     lastCheck = now;
     lastResult = PACCLIQProbeLiquidass() && PACCLIQControlCenterEnabled();
     return lastResult;
+}
+
+static BOOL PACCLIQShouldGlass(void) {
+    return YES;
 }
 
 static id PACCLIQMakeFilter(NSString *typeName) {
@@ -136,11 +140,15 @@ extern "C" {
 #endif
 
 BOOL PACCLIQIsActive(void) {
+    return PACCLIQLiquidassLive();
+}
+
+BOOL PACCLIQGlassOn(void) {
     return PACCLIQShouldGlass();
 }
 
 id PACCLIQBuildGlassFilter(void) {
-    if (!PACCLIQShouldGlass()) return nil;
+    if (!PACCLIQLiquidassLive()) return nil;
     return PACCLIQMakeFilter(kPACCLIQControlCenterType);
 }
 
@@ -148,7 +156,6 @@ id PACCLIQBuildGlassFilter(void) {
 }
 #endif
 
-// LiquidAss settings for the Control Center (same keys LiquidAss reads: ControlCenter.SpecularMode / SpecularOpacity / Blur, Renderer.FresnelGlareStrength)
 static id PACCLIQPref(NSString *key) {
     static NSMutableDictionary *cache;
     static CFTimeInterval stamp = 0;
@@ -165,7 +172,6 @@ static id PACCLIQPref(NSString *key) {
     return v;
 }
 
-// 0 = none, 1 = border, 2 = glass (the rim LiquidAss draws)
 static int PACCLIQSpecularMode(void) {
     id m = PACCLIQPref(@"ControlCenter.SpecularMode");
     if ([m isKindOfClass:NSString.class]) {
@@ -184,7 +190,6 @@ static int PACCLIQSpecularMode(void) {
     return 2;
 }
 
-// LiquidAss > More Options > Specular Type: iOS 26 (default) or iOS 27 (Renderer.SpecularType = "ios27")
 static BOOL PACCLIQSpecularIOS27(void) {
     id v = PACCLIQPref(@"Renderer.SpecularType");
     return [v isKindOfClass:NSString.class] && [v isEqualToString:@"ios27"];
@@ -248,7 +253,6 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     [self updateSpecularLayers];
 }
 
-// LiquidAss appends the radius step (.rN, radius / shortest side in 1/32) and .dark to the Control Center type
 - (NSString *)wantedType {
     CGSize b = self.bounds.size;
     CGFloat shortest = MIN(b.width, b.height);
@@ -262,6 +266,7 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
 - (BOOL)filterIsLive {
     NSArray *filters = self.layer.filters;
     if (!filters.count || !_appliedType.length) return NO;
+    if ([_appliedType isEqualToString:@"pacc.fallback"]) return !PACCLIQLiquidassLive();
     NSString *type = nil;
     @try { type = [filters[0] valueForKey:@"type"]; } @catch (...) {}
     return type.length && [type isEqualToString:_appliedType];
@@ -298,6 +303,24 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
             _appliedScale = scale;
         }
 
+        if (!PACCLIQLiquidassLive()) {
+            if ([_appliedType isEqualToString:@"pacc.fallback"] && layer.filters.count) return;
+            id gb = PACCLIQMakeFilter(@"gaussianBlur");
+            id sat = PACCLIQMakeFilter(@"colorSaturate");
+            NSMutableArray *chain = [NSMutableArray array];
+            if (gb) { [gb setValue:@(16.0) forKey:@"inputRadius"]; [chain addObject:gb]; }
+            if (sat) { [sat setValue:@(1.8) forKey:@"inputAmount"]; [chain addObject:sat]; }
+            if (chain.count) {
+                layer.filters = chain;
+                layer.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.07].CGColor;
+                _appliedType = @"pacc.fallback";
+                if (!sPACCLIQActiveFilterType) PACCLIQLog("LiquidAss is off: using the built-in glass");
+                sPACCLIQActiveFilterType = @"pacc.fallback";
+                return;
+            }
+        }
+        layer.backgroundColor = NULL;
+
         CGFloat blur = MAX(0.0, PACCLIQNumPref(@"ControlCenter.Blur", 1.0));
         NSString *want = [self wantedType];
         if ([self filterIsLive] && [_appliedType isEqualToString:want] && fabs(blur - _appliedBlur) < 0.01) return;
@@ -325,7 +348,6 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     }
 }
 
-// The rim: same layers and numbers as LiquidAss's updateSpecular (none / border / glass from the LiquidAss settings)
 - (void)updateSpecularLayers {
     if (CGRectIsEmpty(self.bounds)) return;
     int mode = PACCLIQSpecularMode();
@@ -411,7 +433,6 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
             (id)[UIColor colorWithWhite:0 alpha:0.36].CGColor,
             (id)[UIColor colorWithWhite:0 alpha:0.28].CGColor];
         if (ios27) {
-            // iOS 27 rim: one bright band across the shape, fading towards both ends (stops read from LiquidAss)
             static const CGFloat stops[12] = {0.12, 0.25, 0.42, 0.62, 0.82, 0.95, 0.95, 0.82, 0.62, 0.42, 0.25, 0.12};
             NSMutableArray *cols = [NSMutableArray array], *locs = [NSMutableArray array];
             for (int k = 0; k < 12; k++) {
@@ -444,7 +465,6 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     _specLayer.frame = sr;
     _specMask.frame = CGRectMake(0, 0, sr.size.width, sr.size.height);
     _specMask.cornerRadius = srad; _specMask.cornerCurve = curve;
-    // LiquidAss's rest angle without motion: iOS 26 = -135 degrees (diagonal), iOS 27 = straight up / a horizontal band
     CGFloat dx = ios27 ? 0.0 : cos(-3.0 * M_PI / 4.0) * 0.25;
     _darkLayer.startPoint = CGPointMake(0.5 + dx, 0.0); _darkLayer.endPoint = CGPointMake(0.5 - dx, 1.0);
     _fresnelLayer.startPoint = CGPointMake(0.5 + dx * 0.4, 0.0); _fresnelLayer.endPoint = CGPointMake(0.5 - dx * 0.4, 1.0);
@@ -472,8 +492,6 @@ static void PACCLIQRestoreBlur(UIView *mediaPlayer) {
     } @catch (...) {}
 }
 
-// YES when the module this host sits in already carries LiquidAss's own LGLiveBackdropView (a real module that was
-// made bigger): then PACCLIQ glass would double it, so ours is not built and a leftover one is removed
 static BOOL PACCLIQModuleHasLG(UIView *host) {
     UIView *module = nil;
     int up = 0;
@@ -525,12 +543,10 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
     return glass;
 }
 
-// For the big Music Player: puts the LiquidAss glass behind `host`. YES when the glass is live, so the caller hides
-// its own material (exactly what the old built-in music page does).
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius) {
     if (!host) return NO;
     PACCLIQGlassView *glass = PACCLIQInstallGlass(host, radius);
-    if (!glass && PACCLIQShouldGlass() && PACCLIQModuleHasLG(host)) return YES;   // LiquidAss glass is there, hide the old material
+    if (!glass && PACCLIQShouldGlass() && PACCLIQModuleHasLG(host)) return YES;
     return glass && [glass filterIsLive];
 }
 
@@ -644,8 +660,6 @@ static void PACCLIQPrefsReloadCallback(CFNotificationCenterRef center,
     }
 }
 
-// Styles a gradient layer (masked to a thin outline by the caller) like the LiquidAss rim: the mode (none / border / glass),
-// opacity and Specular Type (iOS 26 / iOS 27) all come from the LiquidAss settings. NO = LiquidAss glass is off, keep your own look.
 BOOL PACCLIQStyleRim(CAGradientLayer *g) {
     if (!g || !PACCLIQShouldGlass()) return NO;
     int mode = PACCLIQSpecularMode();
@@ -682,7 +696,6 @@ BOOL PACCLIQStyleRim(CAGradientLayer *g) {
 }
 
 
-// The dark edge LiquidAss draws under the rim (3D look); only in "glass" mode
 BOOL PACCLIQStyleDarkEdge(CAGradientLayer *g) {
     if (!g || !PACCLIQShouldGlass()) return NO;
     int mode = PACCLIQSpecularMode();

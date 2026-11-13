@@ -53,7 +53,6 @@ static void InitMediaRemote(void) {
     });
 }
 
-// ---- system volume (SpringBoard) ----
 static id PACCMediaController(void) {
     Class c = NSClassFromString(@"SBMediaController");
     SEL s = NSSelectorFromString(@"sharedInstance");
@@ -104,7 +103,6 @@ static NSString *PACCTimeString(double seconds, BOOL negative) {
     return [NSString stringWithFormat:@"%@%d:%02d", negative ? @"-" : @"", total / 60, total % 60];
 }
 
-// Set a view's geometry without breaking an active transform.
 static void PACCPlace(UIView *v, CGRect f) {
     v.bounds = CGRectMake(0.0, 0.0, f.size.width, f.size.height);
     v.center = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
@@ -681,7 +679,6 @@ static void PACCPlace(UIView *v, CGRect f) {
 
                 BOOL holdProgress = strongSelf.seeking || CACurrentMediaTime() < strongSelf.seekHoldUntil;
                 if (holdProgress) {
-                    // keep what the user just set
                 } else if (elapsed > 0 && duration > 0) {
                     strongSelf.progressPct = elapsed / duration;
                     strongSelf.elapsedLabel.text   = [NSString stringWithFormat:@"%d:%02d", (int)elapsed / 60, (int)elapsed % 60];
@@ -718,7 +715,6 @@ static void PACCPlace(UIView *v, CGRect f) {
     }
 }
 
-// While a slider is being dragged, the swipe gestures of the Control Center must not steal the touch.
 - (void)lockAncestorGestures {
     if (self.lockedGestures) return;
     self.lockedGestures = [NSMutableArray array];

@@ -134,6 +134,191 @@ known issue:
 ## 0.4.33
 - Expanded Connectivity: Apple's chrome around the panel is stripped on every container layout (the way ControlCenter26 does it) and restored afterwards.
 
+## 0.5.4
+The PACCLIQ glass no longer needs LiquidAss. With LiquidAss off or not installed, the controls use a built-in glass (blur, saturation, a light tint) with the same specular and edge layers. When LiquidAss is on, nothing changes.
+
+## 0.5.3
+- Everything named ccock18 is now ccock26 (package id, tweak and prefs bundle names, files, preferences domain pawxed.ccock26.preferences). Because the domain changed, saved settings start fresh. All // comments were removed from the source.
+
+## 0.5.2
+- The first-install Connectivity and Music Player pages start at 4x6.
+
+## 0.5.1
+- First install: Control Center starts with two pages of its own, a Connectivity page (4x6) and a Music Player page (4x6), like the old built-in pages. They are normal pages, so each one disappears when its control is removed. Only on a fresh install (no saved layout); an existing setup is left alone.
+- Page indicator: more space between the icons (39 to 50 pt).
+
+## 0.5.0
+- Music 2x2: back to our own tile, with the exact numbers of Control26's compact player (art 56, AirPlay bubble 42, title 14.5 semibold, transport at 84% height, 46 pt spacing). The MRU hooks are off.
+
+## 0.4.99
+- Music 2x2 is Apple's own view again (as in ControlCenter26), laid out like iOS 26 by hooks on MRUNowPlayingView / MRUNowPlayingHeaderView / MRUArtworkView / MRUNowPlayingTransportControlsView: large rounded artwork top left, round AirPlay button top right, title under the artwork, wide transport row. AirPlay works because it is Apple's button. The own 2x2 tile from 0.4.98 is no longer used for the module (only for stand-alone copies).
+
+## 0.4.98
+- Music at 2x2 now uses our own tile in the iOS 26 layout: large rounded artwork top left, an AirPlay bubble top right, a bold title and a wide transport row (previous / next dim while nothing plays). The AirPlay bubble is only a look for now.
+
+## 0.4.97
+- Empty-cell circles: on a page without any module the grid top now comes from a module of another page (it started too high, under the status bar), and the circles are removed as soon as edit mode ends.
+
+## 0.4.96
+- Edit mode: every free cell of the page you are on (page 0 and the pages you added) shows a faint circle, so you can see where a control fits.
+
+## 0.4.95
+- Edit mode (LiquidAss on): the outline sits right on the module edge (no gap); the remove button keeps its white fill again (with the thin rim and dark edge on top); the resize handle is back to the glass-bubble look.
+
+## 0.4.94
+- Edit mode: the module outline is back to its own look (no LiquidAss specular). The remove button loses its white fill and shows only the LiquidAss rim over a dark edge; the rim is thinner (0.6 pt) on the remove button and the resize handle, and both get the dark edge (3D look, glass mode only).
+
+## 0.4.93
+- LiquidAss: when a module that holds our controls (a real Music / Connectivity module made bigger) already has LiquidAss's own LGLiveBackdropView, the PACCLIQ glass is not built (and removed if present), so the two no longer double up.
+
+## 0.4.92
+- Edit mode: the resize handle, the remove (minus) button and the module outline take the LiquidAss rim: mode (none / border / glass), opacity and Specular Type (iOS 26 / iOS 27) from the LiquidAss settings. Without LiquidAss the old look stays.
+
+## 0.4.91
+- Expanded Connectivity: the module glass behind the panel is hidden again (the grey backdrop came back in 0.4.77-0.4.90).
+- LiquidAss Specular Type (More Options > Extra stuff, Renderer.SpecularType): PACCLIQ follows it. iOS 26 = diagonal light (-135 degrees, LiquidAss's rest angle); iOS 27 = a horizontal bright band with the 12 alpha stops read from LiquidAss. The iOS 27 vibrance layer is not reproduced.
+
+## 0.4.90
+- LiquidAss: custom controls and the Music page use the PACCLIQ glass again (not LGLiveBackdropView). PACCLIQ now follows LiquidAss: the .rN radius step and .dark filter type like LiquidAss, the scale budget, the rim (none / border / glass) with its opacity and Fresnel strength, and the Control Center blur, all read from the LiquidAss settings.
+- Page indicator: the plain-page dot is smaller; the add-page button is an open ring (circle) instead of "+" and sits a little higher.
+
+## 0.4.89
+- Page indicator icons now follow ControlCenter26: the music page uses the bundled "music" symbol (SF music.note as fallback) instead of a hand-drawn note, and a plain page is a filled dot (circle.fill) instead of an open ring.
+
+## 0.4.88
+- LiquidAss: the radius lock also covers glass layers that fill only the width or only the height of a module (e.g. the 346x108 glass inside Now Playing, which was skipped and snapped back when held).
+
+## 0.4.87
+- LiquidAss: the glass shape (radius 38) is now locked for as long as Control Center is open, not only for a moment after a resize, so it no longer snaps back when a control is held/pressed.
+
+## 0.4.86
+- Diagnostics: one second after adding a copy, the log gets a "copy tree" of the new control (class, frame, radius per subview); [PACBig] lines now carry a timestamp.
+
+## 0.4.85
+- LiquidAss: custom controls create LGLiveBackdropView with the base ControlCenter type "dylv.liquidglass.cc" (LiquidAss appends the .rN radius step itself). With ".r2" the lens filter never resolved, which is why the glass looked dark/flat. Specular mode (iOS 27 / 26 / none), blur and the other Control Center settings now follow LiquidAss automatically.
+
+## 0.4.84
+- LiquidAss: PACCLIQGlassView is never created or kept while LiquidAss's LGLiveBackdropView class exists.
+
+## 0.4.83
+- LiquidAss: the Now Playing / Music page (CCAMediaPlayerView) now gets the real LGLiveBackdropView instead of PACCLIQGlassView.
+
+## 0.4.82
+- LiquidAss: every card of the custom Connectivity page and the custom toggles now use the real LGLiveBackdropView too (old material removed), not only the Music control.
+
+## 0.4.81
+- Music control copy on a new page: the LiquidAss glass lens is rebuilt when the page becomes visible and when the card enters a window (it was built while hidden and stayed empty).
+
+## 0.4.80
+- Music control copy: uses LiquidAss LGLiveBackdropView whenever that class exists (no longer depends on the PACCLIQ probe); logs the layout state.
+
+## 0.4.79
+- Music control: logs (ccock26-crash.log, [PACBig]) whether the LiquidAss glass view could be created and is live.
+
+## 0.4.78
+- LiquidAss: the custom Music control now uses a real LiquidAss LGLiveBackdropView (ControlCenter filter), the same as the modules. The old material and our PACCLIQ glass are removed.
+
+## 0.4.77
+- LiquidAss: the custom Music control uses LiquidAss's own glass again (same look as the modules); our older PACCLIQ glass is removed. The big Connectivity page keeps the LiquidAss glass behind it instead of stripping it.
+
+## 0.4.76
+- LiquidAss: the custom Music control no longer keeps its old material (and the extra glass LiquidAss built on it); only the one glass layer is used.
+
+## 0.4.75
+- LiquidAss: the glass radius fix now runs every frame for one second after each resize step, so the right shape shows at once instead of after a few seconds.
+
+## 0.4.74
+- LiquidAss: the opened (long-press) panel glass, which sits outside the module container, gets the same corner radius as the rest instead of a full pill.
+
+## 0.4.73
+- LiquidAss glass fix is also applied directly after each resize resync (not only through hooks); logs the wide glass layers and their radius after the fix.
+
+## 0.4.72
+- LiquidAss glass fix: no longer skips glass under a slider class (the log of 0.4.71 showed it only ran for 2x2); logs why a pill glass is skipped.
+
+## 0.4.71
+- LiquidAss glass fix: a method the class only inherits is added to that class instead of changing UIView for every view.
+
+## 0.4.70
+- LiquidAss: the radius fix also runs after the glass's updateSpecular, which LiquidAss calls each time it sets a radius, so it cannot put the pill back between layouts.
+
+## 0.4.69
+- LiquidAss: after the radius is corrected, the glass is told to rebuild its lens (updateSpecular / applyFilters), as LiquidAss does itself. The first fixes are written to the log.
+
+## 0.4.68
+- LiquidAss: glass layers inset from the module (7.5pt) are matched by size ratio, and the glass lays out again after its radius changes.
+
+## 0.4.67
+- LiquidAss: the radius fix also runs after the module container's layout and covers the inset glass layers, so the extra pill-shaped material is rounded like the rest.
+
+## 0.4.66
+- LiquidAss: every control size keeps the corner of a 1x1 control (LiquidAss alone makes wide / tall ones into pills). The glass and the edit outline use the same radius.
+
+## 0.4.65
+- LiquidAss: found the cause in its source: it rounds the glass from the module's current bounds on every layout, so an animated resize shows in-between sizes as pills. Now a resize or move is laid out in one step with LiquidAss (no animated bounds), so the glass gets its final shape at once. Per-frame glass lock removed.
+
+## 0.4.64
+- Fix build error (undeclared PACLockGlassShape): one glass-lock path only.
+
+## 0.4.63
+- LiquidAss: while resizing, its glass is locked every frame to the module's outline (same size, same corner radius), so it follows the edge and cannot bend.
+
+## 0.4.62
+- LiquidAss: resizing now works like Control26: every size step and the final size run Control Center's relayout in one spring animation.
+
+## 0.4.61
+- LiquidAss: the edit outline takes its corner radius from the control's size, not from the changing layer, so it no longer turns into a circle or pill by mistake.
+
+## 0.4.60
+- LiquidAss: resizing a control no longer animates the modules, so the glass cannot bend.
+
+## 0.4.59
+- LiquidAss: glass is kept hidden every frame during a resize (LiquidAss kept bringing it back), then fades in.
+
+## 0.4.58
+- LiquidAss: a resize also runs Control Center's own relayout inside one spring animation, the way Control26 does it.
+
+## 0.4.57
+- LiquidAss: the glass of every module is hidden while a resize animates (it bent into diamonds) and fades back in when all modules have settled.
+
+## 0.4.56
+- Diagnostics: the glass dump after a resize now lists every visible module (size, radius, glass views), not only the resized one.
+
+## 0.4.55
+- Diagnostics: after a resize with LiquidAss active, the view tree of the resized module and its glass (class, frame, radius) is written to ccock26-crash.log (first 6 resizes per launch).
+
+## 0.4.54
+- LiquidAss: CCock26 no longer writes corner radii into the modules' layers while LiquidAss is active (Control26 never does either); Control Center and LiquidAss follow every size natively, so the glass stays the right shape after a resize. Removed the forced glass resize of 0.4.53.
+
+## 0.4.53
+- LiquidAss: after a resize the module's own LiquidAss glass is put back on the module's current size and radius, so it no longer stays 1x1 or bends into a diamond.
+
+## 0.4.52
+- Reverted the glass hiding during resize (0.4.51): it did not help and the white tiles next to a resized module stayed diamond shaped.
+
+## 0.4.51
+- LiquidAss: the glass of a module is hidden while the module changes size (it bent into a diamond / octagon) and fades back in once it has settled.
+
+## 0.4.50
+- The lower-case duplicate name on Wi-Fi / Cellular / Bluetooth / Hotspot modules came from the resize title of CCock26 itself; our own modules are now left alone by it.
+- Edit mode: outlines, minus buttons and resize rings left behind by removed or replaced controls are swept away while editing, not only when leaving edit mode.
+
+## 0.4.49
+- Modules: also look for the stray name label inside the module's own view, and write a one-time view-tree dump of the first wide module to ccock26-crash.log (to find where that label comes from).
+
+## 0.4.48
+- Wide Wi-Fi / Cellular / Bluetooth / Hotspot modules: the second, lower-case name label drawn by Control Center is hidden.
+
+## 0.4.47
+- Wi-Fi / Cellular / Bluetooth / Hotspot modules: the 2x1 size is the pill again (round glyph on the left, name and On/Off on the right).
+- Fix: resize handle, minus button and outline staying on screen after leaving edit mode (leftovers whose module was replaced are swept away).
+
+## 0.4.46
+- Modules (Wi-Fi, Cellular, Bluetooth, Hotspot): adopt Control Center's module protocols at load so they are accepted and drawn.
+
+## 0.4.45
+- Build fix: unused variable in the module bundles (Bluetooth, Hotspot).
+
 ## 0.4.44
 - Wi-Fi, Cellular Data, Bluetooth and Hotspot are real Control Center modules now (bundles in modules/, like SiriPlusCC). They show up in Settings > Control Center and in Add a Control. They press the real Connectivity button, so Connectivity has to stay on the grid.
 - The earlier built-in copies of these four are gone from the Add a Control list.

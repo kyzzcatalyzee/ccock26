@@ -20,7 +20,7 @@ typedef struct { NSUInteger c, r, w, h; } PACRect;
 
 static NSUInteger kPACCols = 4;
 static NSUInteger kPACRows = 8;
-static NSUInteger kPACStride = 8;   // rows per page in the stored origin (visible rows + spacer rows)
+static NSUInteger kPACStride = 8;
 static NSUInteger gPACEditEpoch = 0;
 static CFTimeInterval gEditModeEnteredAt = 0;
 static NSInteger gPACLastPresentationState = 1;
@@ -56,7 +56,7 @@ static const NSInteger kPACPickerTag       = 182009;
 static const NSInteger kPACToastTag        = 182010;
 static const NSInteger kPACPageAddTag      = 182011;
 static const NSInteger kPACLayersTag       = 182012;
-static const NSInteger kPACSlotTag         = 182060;   // empty-cell placeholders shown while editing
+static const NSInteger kPACSlotTag         = 182060;
 
 static const void *kPACBorderKey   = &kPACBorderKey;
 static const void *kPACRemoveKey   = &kPACRemoveKey;
@@ -145,7 +145,7 @@ static void PACEnsureUserPages(void) {
     PACSeedDefaultPages();
     if (gPACUserPagesLoaded) return;
     gPACUserPagesLoaded = YES;
-    CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditUserPages"), CFSTR("pawxed.ccock18.preferences"));
+    CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditUserPages"), CFSTR("pawxed.ccock26.preferences"));
     if (v && CFGetTypeID(v) == CFNumberGetTypeID()) gPACUserPages = [(__bridge NSNumber *)v unsignedIntegerValue];
     if (v) CFRelease(v);
     NSUInteger room = kPACMaxPages > PACBasePageCount() ? kPACMaxPages - PACBasePageCount() : 0;
@@ -153,11 +153,10 @@ static void PACEnsureUserPages(void) {
 }
 
 static void PACSaveUserPages(void) {
-    CFPreferencesSetAppValue(CFSTR("EditUserPages"), (__bridge CFPropertyListRef)@(gPACUserPages), CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(CFSTR("EditUserPages"), (__bridge CFPropertyListRef)@(gPACUserPages), CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
-// first index of the pages the user added (they come after the built-in pages)
 static BOOL PACIsUserPage(NSUInteger page) {
     PACEnsureUserPages();
     return page >= PACBasePageCount() && page < PACBasePageCount() + gPACUserPages;
@@ -165,9 +164,8 @@ static BOOL PACIsUserPage(NSUInteger page) {
 
 static void PACRefreshGridConstants(void);
 
-// The built-in music and paw pages are gone: pages of your own move up to sit right after page 1.
 static NSUInteger PACOldBasePages(void) {
-    CFPropertyListRef p = CFPreferencesCopyAppValue(CFSTR("PromoPageEnabled"), CFSTR("pawxed.ccock18.preferences"));
+    CFPropertyListRef p = CFPreferencesCopyAppValue(CFSTR("PromoPageEnabled"), CFSTR("pawxed.ccock26.preferences"));
     BOOL promo = YES;
     if (p && CFGetTypeID(p) == CFBooleanGetTypeID()) promo = CFBooleanGetValue((CFBooleanRef)p);
     if (p) CFRelease(p);
@@ -175,21 +173,19 @@ static NSUInteger PACOldBasePages(void) {
 }
 
 static BOOL PACFlagIsSet(CFStringRef key) {
-    CFPropertyListRef f = CFPreferencesCopyAppValue(key, CFSTR("pawxed.ccock18.preferences"));
+    CFPropertyListRef f = CFPreferencesCopyAppValue(key, CFSTR("pawxed.ccock26.preferences"));
     BOOL on = (f && CFGetTypeID(f) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)f));
     if (f) CFRelease(f);
     return on;
 }
 
 static void PACSetFlag(CFStringRef key) {
-    CFPreferencesSetAppValue(key, kCFBooleanTrue, CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(key, kCFBooleanTrue, CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
-// First install: start with a Connectivity page and a Music Player page, like the pages Control Center used to have.
-// They are ordinary user pages, so they go away by themselves when their control is removed.
 static BOOL PACPrefKeyExists(CFStringRef key) {
-    CFPropertyListRef v = CFPreferencesCopyAppValue(key, CFSTR("pawxed.ccock18.preferences"));
+    CFPropertyListRef v = CFPreferencesCopyAppValue(key, CFSTR("pawxed.ccock26.preferences"));
     BOOL has = (v != NULL);
     if (v) CFRelease(v);
     return has;
@@ -199,12 +195,12 @@ static void PACSeedDefaultPages(void) {
     static BOOL done = NO;
     if (done) return;
     if (PACFlagIsSet(CFSTR("DefaultPagesSeeded"))) { done = YES; return; }
-    if (PACIsLandscape()) return;                       // the page stride is only valid in portrait: try again later
+    if (PACIsLandscape()) return;
     done = YES;
     BOOL fresh = !PACPrefKeyExists(CFSTR("EditUserPages")) && !PACPrefKeyExists(CFSTR("EditClones")) &&
                  !PACPrefKeyExists(CFSTR("EditGridOrigins"));
     PACSetFlag(CFSTR("DefaultPagesSeeded"));
-    if (!fresh) return;                                  // an existing setup keeps what it has
+    if (!fresh) return;
     PACRefreshGridConstants();
     NSUInteger base = PACBasePageCount();
     NSUInteger conn = base * kPACStride, music = (base + 1) * kPACStride;
@@ -212,20 +208,19 @@ static void PACSeedDefaultPages(void) {
         @{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(conn),  @"w": @4, @"h": @6},
         @{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @(music), @"w": @4, @"h": @6},
     ];
-    CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)clones, CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesSetAppValue(CFSTR("EditUserPages"), (__bridge CFPropertyListRef)@(2), CFSTR("pawxed.ccock18.preferences"));
-    // nothing to move: the built-in pages are gone, so the old-layout migrations must not run on these
-    CFPreferencesSetAppValue(CFSTR("BuiltinPagesGone"), kCFBooleanTrue, CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesSetAppValue(CFSTR("BuiltinPagesGoneClones"), kCFBooleanTrue, CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)clones, CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesSetAppValue(CFSTR("EditUserPages"), (__bridge CFPropertyListRef)@(2), CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesSetAppValue(CFSTR("BuiltinPagesGone"), kCFBooleanTrue, CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesSetAppValue(CFSTR("BuiltinPagesGoneClones"), kCFBooleanTrue, CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
 static void PACEnsureStore(void) {
     static BOOL metricsLoaded = NO;
     if (!metricsLoaded) {
         metricsLoaded = YES;
-        CFPropertyListRef c = CFPreferencesCopyAppValue(CFSTR("GridCell"), CFSTR("pawxed.ccock18.preferences"));
-        CFPropertyListRef g = CFPreferencesCopyAppValue(CFSTR("GridGap"),  CFSTR("pawxed.ccock18.preferences"));
+        CFPropertyListRef c = CFPreferencesCopyAppValue(CFSTR("GridCell"), CFSTR("pawxed.ccock26.preferences"));
+        CFPropertyListRef g = CFPreferencesCopyAppValue(CFSTR("GridGap"),  CFSTR("pawxed.ccock26.preferences"));
         if (c && g && CFGetTypeID(c) == CFNumberGetTypeID() && CFGetTypeID(g) == CFNumberGetTypeID()) {
             PACCSetGridMetrics([(__bridge NSNumber *)c doubleValue], [(__bridge NSNumber *)g doubleValue]);
         }
@@ -233,7 +228,7 @@ static void PACEnsureStore(void) {
         if (g) CFRelease(g);
     }
     if (!gEditOrigins) {
-        CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridOrigins"), CFSTR("pawxed.ccock18.preferences"));
+        CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridOrigins"), CFSTR("pawxed.ccock26.preferences"));
         gEditOrigins = [(__bridge NSDictionary *)v mutableCopy] ?: [NSMutableDictionary dictionary];
         if (v) CFRelease(v);
     }
@@ -251,17 +246,17 @@ static void PACEnsureStore(void) {
                 NSUInteger a = o[1].unsignedIntegerValue;
                 if (a / stride >= old) gEditOrigins[key] = @[o[0], @(a - (old - 1) * stride)];
             }
-            CFPreferencesSetAppValue(CFSTR("EditGridOrigins"), (__bridge CFPropertyListRef)[gEditOrigins copy], CFSTR("pawxed.ccock18.preferences"));
+            CFPreferencesSetAppValue(CFSTR("EditGridOrigins"), (__bridge CFPropertyListRef)[gEditOrigins copy], CFSTR("pawxed.ccock26.preferences"));
             PACSetFlag(CFSTR("BuiltinPagesGone"));
         }
     }
     if (!gEditSizes) {
-        CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridSizes"), CFSTR("pawxed.ccock18.preferences"));
+        CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridSizes"), CFSTR("pawxed.ccock26.preferences"));
         gEditSizes = [(__bridge NSDictionary *)v mutableCopy] ?: [NSMutableDictionary dictionary];
         if (v) CFRelease(v);
     }
     if (!gEditBaseSizes) {
-        CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditBaseSizes"), CFSTR("pawxed.ccock18.preferences"));
+        CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditBaseSizes"), CFSTR("pawxed.ccock26.preferences"));
         gEditBaseSizes = [(__bridge NSDictionary *)v mutableCopy] ?: [NSMutableDictionary dictionary];
         if (v) CFRelease(v);
     }
@@ -269,10 +264,10 @@ static void PACEnsureStore(void) {
 
 static void PACSaveStore(void) {
     PACEnsureStore();
-    CFPreferencesSetAppValue(CFSTR("EditGridOrigins"), (__bridge CFPropertyListRef)[gEditOrigins copy], CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesSetAppValue(CFSTR("EditGridSizes"),   (__bridge CFPropertyListRef)[gEditSizes copy],   CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesSetAppValue(CFSTR("EditBaseSizes"),   (__bridge CFPropertyListRef)[gEditBaseSizes copy], CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(CFSTR("EditGridOrigins"), (__bridge CFPropertyListRef)[gEditOrigins copy], CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesSetAppValue(CFSTR("EditGridSizes"),   (__bridge CFPropertyListRef)[gEditSizes copy],   CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesSetAppValue(CFSTR("EditBaseSizes"),   (__bridge CFPropertyListRef)[gEditBaseSizes copy], CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
 static BOOL PACIsNotchedDevice(void) {
@@ -511,8 +506,6 @@ static NSString *PACMid(UIViewController *vc) {
     return nil;
 }
 
-// Where the module sits in the collection view's own coordinates (the layout position, before the page offset).
-// Built by adding up the view frames, so it does not matter how UIKit treats sublayerTransform in convertRect.
 static BOOL PACRawFrame(UIViewController *m, UIViewController *overlay, CGRect *out) {
     UIViewController *col = ModuleCollection(overlay);
     UIView *cv = col.view;
@@ -546,7 +539,6 @@ static CGRect PACVisibleFrame(UIViewController *m, UIViewController *overlay) {
     return [m.view convertRect:m.view.bounds toView:overlay.view];
 }
 
-// Reads the real cell size and gap from where the modules sit, so paging and the grid math fit this device.
 static void PACUpdateGridMetrics(UIViewController *ov) {
     if (!ov || PACIsLandscape() || gPACPendingResizeID || gPageAnimating) return;
     static CFTimeInterval last = 0;
@@ -575,7 +567,7 @@ static void PACUpdateGridMetrics(UIViewController *ov) {
     CGFloat stepY = (rB != rA) ? (maxY - minY) / (CGFloat)(rB - rA) : 0.0;
     CGFloat step = 0.0;
     if (stepX > 0.0 && stepY > 0.0) {
-        if (fabs(stepX - stepY) > 1.0) return;     // modules are still moving
+        if (fabs(stepX - stepY) > 1.0) return;
         step = (stepX + stepY) * 0.5;
     } else {
         step = MAX(stepX, stepY);
@@ -588,9 +580,9 @@ static void PACUpdateGridMetrics(UIViewController *ov) {
     if (fabs(cell - PACCGridCell()) < 0.4 && fabs(gap - PACCGridGap()) < 0.4) return;
 
     PACCSetGridMetrics(cell, gap);
-    CFPreferencesSetAppValue(CFSTR("GridCell"), (__bridge CFPropertyListRef)@(cell), CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesSetAppValue(CFSTR("GridGap"),  (__bridge CFPropertyListRef)@(gap),  CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(CFSTR("GridCell"), (__bridge CFPropertyListRef)@(cell), CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesSetAppValue(CFSTR("GridGap"),  (__bridge CFPropertyListRef)@(gap),  CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
     PACRefreshGridConstants();
     [ov.view setNeedsLayout];
 }
@@ -614,8 +606,6 @@ static CGPoint PACGridBase(UIViewController *overlay) {
     PACEnsureStore();
     CGFloat bx = CGFLOAT_MAX, by = CGFLOAT_MAX;
     NSInteger page = MAX((NSInteger)0, gCurrentPage);
-    // Any module can tell where the grid starts, also one on another page (its frame already
-    // includes the page offset), so an empty page still knows where its rows are.
     for (UIViewController *m in ModuleControllers(overlay)) {
         NSString *mid = PACMid(m);
         if (!mid.length) continue;
@@ -633,7 +623,6 @@ static CGPoint PACGridBase(UIViewController *overlay) {
         if (y < by) by = y;
     }
     if (bx == CGFLOAT_MAX) {
-        // no module on this page: the rows are the same on every page, so take the top from a module of any other page
         CGFloat w = CGRectGetWidth(overlay.view.bounds);
         CGFloat gw = kPACCols * kPACCell + (kPACCols - 1) * kPACgap;
         bx = (w - gw) * 0.5;
@@ -786,7 +775,6 @@ static BOOL PACSizeAllowed(NSUInteger w, NSUInteger h) {
     return YES;
 }
 
-// Connectivity and Music have their own list of sizes (2x2, 4x4, 4x6 / 2x2, 4x2, 4x4, 4x6).
 static BOOL PACSizeAllowedFor(NSString *mid, NSUInteger w, NSUInteger h) {
     if (PACCBigKind(mid)) return PACCBigSizeAllowed(mid, w, h) && w <= kPACCols && h <= kPACRows;
     return PACSizeAllowed(w, h);
@@ -1095,20 +1083,16 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
     CGFloat heightPt = (CGFloat)h * kPACCell + ((CGFloat)h - 1.0) * kPACgap;
     if (widthPt <= 0.0 || heightPt <= 0.0) return 22.0;
 
-    // LiquidAss turns anything that is not squarish into a pill. We make its glass use the 1x1 radius for every size
-    // (PACInstallGlassFix), and the outline uses the same number.
     if (PACCLIQIsActive()) {
         CGFloat mn = MIN(widthPt, heightPt), mx = MAX(widthPt, heightPt);
         (void)mx;
-        return MIN(floor(kPACCell * 0.5), floor(mn * 0.5));   // every size keeps the same corner, no pills
+        return MIN(floor(kPACCell * 0.5), floor(mn * 0.5));
     }
 
     return calculatedRadius(CGRectMake(0.0, 0.0, widthPt, heightPt), 22.0);
 }
 
 
-// LiquidAss glass: every module keeps the corner radius of a 1x1 control, whatever its size (LiquidAss alone makes
-// wide / tall ones pills). Runs after the glass's own layout, so it has the last word whichever tweak loaded first.
 static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
@@ -1120,15 +1104,14 @@ static void PACFixGlassRadius(UIView *g) {
         if ([n isEqualToString:@"CCUIContentModuleContainerView"]) { module = a; break; }
     }
     CGSize gs = g.bounds.size;
-    BOOL wide = gs.width > 200 && g.layer.cornerRadius > 50;   // the pill we are after
+    BOOL wide = gs.width > 200 && g.layer.cornerRadius > 50;
     static int skipLogged = 0, skipLogged2 = 0;
-    // The opened (long-press) panel has no module container above it; its content container sits in the overlay itself.
     BOOL panel = !module && g.superview && [NSStringFromClass(g.superview.class) hasPrefix:@"CCUIContentModuleContentContainer"]
                  && gs.width > 300 && gs.height > 300;
     if (!module && !panel) { if (wide && skipLogged++ < 3) PACLog(@"glass skip (no module) %@", chain); return; }
     CGSize ms = panel ? gs : module.bounds.size;
     if (gs.width < 30 || gs.height < 30) return;
-    if (gs.width < ms.width * 0.8 && gs.height < ms.height * 0.8) {   // the module's own glass layers, inset or not
+    if (gs.width < ms.width * 0.8 && gs.height < ms.height * 0.8) {
         if (wide && skipLogged2++ < 3) PACLog(@"glass skip (size) %@ module=%@ %@", NSStringFromCGSize(gs), NSStringFromCGSize(ms), chain);
         return;
     }
@@ -1143,7 +1126,6 @@ static void PACFixGlassRadius(UIView *g) {
         }
     } @catch (__unused NSException *e) {}
     if (changed) {
-        // The lens is a filter built for the old shape; it only changes when LiquidAss is told to rebuild it.
         g.layer.cornerCurve = kCACornerCurveContinuous;
         if ([g respondsToSelector:NSSelectorFromString(@"updateSpecular")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"updateSpecular"));
         if ([g respondsToSelector:NSSelectorFromString(@"applyFilters")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"applyFilters"));
@@ -1174,11 +1156,9 @@ static void PACSwizzleAfter(Class c, SEL sel, void (^after)(UIView *)) {
         ((void (*)(id, SEL))orig)(self_, sel);
         after(self_);
     });
-    // If the class only inherits the method, add our own to the class (never change the superclass, i.e. UIView itself).
     if (!class_addMethod(c, sel, repl, method_getTypeEncoding(m))) method_setImplementation(m, repl);
 }
 
-// Installed once LiquidAss is loaded, so these wrap its own hooks and run after them.
 static void PACInstallGlassFix(void) {
     static BOOL done = NO;
     if (done) return;
@@ -1186,7 +1166,6 @@ static void PACInstallGlassFix(void) {
     if (!glass) return;
     done = YES;
     PACSwizzleAfter(glass, @selector(layoutSubviews), ^(UIView *v) { PACFixGlassRadius(v); });
-    // LiquidAss calls updateSpecular whenever it sets a radius, so the fix also follows that (it can set it between layouts)
     PACSwizzleAfter(glass, NSSelectorFromString(@"updateSpecular"), ^(UIView *v) { PACFixGlassRadius(v); });
     for (NSString *cn in @[@"CCUIContentModuleContentContainerView", @"CCUIContentModuleContentContainer"]) {
         Class c = NSClassFromString(cn);
@@ -1236,7 +1215,6 @@ static BOOL PACModuleIsExpanded(UIViewController *m) {
 
 static void PACSetRadius(CALayer *layer, CGFloat radius, BOOL animate) {
     if (PACCLIQIsActive()) {
-        // LiquidAss follows the radius itself; an animated radius is what bends its glass.
         animate = NO;
         [layer removeAnimationForKey:@"pac.radius"];
     }
@@ -1262,7 +1240,6 @@ static void PACSetRadius(CALayer *layer, CGFloat radius, BOOL animate) {
     }
 }
 
-// Makes LiquidAss lay its glass out again for the module's current size.
 static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void PACResyncGlass(UIViewController *m) {
     if (!m.view || !PACCLIQIsActive()) return;
@@ -1278,7 +1255,6 @@ static void PACResyncGlass(UIViewController *m) {
         }
         [root layoutIfNeeded];
     }];
-    // Do the glass fix directly as well: it does not depend on LiquidAss calling our hooks.
     PACFixGlassIn(root);
     static int diag = 0;
     if (diag < 6) {
@@ -1295,7 +1271,6 @@ static void PACResyncGlass(UIViewController *m) {
     }
 }
 
-// Diagnostics: after a resize, writes size / radius / glass of every module to the crash log
 static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void PACDumpGlassTree(UIViewController *ov, NSString *mid) {
     static int count = 0;
@@ -1324,8 +1299,6 @@ static void PACDumpGlassTree(UIViewController *ov, NSString *mid) {
     PACLog(@"%@", out);
 }
 
-// While modules change size / move, LiquidAss's glass bends into diamonds (its lens is not made for a size that animates).
-// The glass of every module is hidden for the animation and fades back in once everything has settled.
 static NSInteger gPACGlassHoldToken = 0;
 
 @interface PACGlassHolder : NSObject
@@ -1336,7 +1309,6 @@ static NSInteger gPACGlassHoldToken = 0;
 @property (nonatomic) BOOL keeper;
 @end
 @implementation PACGlassHolder
-// Every frame for a short while after a layout change: the glass radius fix, so no wrong shape is ever shown.
 - (void)tick:(CADisplayLink *)l {
     UIViewController *ov = self.ov;
     if ((!self.keeper && self.token != gPACGlassHoldToken) || !ov || CACurrentMediaTime() > self.until) { [l invalidate]; return; }
@@ -1352,7 +1324,7 @@ static NSInteger gPACGlassHoldToken = 0;
 @end
 
 static PACGlassHolder *gPACGlassHolder;
-static PACGlassHolder *gPACGlassKeeper;   // runs the whole time Control Center is open (the shape snaps back when a control is held)
+static PACGlassHolder *gPACGlassKeeper;
 
 static void PACKeepGlassLocked(UIViewController *ov, BOOL on) {
     [gPACGlassKeeper.link invalidate];
@@ -1380,9 +1352,6 @@ static void PACHoldAllGlass(UIViewController *ov, NSTimeInterval hold) {
     gPACGlassHolder = h;
 }
 
-// LiquidAss works out the glass shape in layoutSubviews from the module's current bounds. If those bounds animate, it sees
-// in-between sizes (166x120, ...) and rounds them like pills, which is the diamond / octagon. So with LiquidAss a layout
-// change is applied in one step: the module has its final size on the first layout and the glass is right at once.
 static void PACSpringRelayout(UIViewController *ov, void (^extra)(void)) {
     UIViewController *colvc = ModuleCollection(ov);
     Class IM = NSClassFromString(@"CCUIModuleInstanceManager");
@@ -1426,8 +1395,6 @@ static void PACApplyRadiusToModule(UIViewController *m) {
     NSString *mid = PACMid(m);
     if (!mid.length) return;
 
-    // With LiquidAss active the corner radius is left to Control Center and LiquidAss: they already follow every size
-    // natively. Writing our own radius into the module's layers is what bent its glass into a diamond.
     if (PACCLIQIsActive()) {
         if (objc_getAssociatedObject(m.view, kPACLastRadiusKey)) PACRestoreModuleRadius(m);
         return;
@@ -1616,14 +1583,10 @@ static UIViewPropertyAnimator *PACBezierAnimator(NSTimeInterval duration,
     return a;
 }
 
-// LiquidAss glass behind a chrome button; a thin blur takes its place when LiquidAss is not active
 static void PACGlassBackdrop(UIView *host, CGFloat radius) {
-    // plain translucent white, no liquid glass
     host.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.16];
 }
 
-// Edit-mode outline of a control: a glass-bubble look (bright rim on the upper left, darker rim underneath,
-// a soft inner glow and a drop shadow), instead of a flat border.
 @interface PACGlassBorderView : UIView
 @end
 @implementation PACGlassBorderView {
@@ -1668,7 +1631,6 @@ static void PACGlassBackdrop(UIView *host, CGFloat radius) {
 }
 @end
 
-// the outline sits right on the LiquidAss glass edge (the stock inset left a gap)
 static inline CGFloat PACBorderInset(void) { return PACCLIQIsActive() ? 0.0 : kPACBorderInset; }
 
 static UIView *PACMakeBorder(void) {
@@ -1678,7 +1640,7 @@ static UIView *PACMakeBorder(void) {
     v.layer.cornerCurve = kCACornerCurveContinuous;
     v.layer.masksToBounds = NO;
     v.layer.shadowColor = UIColor.blackColor.CGColor;
-    v.layer.shadowOpacity = 0.0;        // no drop shadow, the rim alone gives the depth
+    v.layer.shadowOpacity = 0.0;
 
     CABasicAnimation *pulse = [CABasicAnimation animationWithKeyPath:@"opacity"];
     pulse.fromValue = @0.85;
@@ -1702,7 +1664,7 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
     b.layer.cornerCurve = kCACornerCurveContinuous;
     b.layer.masksToBounds = NO;
     b.layer.shadowColor = UIColor.blackColor.CGColor;
-    b.layer.shadowOpacity = 0.22;               // drop shadow underneath, gives the 3D look
+    b.layer.shadowOpacity = 0.22;
     b.layer.shadowRadius = 3.0;
     b.layer.shadowOffset = CGSizeMake(0, 2);
 
@@ -1718,7 +1680,6 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
     [b addSubview:icon];
     PACGlassBackdrop(b, 15.0);
     if (PACCLIQIsActive()) {
-        // LiquidAss is on: no white fill, only the thin LiquidAss rim over a dark edge (3D look)
         CAGradientLayer *dark = [CAGradientLayer layer];
         CAGradientLayer *ring = [CAGradientLayer layer];
         dark.frame = ring.frame = b.bounds;
@@ -1733,7 +1694,7 @@ static UIButton *PACMakeRemoveButton(NSString *mid) {
                 g.mask = m;
                 [b.layer addSublayer:g];
             }
-            b.layer.borderWidth = 0;   // the white fill stays
+            b.layer.borderWidth = 0;
         }
     }
 
@@ -1756,13 +1717,12 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     CAShapeLayer *pill = [CAShapeLayer layer];
     pill.path = cornerPath.CGPath;
     pill.fillColor = UIColor.clearColor.CGColor;
-    pill.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.18].CGColor;   // translucent body, no square behind it
+    pill.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.18].CGColor;
     pill.lineWidth = 12.5;
     pill.lineCap = kCALineCapRound;
     pill.lineJoin = kCALineJoinRound;
     [b.layer addSublayer:pill];
 
-    // glass bubble look: a bright rim on the upper edge, a darker rim underneath, and a lighter body
     CAShapeLayer *rimMask = [CAShapeLayer layer];
     rimMask.path = cornerPath.CGPath;
     rimMask.fillColor = UIColor.clearColor.CGColor;
@@ -1770,7 +1730,7 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     rimMask.lineWidth = 12.0;
     rimMask.lineCap = kCALineCapRound;
     rimMask.lineJoin = kCALineJoinRound;
-    CAShapeLayer *rimEdge = [CAShapeLayer layer];            // outline of the strip, shown only as a thin line
+    CAShapeLayer *rimEdge = [CAShapeLayer layer];
     rimEdge.path = CGPathCreateCopyByStrokingPath(cornerPath.CGPath, NULL, 12.0, kCGLineCapRound, kCGLineJoinRound, 10.0);
     rimEdge.fillColor = UIColor.clearColor.CGColor;
     rimEdge.strokeColor = UIColor.whiteColor.CGColor;
@@ -1785,7 +1745,7 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     rim.mask = rimEdge;
     [b.layer addSublayer:rim];
 
-    CAShapeLayer *gloss = [CAShapeLayer layer];              // small specular streak on the curve
+    CAShapeLayer *gloss = [CAShapeLayer layer];
     gloss.path = cornerPath.CGPath;
     gloss.fillColor = UIColor.clearColor.CGColor;
     gloss.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.30].CGColor;
@@ -1796,7 +1756,7 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
     gloss.strokeEnd = 0.7;
     [b.layer addSublayer:gloss];
 
-    b.layer.shadowColor = UIColor.blackColor.CGColor;     // drop shadow under the handle (3D look)
+    b.layer.shadowColor = UIColor.blackColor.CGColor;
     b.layer.shadowOpacity = 0.25;
     b.layer.shadowRadius = 3.0;
     b.layer.shadowOffset = CGSizeMake(1, 3);
@@ -1809,7 +1769,7 @@ static UIButton *PACMakeResizeButton(NSString *mid) {
 static UIButton *PACMakeResetButton(void) {
     UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
     b.tag = kPACResetTag;
-    b.backgroundColor = UIColor.clearColor;     // no backdrop behind it
+    b.backgroundColor = UIColor.clearColor;
     b.layer.cornerRadius = 20.0;
     b.layer.cornerCurve = kCACornerCurveContinuous;
     b.layer.masksToBounds = NO;
@@ -1900,7 +1860,6 @@ static void PACCollectIdentifiers(id container, NSMutableOrderedSet<NSString *> 
     }
 }
 
-// Every module the Control Center knows about that is not on the screen right now.
 static NSArray<NSString *> *PACAvailableModuleIdentifiers(void) {
     NSMutableOrderedSet<NSString *> *all = [NSMutableOrderedSet orderedSet];
     id prov = PACSettingsProvider();
@@ -1926,13 +1885,11 @@ static NSArray<NSString *> *PACAvailableModuleIdentifiers(void) {
             if (b.bundleIdentifier.length) [all addObject:b.bundleIdentifier];
         }
     }
-    // Connectivity and Music are fixed modules, so the settings provider never lists them as available.
     [all addObject:@"com.apple.control-center.ConnectivityModule"];
     [all addObject:@"com.apple.mediaremote.controlcenter.nowplaying"];
     NSArray<NSString *> *enabled = PACProviderOrderedIdentifiers() ?: @[];
     NSMutableArray<NSString *> *result = [NSMutableArray array];
     for (NSString *mid in all) {
-        // Connectivity and Music stay in the list even when already on the grid; picking one moves it to the first free spot
         BOOL alwaysListed = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"] ||
                             [mid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"];
         if (!alwaysListed && [enabled containsObject:mid]) continue;
@@ -1991,7 +1948,6 @@ static NSString *PACNameForIdentifier(NSString *mid) {
     return result.length ? result : @"Control";
 }
 
-// Ask the Control Center to load the modules again after the enabled list changed (same call CCSupport uses).
 static void PACReloadModuleRepository(void) {
     id repo = PACModuleRepository();
     if (!repo) { PACLog(@"reload: no repository"); return; }
@@ -2035,7 +1991,7 @@ static void PACLogMethods(Class cls) {
 static const NSInteger kPACCloneTag   = 182200;
 static const NSInteger kPACCloneBgTag = 182201;
 static const void *kPACCloneIDKey = &kPACCloneIDKey;
-static NSMutableArray<NSMutableDictionary *> *gPACClones;      // {id, mid, c, a, w, h}
+static NSMutableArray<NSMutableDictionary *> *gPACClones;
 
 static void PACSaveClones(void);
 
@@ -2043,7 +1999,7 @@ static void PACEnsureClones(void) {
     PACSeedDefaultPages();
     if (gPACClones) return;
     gPACClones = [NSMutableArray array];
-    CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditClones"), CFSTR("pawxed.ccock18.preferences"));
+    CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditClones"), CFSTR("pawxed.ccock26.preferences"));
     if (v && CFGetTypeID(v) == CFArrayGetTypeID()) {
         for (id d in (__bridge NSArray *)v) {
             if ([d isKindOfClass:NSDictionary.class]) [gPACClones addObject:[d mutableCopy]];
@@ -2064,11 +2020,10 @@ static void PACEnsureClones(void) {
 
 static void PACSaveClones(void) {
     PACEnsureClones();
-    CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)[gPACClones copy], CFSTR("pawxed.ccock18.preferences"));
-    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock18.preferences"));
+    CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)[gPACClones copy], CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
-// Where the grid starts inside the collection view (page independent), cached for moments when modules are moving.
 static CGFloat gPACGridBX = 0, gPACGridBY = 0;
 static BOOL gPACGridHave = NO;
 
@@ -2114,7 +2069,6 @@ static void PACCloneChromeToFront(UIViewController *ov) {
     }
 }
 
-// What a page holds, for its icon in the pager: Connectivity wins over Music Player.
 extern "C" int PACCPageContentKind(NSUInteger page) {
     PACEnsureStore();
     PACEnsureClones();
@@ -2152,7 +2106,6 @@ static CGRect PACCloneFrame(NSDictionary *d, CGFloat bx, CGFloat by) {
                       (CGFloat)w * kPACStep - kPACgap, (CGFloat)h * kPACStep - kPACgap);
 }
 
-// Apple's layout pass may move views it does not know; this puts the copies back (called from the layout hook).
 void PACCClonesRelayout(UIView *cv) {
     if (!cv || !gPACClones.count || !gPACGridHave || PACIsLandscape()) return;
     for (UIView *cl in cv.subviews) {
@@ -2167,7 +2120,6 @@ void PACCClonesRelayout(UIView *cv) {
     }
 }
 
-// does a w x h block at column c / absolute row a fit, without touching a module or another copy?
 static BOOL PACCloneFits(UIViewController *ov, NSString *cid, NSUInteger c, NSUInteger a, NSUInteger w, NSUInteger h) {
     NSUInteger row = a % kPACStride;
     if (c + w > kPACCols || row + h > kPACRows) return NO;
@@ -2199,7 +2151,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
     PACEnsureClones();
     UIView *cv = ModuleCollection(ov).view;
     if (!cv) return;
-    if (!gPACClones.count) {                 // nothing to show: only clean up leftovers
+    if (!gPACClones.count) {
         for (UIView *sv in [cv.subviews copy]) if (sv.tag == kPACCloneTag) { PACRemoveCloneChrome(sv); [sv removeFromSuperview]; }
         return;
     }
@@ -2269,8 +2221,6 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             else cl.alpha = alpha;
         }
         if (onPage) {
-            // a card on a fresh page was hidden (alpha 0) when its LiquidAss glass was built, so the backdrop never
-            // captured anything: rebuild the lens once the page is visible
             UIView *lg = [cl viewWithTag:190002];
             if (lg && ![objc_getAssociatedObject(lg, "pac.lgvis") boolValue]) {
                 objc_setAssociatedObject(lg, "pac.lgvis", @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -2283,7 +2233,6 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             if (lg) objc_setAssociatedObject(lg, "pac.lgvis", @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
 
-        // edit mode: outline and the minus button, like on a real module
         if (gEditModeActive && onPage) {
             CGRect raw = f;
             raw.origin.x += sub.m41;
@@ -2332,7 +2281,6 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
     busy = NO;
 }
 
-// First free cell of a page, reading row by row from the top left (so a new control lands at the start).
 static BOOL PACFirstFreeCell(NSDictionary<NSString *, NSValue *> *occupied, NSUInteger w, NSUInteger h,
                              NSUInteger maxRow, NSUInteger *outCol, NSUInteger *outRow) {
     if (w == 0 || h == 0 || w > kPACCols || h > kPACRows) return NO;
@@ -2383,11 +2331,10 @@ static BOOL PACFindSlot(NSString *mid, NSUInteger w, NSUInteger h, UIViewControl
         map[[@"clone:" stringByAppendingString:cd[@"id"]]] = [NSValue value:&pr withObjCType:@encode(PACRect)];
     }
 
-    // Page 0 comes first; then the pages the user added. The media / promo pages cannot hold controls.
     NSMutableArray<NSNumber *> *order = [NSMutableArray arrayWithObject:@0];
     for (NSUInteger p = PACBasePageCount(); p < PACBasePageCount() + gPACUserPages; p++) [order addObject:@(p)];
     NSInteger cur = gCurrentPage;
-    if (cur > 0 && PACIsUserPage((NSUInteger)cur)) {      // looking at a user page: fill that one first
+    if (cur > 0 && PACIsUserPage((NSUInteger)cur)) {
         [order removeObject:@(cur)];
         [order insertObject:@(cur) atIndex:0];
     }
@@ -2462,7 +2409,7 @@ static UIButton *PACMakeAddButton(void) {
     b.layer.cornerCurve = kCACornerCurveContinuous;
     b.layer.masksToBounds = YES;
 
-    b.backgroundColor = UIColor.clearColor;     // no backdrop behind it, as on iOS 26
+    b.backgroundColor = UIColor.clearColor;
 
     UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:19 weight:UIImageSymbolWeightSemibold];
     UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"plus.circle.fill" withConfiguration:cfg]];
@@ -2495,7 +2442,6 @@ static UIButton *PACMakeRoundButton(NSString *symbol, CGFloat side, CGFloat poin
     b.layer.cornerRadius = side * 0.5;
     b.layer.masksToBounds = YES;
 
-    // plain white glyph without a backdrop, like the page icons beside it
     b.backgroundColor = UIColor.clearColor;
 
     UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:UIImageSymbolWeightSemibold];
@@ -2508,7 +2454,6 @@ static UIButton *PACMakeRoundButton(NSString *symbol, CGFloat side, CGFloat poin
     return b;
 }
 
-// "+" under the page dots: adds a new page.
 static void PACPositionPageAddButton(UIViewController *ov) {
     UIView *ind = [ov.view viewWithTag:kPageIndicatorTag];
     UIView *plus = [ov.view viewWithTag:kPACPageAddTag];
@@ -2516,7 +2461,6 @@ static void PACPositionPageAddButton(UIViewController *ov) {
     plus.center = CGPointMake(CGRectGetMidX(ind.frame), CGRectGetMaxY(ind.frame) + 22.0);
 }
 
-// Keeps the chrome of every module in step with the page the user is looking at while editing.
 static NSTimer *gPACPageWatch = nil;
 static NSInteger gPACLastPage = 0;
 
@@ -2677,7 +2621,6 @@ extern "C" NSUInteger PACCUserPageCount(void) {
     return gPACUserPages;
 }
 
-// Page (0 based) a module belongs to, from its saved grid position.
 extern "C" NSInteger PACCModulePageForIdentifier(NSString *mid) {
     if (!mid.length) return 0;
     PACRefreshGridConstants();
@@ -2754,7 +2697,6 @@ static UIImage *PACSnapshotContentOnly(UIView *src, BOOL liquidassActive) {
     return result;
 }
 
-// resize handles, minus buttons and outlines whose module or copy is gone (removed, replaced, moved away)
 static NSArray<UIView *> *PACOrphanChrome(UIViewController *ov) {
     NSMutableSet<NSValue *> *owned = [NSMutableSet set];
     const void *ks[3] = {kPACBorderKey, kPACRemoveKey, kPACResizeKey};
@@ -2785,7 +2727,6 @@ static NSArray<UIView *> *PACOrphanChrome(UIViewController *ov) {
     return orphans;
 }
 
-// Edit mode: a faint circle in every free cell of the page you are on (page 0 and the pages you added)
 static void PACUpdateSlots(UIViewController *ov) {
     if (!ov || !ov.view) return;
     NSMutableArray<UIView *> *have = [NSMutableArray array];
@@ -2948,8 +2889,6 @@ static void PACAnimateChromeRefresh(UIViewController *ov) {
     PACAnimateChromeRefreshExcluding(ov, nil);
 }
 
-// Every module on the page being shown must have its border, remove button and resize handle in the right spot,
-// whenever and however it got there (a control added to a new page, a page switch, a late layout).
 static void PACSyncChromeToPage(UIViewController *ov) {
     if (!ov || !ov.view || !gEditModeActive || gPACPendingResizeID) return;
     for (UIViewController *m in ModuleControllers(ov)) {
@@ -2977,7 +2916,6 @@ static void PACSyncChromeToPage(UIViewController *ov) {
     PACBringChromeToFront(ov);
 }
 
-// Pages the user added but left empty go away when editing ends (the later pages move up).
 static void PACPruneEmptyPages(UIViewController *ov) {
     PACCCrumb("PACPruneEmptyPages");
     if (ov) PACCSyncClones(ov, NO);
@@ -3002,7 +2940,6 @@ static void PACPruneEmptyPages(UIViewController *ov) {
     BOOL changed = NO;
     for (NSUInteger p = base + gPACUserPages; p-- > base; ) {
         if ([used containsObject:@(p)]) continue;
-        // move every control on a later page one page up
         for (NSString *key in gEditOrigins.allKeys) {
             if (![key hasPrefix:@"P|"]) continue;
             NSArray<NSNumber *> *o = gEditOrigins[key];
@@ -3334,7 +3271,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         [ov.view addSubview:addButton];
     }
     CGFloat addBottom = ov.view.safeAreaInsets.bottom;
-    if (addBottom < 1.0) addBottom = 0.0;        // sits right at the bottom edge, below the last row of controls
+    if (addBottom < 1.0) addBottom = 0.0;
     addButton.center = CGPointMake(CGRectGetMidX(ov.view.bounds), CGRectGetHeight(ov.view.bounds) - addBottom - 8.0);
     addButton.alpha = 0.0;
     addButton.transform = CGAffineTransformMakeScale(0.7, 0.7);
@@ -3362,7 +3299,6 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         layers.transform = CGAffineTransformIdentity;
     } completion:nil];
 
-    // Page dots stay visible in edit mode so pages can be switched, with a "+" under them.
     UIView *ind = [ov.view viewWithTag:kPageIndicatorTag];
     ind.hidden = NO;
     ind.userInteractionEnabled = YES;
@@ -3370,7 +3306,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 
     UIButton *plus = (UIButton *)[ov.view viewWithTag:kPACPageAddTag];
     if (!plus) {
-        plus = PACMakeRoundButton(@"circle", 34.0, 12.0, kPACPageAddTag);   // an open ring: a page that is not there yet
+        plus = PACMakeRoundButton(@"circle", 34.0, 12.0, kPACPageAddTag);
         [plus addTarget:self action:@selector(addPageTap:) forControlEvents:UIControlEventTouchUpInside];
         [ov.view addSubview:plus];
     }
@@ -3408,7 +3344,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     gPACPendingResizeSize = (CCUILayoutSize){0, 0};
     gPACPendingResizeLastTouch = 0;
     if (gHapticsEnabled) Haptic();
-    PACUpdateSlots(ov);      // the empty-cell circles are for edit mode only
+    PACUpdateSlots(ov);
 
     NSMutableArray<UIView *> *chromeViews = [NSMutableArray array];
     for (UIViewController *m in ModuleControllers(ov)) {
@@ -3425,7 +3361,6 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         objc_setAssociatedObject(v, kPACRemoveKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(v, kPACResizeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    // chrome that no module or copy owns any more (its module was replaced while editing) would stay on screen: sweep it
     {
         NSMutableSet<NSValue *> *owned = [NSMutableSet set];
         for (UIView *c in chromeViews) [owned addObject:[NSValue valueWithNonretainedObject:c]];
@@ -4017,8 +3952,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     id prov = PACSettingsProvider();
     SEL get = NSSelectorFromString(@"orderedUserEnabledModuleIdentifiers");
     SEL set = NSSelectorFromString(@"setAndSaveOrderedUserEnabledModuleIdentifiers:");
-    if (PACCBigKind(mid) == 3) { PACAddCloneOf(mid, ov); return; }     // our own Wi-Fi / Cellular / Bluetooth / Hotspot
-    if (PACCBigKind(mid)) {      // already on the grid: add a second copy instead of moving it
+    if (PACCBigKind(mid) == 3) { PACAddCloneOf(mid, ov); return; }
+    if (PACCBigKind(mid)) {
         BOOL onGrid = NO;
         for (UIViewController *m in ModuleControllers(ov)) if ([PACMid(m) isEqualToString:mid]) { onGrid = YES; break; }
         if (!onGrid && prov && [prov respondsToSelector:get]) {
@@ -4026,7 +3961,6 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             onGrid = [cur isKindOfClass:NSArray.class] && [cur containsObject:mid];
         }
         BOOL onUserPage = (gCurrentPage > 0 && PACIsUserPage((NSUInteger)gCurrentPage));
-        // adding on a new page always gives the big one (4x4 / 4x2); Connectivity needs the real module on the grid to press its buttons
         if (onGrid || (onUserPage && PACCBigKind(mid) == 2)) { PACAddCloneOf(mid, ov); return; }
     }
     if (!prov || ![prov respondsToSelector:get] || ![prov respondsToSelector:set]) {
@@ -4045,7 +3979,6 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     NSUInteger page = 0;
     BOOL placed = PACPlaceNewModule(mid, w, h, ov, &page);
     if (!placed) {
-        // every page is full: open a new one, like iOS does
         PACEnsureUserPages();
         if (PACBasePageCount() + gPACUserPages < kPACMaxPages) {
             gPACUserPages++;
@@ -4359,7 +4292,6 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     [resized addObject:mid];
 
     if (PACCLIQIsActive()) {
-        // With LiquidAss the resize follows Control26 exactly: one spring relayout.
         PACSpringRelayout(ov, nil);
     }
 
@@ -4655,7 +4587,6 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
 
     UIView *pres = objc_getAssociatedObject(m.view, kPACPresKey);
     if ([mid hasPrefix:@"zilvyn.ccock26.module."]) {
-        // our own modules (Wi-Fi, Cellular, Bluetooth, Hotspot) draw their own icon and name at every size
         if (pres) {
             objc_setAssociatedObject(m.view, kPACPresKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             [pres removeFromSuperview];
@@ -4803,7 +4734,6 @@ static void PACApplyChrome(UIViewController *m, UIViewController *ov) {
 
     CGFloat radius = view.layer.cornerRadius;
     if (PACCLIQIsActive() && !PACModuleIsExpanded(m)) {
-        // The layer's own radius is mid-change after a resize, which gave odd outlines. Use the size's real radius.
         NSUInteger ew = 1, eh = 1;
         PACEffectiveSize(mid, &ew, &eh);
         radius = PACRadiusForSize(ew, eh);
@@ -5199,8 +5129,6 @@ static void PACEditReload(__unused CFNotificationCenterRef c,
 }
 
 
-// What the Wi-Fi / Cellular / Bluetooth / Hotspot Control Center modules (bundles in modules/) call into:
-// they press the real button of the Connectivity module, which has to be on the grid.
 @interface PACCRadioBridge : NSObject
 + (NSInteger)stateForKind:(NSInteger)kind;
 + (void)toggleKind:(NSInteger)kind;

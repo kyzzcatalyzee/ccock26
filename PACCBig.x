@@ -1,11 +1,3 @@
-// PACCBig.x - big Connectivity and Music layouts for CCock26 (written for CCock26, zilvyn)
-//
-// When Connectivity or Now Playing is stretched to 4 columns, Apple's own drawing of the module is
-// hidden and a layout drawn here is shown instead:
-//   Connectivity 4x4 / 4x6 : one card per button (Airplane, Wi-Fi, Cellular, Bluetooth, AirDrop, Hotspot)
-//   Music 4x2              : artwork, title, artist and the three transport buttons
-//   Music 4x4 / 4x6        : artwork, title, seek bar, transport buttons and a volume bar
-// Taps on the connectivity cards are forwarded to Apple's real buttons, so the real toggles do the work.
 
 #import "PACC.h"
 #import <CFNetwork/CFNetwork.h>
@@ -32,11 +24,10 @@ static void PACBigCollect(UIView *root, Class cls, int depth, NSMutableArray *ou
     }
 }
 
-// 1 = Connectivity, 2 = Now Playing, 0 = anything else
 int PACCBigKind(NSString *mid) {
     NSString *l = mid.lowercaseString;
     if (!l.length) return 0;
-    if ([l hasPrefix:@"pacc.toggle."]) return 3;      // our own Wi-Fi / Cellular / Bluetooth / Hotspot controls
+    if ([l hasPrefix:@"pacc.toggle."]) return 3;
     if ([l containsString:@"connectivity"]) return 1;
     if ([l containsString:@"nowplaying"] || [l containsString:@"mediacontrols"]) return 2;
     return 0;
@@ -50,7 +41,6 @@ BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h) {
     return NO;
 }
 
-// The allowed size closest to what the finger asked for.
 void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH) {
     NSUInteger cands[][2] = { {1, 1}, {2, 1}, {2, 2}, {4, 2}, {4, 4}, {4, 6} };
     NSInteger best = NSIntegerMax;
@@ -74,7 +64,6 @@ static void *PACBigMR(void) {
     return h;
 }
 
-// 2 = play / pause, 4 = next, 5 = previous, 24 = seek to position
 static void PACBigSend(int cmd, NSDictionary *opts) {
     void *h = PACBigMR();
     PACBigSendFn fn = h ? (PACBigSendFn)dlsym(h, "MRMediaRemoteSendCommand") : NULL;
@@ -123,7 +112,7 @@ static NSString *PACBigTime(double t, BOOL negative) {
 #pragma mark - slider
 
 @interface PACBigBar : UIControl
-@property (nonatomic) CGFloat value;                 // 0...1
+@property (nonatomic) CGFloat value;
 @property (nonatomic, readonly) BOOL dragging;
 @property (nonatomic, copy) void (^onChange)(CGFloat v, BOOL finished);
 @end
@@ -221,16 +210,16 @@ static NSString *PACBigTime(double t, BOOL negative) {
 
 @interface PACBigCard : UIControl
 @property (nonatomic, copy) NSString *key;
-@property (nonatomic, weak) UIControl *target;      // Apple's round button
-@property (nonatomic, weak) UIView *labeled;        // Apple's labeled button
+@property (nonatomic, weak) UIControl *target;
+@property (nonatomic, weak) UIView *labeled;
 @property (nonatomic, strong) UIImageView *icon;
 @property (nonatomic, strong) UILabel *title;
 @property (nonatomic, strong) UILabel *sub;
 @property (nonatomic) BOOL isOn;
-@property (nonatomic) BOOL tall;                    // square card: icon on top, text at the bottom
-@property (nonatomic) BOOL iconOnly;                // round control: just the glyph
-@property (nonatomic, copy) void (^onTap)(void);    // own action instead of pressing an Apple button
-@property (nonatomic, strong) UIView *material;     // the same material the stock controls use
+@property (nonatomic) BOOL tall;
+@property (nonatomic) BOOL iconOnly;
+@property (nonatomic, copy) void (^onTap)(void);
+@property (nonatomic, strong) UIView *material;
 - (void)setOn:(BOOL)on;
 @end
 
@@ -261,7 +250,6 @@ static UIImage *PACBigSymbol(NSArray<NSString *> *names, CGFloat pt) {
     return nil;
 }
 
-// Apple's own Bluetooth and AirDrop marks, drawn as template images (the system symbol set on this iOS has neither).
 static UIImage *PACBigDrawn(NSString *kind, CGFloat pt) {
     CGFloat s = ceil(pt * 1.4);
     UIGraphicsImageRendererFormat *fmt = [UIGraphicsImageRendererFormat preferredFormat];
@@ -302,7 +290,6 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     if ([key isEqualToString:@"bt"])      return PACBigDrawn(@"bt", pt);
     if ([key isEqualToString:@"airdrop"]) return PACBigDrawn(@"airdrop", pt);
     if ([key isEqualToString:@"vpn"]) {
-        // the iOS 26 glyph from the bundled private symbols, as the small Connectivity control uses it
         UIImage *p = PACCBundledSymbol(@"network.connected.to.line.below.fill", UIColor.whiteColor, NO);
         if (p) {
             UIImageSymbolConfiguration *c = [UIImageSymbolConfiguration configurationWithPointSize:pt weight:UIImageSymbolWeightSemibold];
@@ -346,8 +333,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 }
 - (void)layoutSubviews {
     [self pacLayoutCore];
-    // custom control: LiquidAss's real LGLiveBackdropView replaces the old material
-    if (PACCLIQIsActive()) _material.hidden = PACBigLGGlass(self, self.layer.cornerRadius);
+    if (PACCLIQGlassOn()) _material.hidden = PACBigLGGlass(self, self.layer.cornerRadius);
     else _material.hidden = NO;
 }
 - (void)pacLayoutCore {
@@ -357,7 +343,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
         if (!CGRectEqualToRect(_material.frame, self.bounds)) _material.frame = self.bounds;
         [self sendSubviewToBack:_material];
     }
-    _title.hidden = _iconOnly; _sub.hidden = _iconOnly;     // text only on a pill
+    _title.hidden = _iconOnly; _sub.hidden = _iconOnly;
     if (_iconOnly) {
         self.layer.cornerRadius = h * 0.5;
         _icon.frame = self.bounds;
@@ -430,8 +416,6 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 
 #pragma mark - base view
 
-// ControlCenterUI walks the views of a module and sends it its own selectors (caAnimationContainerView, ...).
-// Our overlay sits among them, so it answers those instead of crashing SpringBoard.
 @interface PACBigView : UIView
 @end
 
@@ -464,7 +448,7 @@ static BOOL PACBigVPNActive(void) {
 }
 
 @interface PACBigConn : PACBigView
-@property (nonatomic, weak) UIView *apple;           // the module's own view with Apple's buttons
+@property (nonatomic, weak) UIView *apple;
 - (void)refresh;
 @end
 
@@ -521,13 +505,11 @@ static BOOL PACBigVPNActive(void) {
         if (![note isEqualToString:lastNote]) { lastNote = note; PACCCrashLog(note); }
     }
     if (!byKey.count) return;
-    // all six are always shown; one the device does not have (no Cellular or Hotspot) stays dimmed and cannot be pressed
     for (NSString *k in order) [keys addObject:k];
     for (NSString *k in byKey) if (![keys containsObject:k]) [keys addObject:k];
 
     CGSize S = self.bounds.size;
     if (S.width < 40 || S.height < 40) return;
-    // iOS 26 look: Airplane Mode as a wide pill on top, square cards in two columns, Hotspot as a pill at the bottom
     BOOL hasTop = [keys containsObject:@"air"];
     NSMutableArray<NSString *> *bottomKeys = [NSMutableArray array];
     for (NSString *bk in @[@"hotspot", @"vpn"]) if ([keys containsObject:bk]) [bottomKeys addObject:bk];
@@ -568,7 +550,6 @@ static BOOL PACBigVPNActive(void) {
         NSValue *fv = frames[k];
         if (fv) card.frame = fv.CGRectValue;
         if ([k isEqualToString:@"vpn"]) {
-            // no Apple button behind VPN: the card only shows the state
             BOOL vpnOn = PACBigVPNActive();
             card.target = nil; card.labeled = nil;
             if (![card.title.text isEqualToString:@"VPN"]) card.title.text = @"VPN";
@@ -608,7 +589,6 @@ static BOOL PACBigVPNActive(void) {
 
 #pragma mark - single toggle (Wi-Fi, Cellular, Bluetooth, Hotspot, Silent Mode)
 
-// Ringer / Silent switch state: 0 = silent, 1 = ringer on (SpringBoard's own notify state).
 static BOOL PACBigRingerMuted(void) {
     static int token = 0; static BOOL ok = NO;
     if (!ok) ok = (notify_register_check("com.apple.springboard.ringerstate", &token) == NOTIFY_STATUS_OK);
@@ -633,7 +613,6 @@ static void PACBigSetRingerMuted(BOOL muted) {
     else NSLog(@"[CCock26] ringer control unavailable");
 }
 
-// One of Apple's Connectivity buttons as a control of its own; it presses the real button of the Connectivity module.
 @interface PACBigToggle : PACBigView
 @property (nonatomic, copy) NSString *key;
 @property (nonatomic, weak) UIView *apple;
@@ -671,7 +650,6 @@ static void PACBigSetRingerMuted(BOOL muted) {
     BOOL iconOnly = S.width < S.height * 1.4;
     if (_card.iconOnly != iconOnly) { _card.iconOnly = iconOnly; [_card setNeedsLayout]; }
     if ([self.key isEqualToString:@"ringer"]) {
-        // Silent Mode: works on its own, no Apple button behind it
         BOOL muted = PACBigRingerMuted();
         NSString *k = muted ? @"ringeroff" : @"ringer";
         if (![_card.key isEqualToString:k]) { _card.key = k; [_card setNeedsLayout]; }
@@ -731,12 +709,11 @@ static void PACBigSetRingerMuted(BOOL muted) {
 #pragma mark - big music
 
 @interface PACBigMusic : PACBigView
-@property (nonatomic) BOOL compact;                  // 4x2 strip
-@property (nonatomic) BOOL standalone;               // a copy that draws its own material
+@property (nonatomic) BOOL compact;
+@property (nonatomic) BOOL standalone;
 - (void)refresh;
 @end
 
-// Built exactly like the material of the old built-in music page, which LiquidAss already styles.
 static UIView *PACBigMediaMaterial(void) {
     UIView *material = nil;
     Class cls = NSClassFromString(@"MTMaterialView");
@@ -763,10 +740,8 @@ static UIView *PACBigMediaMaterial(void) {
     return material;
 }
 
-// Custom controls get the PACCLIQ glass: the LiquidAss lens filter plus the rim, blur and radius step read from the
-// LiquidAss settings (see PACCLIQ.x). YES when the glass is live and the old material can be hidden.
 BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
-    UIView *stale = [host viewWithTag:190002];   // a LGLiveBackdropView from an earlier build
+    UIView *stale = [host viewWithTag:190002];
     if (stale) [stale removeFromSuperview];
     return PACCLIQApplyGlass(host, radius);
 }
@@ -778,7 +753,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     UIButton *_prev, *_play, *_next;
     PACBigBar *_seek, *_vol;
     UIImageView *_volLo, *_volHi;
-    UIView *_airBg;            // 2x2 tile: the AirPlay bubble
+    UIView *_airBg;
     UIImageView *_airIcon;
     NSTimer *_timer;
     double _elapsedSec, _duration, _rate;
@@ -897,7 +872,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     _blur.layer.cornerRadius = self.layer.cornerRadius;
     _blur.layer.cornerCurve = kCACornerCurveContinuous;
     _blur.clipsToBounds = YES;
-    _blur.hidden = (PACCLIQIsActive() && PACBigLGGlass(self, self.layer.cornerRadius));
+    _blur.hidden = (PACCLIQGlassOn() && PACBigLGGlass(self, self.layer.cornerRadius));
     CGFloat pad = 14.0;
     BOOL tile = (w < 260.0 && h >= 120.0);
     BOOL full = !self.compact && !tile;
@@ -905,7 +880,6 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     _airBg.hidden = _airIcon.hidden = !tile;
     _artist.hidden = tile && !_playing;
     if (tile) {
-        // iOS 26 2x2 Now Playing, same numbers as Control26's compact player (scaled from a 163 pt tile)
         CGFloat sc = w / 163.0, m = 14.0 * sc, art = round(56.0 * sc), d = round(42.0 * sc);
         _art.frame = CGRectMake(m, m, art, art);
         _art.layer.cornerRadius = 12.0 * sc;
@@ -1059,18 +1033,13 @@ static void PACBigMask(UIView *host, UIView *keep, BOOL hide) {
         if (hide && !masked) {
             CALayer *mk = [CALayer layer];
             mk.name = kPACBigMaskName;
-            v.layer.mask = mk;            // an empty mask hides the view and everything below it
+            v.layer.mask = mk;
         } else if (!hide && masked) {
             v.layer.mask = nil;
         }
     }
 }
 
-// Shows or removes the big layout of a module. Safe to call on every layout pass.
-// The module's own background (a material view in its container). Connectivity draws one material per tile, so the big
-// layout hides this one and the tiles float on their own.
-// Control26 hides the module's own glass plate with an empty layer mask on every material or backdrop view of about the module's size
-// on the way up (alpha and filters get reset by CC, a mask does not). Same here.
 static const char kPACPlateMask = 0;
 
 static void PACBigMaskPlate(UIView *s, BOOL hide) {
@@ -1093,7 +1062,7 @@ static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
         for (UIView *s in p.subviews) {
             if (s == child || [s isKindOfClass:PACBigView.class]) continue;
             NSString *n = NSStringFromClass(s.class);
-            if (PACCLIQIsActive() && ([n hasPrefix:@"LG"] || [n isEqualToString:@"MTMaterialView"])) continue;   // LiquidAss glass stays
+            if (PACCLIQGlassOn() && ([n hasPrefix:@"LG"] || [n isEqualToString:@"MTMaterialView"])) continue;
             if (!([n containsString:@"Material"] || [n containsString:@"Backdrop"] || [n containsString:@"Background"] ||
                   [n containsString:@"Blur"] || [n containsString:@"Platter"])) continue;
             CGRect f = [s convertRect:s.bounds toView:nil];
@@ -1112,7 +1081,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     UIView *existing = [host viewWithTag:kPACBigTag];
     BOOL big = NO;
     if (kind == 1) big = (w >= 4 && h >= 4);
-    else if (kind == 2) big = (w >= 2 && h >= 2);   // 2x2 is our own tile (Control26 layout)
+    else if (kind == 2) big = (w >= 2 && h >= 2);
     if (expanded || !big || !gEnabled || PACCBigKind(mid) == 0 ||
         host.bounds.size.width < 60 || host.bounds.size.height < 60) {
         if (existing) {
@@ -1151,8 +1120,6 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
 
 #pragma mark - stand-alone copies (a second Connectivity or Music on another page)
 
-// ControlCenter26 does it this way (CC26StripExpandedBackground): while the expanded panel shows our layout, everything of Apple's
-// around it loses its chrome (background colour, filters, border, shadow) and the plate-like views are hidden; it all comes back afterwards.
 static const char kPACChromeKey = 0;
 static const char kPACHiddenKey = 0;
 
@@ -1202,8 +1169,6 @@ void PACCBigStripContainer(UIView *container) {
     }
 }
 
-// The expanded Connectivity panel (long press) shows this layout instead of Apple's six buttons.
-// Apple's buttons stay where they are, hidden, because the cards press them.
 void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     UIView *root = controller.view;
     if (!root) return;
@@ -1230,7 +1195,6 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     }
     mine.apple = root;
     mine.hidden = NO;
-    // same layout as the Connectivity on a page: no plate behind it, the cards fill the whole space
     PACBigHideModuleMaterial(root, YES);
     mine.frame = root.bounds;
     {
@@ -1248,12 +1212,10 @@ UIView *PACCBigNewClone(int kind) {
     if (kind == 1) return [[PACBigConn alloc] initWithFrame:CGRectZero];
     if (kind == 3) return [[PACBigToggle alloc] initWithFrame:CGRectZero];
     PACBigMusic *m = [[PACBigMusic alloc] initWithFrame:CGRectZero];
-    m.standalone = YES;                  // a copy has no module behind it, so it brings its own material
+    m.standalone = YES;
     return m;
 }
 
-// apple: the view of the real Connectivity module, whose buttons the cards press
-// Apple's round button behind one Connectivity key (wifi, cell, bt, hotspot, ...), or nil
 UIControl *PACCBigFindRound(UIView *apple, NSString *key) {
     Class L = NSClassFromString(@"CCUILabeledRoundButton");
     if (!L || !apple) return nil;
@@ -1280,7 +1242,6 @@ UIControl *PACCBigFindRound(UIView *apple, NSString *key) {
     return nil;
 }
 
-// "pacc.toggle.wifi" -> key "wifi"
 void PACCBigSetToggleMid(UIView *v, NSString *mid) {
     if (![v isKindOfClass:PACBigToggle.class]) return;
     NSString *k = [mid substringFromIndex:MIN(mid.length, (NSUInteger)12)];
@@ -1305,9 +1266,8 @@ void PACCBigConfigureClone(UIView *v, int kind, NSUInteger w, NSUInteger h, UIVi
 
 #pragma mark - 2x2 Now Playing: Apple's own views laid out like iOS 26 (as ControlCenter26 does with the MRU views)
 
-// the module container this view sits in, when that module is a 2x2-ish tile
 static BOOL PACMRUTile(UIView *v, CGSize *outSize) {
-    return NO;   // v0.5.0: the MRU hooks are off; Control26 draws its own tile and so do we
+    return NO;
     if (!gEnabled) return NO;
     Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
     int up = 0;
@@ -1380,7 +1340,6 @@ static id PACMRUIvar(id obj, NSString *name) {
     CGSize z;
     if (!PACMRUTile((UIView *)self, &z)) return;
     UIView *v = (UIView *)self;
-    // the picture inside follows the (already resized) artwork view
     for (UIView *sub in v.subviews) {
         if (![NSStringFromClass(sub.class) hasPrefix:@"MRU"] && ![sub isKindOfClass:UIImageView.class]) continue;
         sub.frame = v.bounds;

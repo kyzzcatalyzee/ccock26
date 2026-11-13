@@ -21,11 +21,11 @@
             <key>key</key>
             <string>Enabled</string>
             <key>defaults</key>
-            <string>pawxed.ccock18.preferences</string>
+            <string>pawxed.ccock26.preferences</string>
             <key>default</key>
             <true/>
             <key>PostNotification</key>
-            <string>pawxed.ccock18/ReloadPrefs</string>
+            <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
 
         <dict>
@@ -36,11 +36,11 @@
             <key>key</key>
             <string>QuickAccessButtonsEnabled</string>
             <key>defaults</key>
-            <string>pawxed.ccock18.preferences</string>
+            <string>pawxed.ccock26.preferences</string>
             <key>default</key>
             <true/>
             <key>PostNotification</key>
-            <string>pawxed.ccock18/ReloadPrefs</string>
+            <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
 
         <dict>
@@ -51,11 +51,11 @@
             <key>key</key>
             <string>HapticsEnabled</string>
             <key>defaults</key>
-            <string>pawxed.ccock18.preferences</string>
+            <string>pawxed.ccock26.preferences</string>
             <key>default</key>
             <true/>
             <key>PostNotification</key>
-            <string>pawxed.ccock18/ReloadPrefs</string>
+            <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
 
         <dict>
@@ -75,11 +75,11 @@
             <key>key</key>
             <string>CircularModules</string>
             <key>defaults</key>
-            <string>pawxed.ccock18.preferences</string>
+            <string>pawxed.ccock26.preferences</string>
             <key>default</key>
             <true/>
             <key>PostNotification</key>
-            <string>pawxed.ccock18/ReloadPrefs</string>
+            <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
 
         <dict>
@@ -90,11 +90,11 @@
             <key>key</key>
             <string>PromoPageEnabled</string>
             <key>defaults</key>
-            <string>pawxed.ccock18.preferences</string>
+            <string>pawxed.ccock26.preferences</string>
             <key>default</key>
             <true/>
             <key>PostNotification</key>
-            <string>pawxed.ccock18/ReloadPrefs</string>
+            <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
 
         <dict>
@@ -114,11 +114,11 @@
             <key>key</key>
             <string>PagingEnabled</string>
             <key>defaults</key>
-            <string>pawxed.ccock18.preferences</string>
+            <string>pawxed.ccock26.preferences</string>
             <key>default</key>
             <true/>
             <key>PostNotification</key>
-            <string>pawxed.ccock18/ReloadPrefs</string>
+            <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
 
         <dict>
@@ -129,11 +129,11 @@
             <key>key</key>
             <string>ExperimentalPaging</string>
             <key>defaults</key>
-            <string>pawxed.ccock18.preferences</string>
+            <string>pawxed.ccock26.preferences</string>
             <key>default</key>
             <false/>
             <key>PostNotification</key>
-            <string>pawxed.ccock18/ReloadPrefs</string>
+            <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
 
         <dict>
@@ -155,11 +155,11 @@ FYI: if you have home buttoned iphone, make sure you have more than 10 control c
             <key>key</key>
             <string>EditModeEnabled</string>
             <key>defaults</key>
-            <string>pawxed.ccock18.preferences</string>
+            <string>pawxed.ccock26.preferences</string>
             <key>default</key>
             <true/>
             <key>PostNotification</key>
-            <string>pawxed.ccock18/ReloadPrefs</string>
+            <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
 
         <dict>

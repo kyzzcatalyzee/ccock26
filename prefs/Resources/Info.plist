@@ -5,13 +5,13 @@
     <key>CFBundleDisplayName</key>
     <string>CCock26</string>
     <key>CFBundleExecutable</key>
-    <string>CCOCK18Prefs</string>
+    <string>CCOCK26Prefs</string>
     <key>CFBundleIdentifier</key>
-    <string>pawxed.ccock18.preferences</string>
+    <string>pawxed.ccock26.preferences</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>CCOCK18Prefs</string>
+    <string>CCOCK26Prefs</string>
     <key>CFBundlePackageType</key>
     <string>BNDL</string>
     <key>CFBundleShortVersionString</key>
@@ -19,6 +19,6 @@
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>NSPrincipalClass</key>
-    <string>CCOCK18RootListController</string>
+    <string>CCOCK26RootListController</string>
 </dict>
 </plist>
