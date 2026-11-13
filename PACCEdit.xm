@@ -187,6 +187,9 @@ static void PACSetFlag(CFStringRef key) {
 static BOOL PACPrefKeyExists(CFStringRef key) {
     CFPropertyListRef v = CFPreferencesCopyAppValue(key, CFSTR("pawxed.ccock26.preferences"));
     BOOL has = (v != NULL);
+    id o = (__bridge id)v;
+    if ([o isKindOfClass:NSDictionary.class] || [o isKindOfClass:NSArray.class]) has = [(id)o count] > 0;
+    else if ([o isKindOfClass:NSNumber.class]) has = [(NSNumber *)o integerValue] > 0;
     if (v) CFRelease(v);
     return has;
 }
@@ -216,6 +219,7 @@ static void PACSeedDefaultPages(void) {
 }
 
 static void PACEnsureStore(void) {
+    PACSeedDefaultPages();
     static BOOL metricsLoaded = NO;
     if (!metricsLoaded) {
         metricsLoaded = YES;
