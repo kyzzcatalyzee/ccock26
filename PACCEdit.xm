@@ -4495,6 +4495,10 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     PACEnsureClones();
     [gPACClones removeAllObjects];
     PACSaveClones();
+    PACEnsureUserPages();
+    gPACUserPages = MIN((NSUInteger)2, kPACMaxPages > PACBasePageCount() ? kPACMaxPages - PACBasePageCount() : (NSUInteger)0);
+    PACSaveUserPages();
+    PACSetFlag(CFSTR("SeedClonesPending"));
     PACCSyncClones(ov, NO);
 
     NSMutableDictionary<NSString *, NSValue *> *placed = [NSMutableDictionary dictionary];
