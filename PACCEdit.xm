@@ -197,21 +197,28 @@ static BOOL PACPrefKeyExists(CFStringRef key) {
 static void PACSeedDefaultPages(void) {
     static BOOL done = NO;
     if (done) return;
-    if (PACFlagIsSet(CFSTR("DefaultPagesSeeded"))) { done = YES; return; }
+    if (PACFlagIsSet(CFSTR("DefaultPagesSeeded2"))) { done = YES; return; }
     if (PACIsLandscape()) return;
     done = YES;
     BOOL fresh = !PACPrefKeyExists(CFSTR("EditUserPages")) && !PACPrefKeyExists(CFSTR("EditClones")) &&
                  !PACPrefKeyExists(CFSTR("EditGridOrigins"));
-    PACSetFlag(CFSTR("DefaultPagesSeeded"));
+    if (!fresh) {
+        CFPropertyListRef ec = CFPreferencesCopyAppValue(CFSTR("EditClones"), CFSTR("pawxed.ccock26.preferences"));
+        BOOL onlySeed = NO;
+        if (ec && CFGetTypeID(ec) == CFArrayGetTypeID() && CFArrayGetCount((CFArrayRef)ec) > 0) {
+            onlySeed = YES;
+            for (id d in (__bridge NSArray *)ec) {
+                NSString *cid = [d isKindOfClass:NSDictionary.class] ? d[@"id"] : nil;
+                if (![cid isKindOfClass:NSString.class] || ![cid hasPrefix:@"seed"]) { onlySeed = NO; break; }
+            }
+        }
+        if (ec) CFRelease(ec);
+        fresh = onlySeed;
+        if (onlySeed) CFPreferencesSetAppValue(CFSTR("EditClones"), NULL, CFSTR("pawxed.ccock26.preferences"));
+    }
+    PACSetFlag(CFSTR("DefaultPagesSeeded2"));
     if (!fresh) return;
-    PACRefreshGridConstants();
-    NSUInteger base = PACBasePageCount();
-    NSUInteger conn = base * kPACStride, music = (base + 1) * kPACStride;
-    NSArray *clones = @[
-        @{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(conn),  @"w": @4, @"h": @6},
-        @{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @(music), @"w": @4, @"h": @6},
-    ];
-    CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)clones, CFSTR("pawxed.ccock26.preferences"));
+    PACSetFlag(CFSTR("SeedClonesPending"));
     CFPreferencesSetAppValue(CFSTR("EditUserPages"), (__bridge CFPropertyListRef)@(2), CFSTR("pawxed.ccock26.preferences"));
     CFPreferencesSetAppValue(CFSTR("BuiltinPagesGone"), kCFBooleanTrue, CFSTR("pawxed.ccock26.preferences"));
     CFPreferencesSetAppValue(CFSTR("BuiltinPagesGoneClones"), kCFBooleanTrue, CFSTR("pawxed.ccock26.preferences"));
@@ -2155,6 +2162,19 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
     PACEnsureClones();
     UIView *cv = ModuleCollection(ov).view;
     if (!cv) return;
+    if (PACFlagIsSet(CFSTR("SeedClonesPending")) && !PACIsLandscape()) {
+        CGFloat sbx = 0, sby = 0;
+        if (PACRawGridBase(ov, &sbx, &sby)) {
+            PACRefreshGridConstants();
+            NSUInteger base = PACBasePageCount();
+            [gPACClones removeAllObjects];
+            [gPACClones addObject:[@{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(base * kPACStride),       @"w": @4, @"h": @6} mutableCopy]];
+            [gPACClones addObject:[@{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @((base + 1) * kPACStride), @"w": @4, @"h": @6} mutableCopy]];
+            PACSaveClones();
+            CFPreferencesSetAppValue(CFSTR("SeedClonesPending"), NULL, CFSTR("pawxed.ccock26.preferences"));
+            CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
+        }
+    }
     if (!gPACClones.count) {
         for (UIView *sv in [cv.subviews copy]) if (sv.tag == kPACCloneTag) { PACRemoveCloneChrome(sv); [sv removeFromSuperview]; }
         return;
@@ -2924,6 +2944,7 @@ static void PACPruneEmptyPages(UIViewController *ov) {
     PACCCrumb("PACPruneEmptyPages");
     if (ov) PACCSyncClones(ov, NO);
     if (!ov || PACIsLandscape()) return;
+    if (PACFlagIsSet(CFSTR("SeedClonesPending"))) return;
     PACEnsureUserPages();
     PACEnsureStore();
     PACRefreshGridConstants();
