@@ -95,14 +95,14 @@ static UIColor *PACCModOnColor(void) {
     _glyph.userInteractionEnabled = NO;
     [v addSubview:_glyph];
     _title = [UILabel new];
-    _title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
+    _title.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
     _title.textColor = UIColor.whiteColor;
     _title.numberOfLines = 2;
     _title.lineBreakMode = NSLineBreakByTruncatingTail;
     _title.userInteractionEnabled = NO;
     [v addSubview:_title];
     _sub = [UILabel new];
-    _sub.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
+    _sub.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
     _sub.textColor = [UIColor colorWithWhite:1 alpha:0.6];
     _sub.userInteractionEnabled = NO;
     [v addSubview:_sub];
