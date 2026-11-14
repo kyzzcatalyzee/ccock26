@@ -385,6 +385,7 @@ BOOL gPACCRevealAll = NO;
         UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(powerPressed:)];
         hold.minimumPressDuration = 0.6;
         [power addGestureRecognizer:hold];
+        [power addTarget:self action:@selector(powerTapped:) forControlEvents:UIControlEventTouchUpInside];
         [host addSubview:power];
     }
     CGFloat btnSize = 36;
@@ -404,18 +405,62 @@ BOOL gPACCRevealAll = NO;
     }
 }
 
-- (void)powerPressed:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateBegan) return;
+- (void)powerPressed:(UIGestureRecognizer *)gesture {
+    if ([gesture isKindOfClass:UILongPressGestureRecognizer.class] && gesture.state != UIGestureRecognizerStateBegan) return;
     Haptic();
-    Class factoryClass = NSClassFromString(@"SBUIPowerDownViewControllerFactory");
-    SEL sel = NSSelectorFromString(@"newPowerDownViewController");
-    if (![factoryClass respondsToSelector:sel]) return;
-    UIViewController *power = ((id (*)(id, SEL))objc_msgSend)(factoryClass, sel);
-    if (!power) return;
+    [self showPowerOff];
+}
+
+- (void)powerTapped:(UIButton *)sender {
+    Haptic();
+    [self showPowerOff];
+}
+
+- (void)showPowerOff {
     UIViewController *presenter = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
-    if (!presenter || presenter.presentedViewController) return;
-    power.modalPresentationStyle = UIModalPresentationFullScreen;
-    [presenter presentViewController:power animated:YES completion:nil];
+    while (presenter.presentedViewController) presenter = presenter.presentedViewController;
+
+    Class factoryClass = NSClassFromString(@"SBUIPowerDownViewControllerFactory");
+    SEL factorySel = NSSelectorFromString(@"newPowerDownViewController");
+    if (factoryClass && [factoryClass respondsToSelector:factorySel] && presenter) {
+        UIViewController *power = ((id (*)(id, SEL))objc_msgSend)(factoryClass, factorySel);
+        if ([power isKindOfClass:UIViewController.class]) {
+            power.modalPresentationStyle = UIModalPresentationFullScreen;
+            [presenter presentViewController:power animated:YES completion:nil];
+            return;
+        }
+    }
+
+    NSArray<NSString *> *classNames = @[@"SBPowerDownController", @"SBUIPowerDownController"];
+    NSArray<NSString *> *singletons = @[@"sharedInstance", @"sharedController", @"new"];
+    NSArray<NSString *> *shows = @[@"orderFront", @"show", @"presentPowerDown", @"orderFrontWithCompletion:"];
+    for (NSString *cn in classNames) {
+        Class c = NSClassFromString(cn);
+        if (!c) continue;
+        id obj = nil;
+        for (NSString *sn in singletons) {
+            SEL ss = NSSelectorFromString(sn);
+            if ([c respondsToSelector:ss]) { obj = ((id (*)(id, SEL))objc_msgSend)(c, ss); if (obj) break; }
+        }
+        if (!obj) obj = [[c alloc] init];
+        if (!obj) continue;
+        for (NSString *sh in shows) {
+            SEL ss = NSSelectorFromString(sh);
+            if (![obj respondsToSelector:ss]) continue;
+            if ([sh hasSuffix:@":"]) ((void (*)(id, SEL, id))objc_msgSend)(obj, ss, nil);
+            else ((void (*)(id, SEL))objc_msgSend)(obj, ss);
+            return;
+        }
+    }
+
+    Class vcClass = NSClassFromString(@"SBPowerDownViewController");
+    if (vcClass && presenter) {
+        UIViewController *pv = [[vcClass alloc] init];
+        if ([pv isKindOfClass:UIViewController.class]) {
+            pv.modalPresentationStyle = UIModalPresentationFullScreen;
+            [presenter presentViewController:pv animated:YES completion:nil];
+        }
+    }
 }
 
 - (void)snapToFirstPageForOverlay:(UIViewController *)overlay {
