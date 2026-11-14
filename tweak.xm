@@ -450,21 +450,186 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
-@interface PACCJelly : NSObject <UIGestureRecognizerDelegate>
+@interface PACCSpring : NSObject
+@property (nonatomic, weak) UIView *view;
+@property (nonatomic) CGFloat x, y, sx, sy, vx, vy, vsx, vsy;
+@property (nonatomic) CGFloat tx, ty, tsx, tsy;
+@property (nonatomic) CGFloat angle;
+@property (nonatomic) CGFloat k, c;
+@end
+
+@implementation PACCSpring
+- (instancetype)init {
+    if ((self = [super init])) { _sx = _sy = _tsx = _tsy = 1; _k = 320; _c = 24; }
+    return self;
+}
+- (BOOL)settled {
+    return fabs(_x - _tx) < 0.02 && fabs(_y - _ty) < 0.02 && fabs(_sx - _tsx) < 0.0005 && fabs(_sy - _tsy) < 0.0005 &&
+           fabs(_vx) < 0.05 && fabs(_vy) < 0.05 && fabs(_vsx) < 0.002 && fabs(_vsy) < 0.002;
+}
+- (void)step:(CGFloat)dt {
+    int n = 4;
+    CGFloat h = dt / n;
+    for (int i = 0; i < n; i++) {
+        _vx += (-_k * (_x - _tx) - _c * _vx) * h;     _x += _vx * h;
+        _vy += (-_k * (_y - _ty) - _c * _vy) * h;     _y += _vy * h;
+        _vsx += (-_k * (_sx - _tsx) - _c * _vsx) * h; _sx += _vsx * h;
+        _vsy += (-_k * (_sy - _tsy) - _c * _vsy) * h; _sy += _vsy * h;
+    }
+}
+- (CGAffineTransform)transform {
+    CGAffineTransform t = CGAffineTransformMakeTranslation(_x, _y);
+    t = CGAffineTransformRotate(t, _angle);
+    t = CGAffineTransformScale(t, _sx, _sy);
+    return CGAffineTransformRotate(t, -_angle);
+}
+@end
+
+static const void *kPACCSpring = &kPACCSpring;
+static NSHashTable *gPACCActiveSprings;
+static CADisplayLink *gPACCSpringLink;
+
+@interface PACCSpringTicker : NSObject
 + (instancetype)shared;
 @end
 
-static const void *kPACCJellyAdded = &kPACCJellyAdded;
-
-static UIView *PACCJellyShell(UIView *v) {
-    Class cls = NSClassFromString(@"CCUIContentModuleContainerView");
-    UIView *p = v;
-    while (p) {
-        if (cls && [p isKindOfClass:cls]) return p;
-        p = p.superview;
-    }
-    return nil;
+@implementation PACCSpringTicker
++ (instancetype)shared {
+    static PACCSpringTicker *t;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ t = [PACCSpringTicker new]; });
+    return t;
 }
+- (void)step:(CADisplayLink *)link {
+    CGFloat dt = link.targetTimestamp - link.timestamp;
+    if (dt <= 0 || dt > 0.05) dt = 1.0 / 120.0;
+    for (PACCSpring *s in [gPACCActiveSprings allObjects]) {
+        UIView *v = s.view;
+        if (!v) { [gPACCActiveSprings removeObject:s]; continue; }
+        [s step:dt];
+        if ([s settled]) {
+            s.x = s.tx; s.y = s.ty; s.sx = s.tsx; s.sy = s.tsy; s.vx = s.vy = s.vsx = s.vsy = 0;
+            [gPACCActiveSprings removeObject:s];
+        }
+        v.transform = [s transform];
+    }
+    if (!gPACCActiveSprings.count) { [gPACCSpringLink invalidate]; gPACCSpringLink = nil; }
+}
+@end
+
+static PACCSpring *PACCSpringFor(UIView *v) {
+    PACCSpring *s = objc_getAssociatedObject(v, kPACCSpring);
+    if (!s) {
+        s = [PACCSpring new];
+        s.view = v;
+        objc_setAssociatedObject(v, kPACCSpring, s, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return s;
+}
+
+static void PACCWakeSpring(PACCSpring *s) {
+    if (!gPACCActiveSprings) gPACCActiveSprings = [NSHashTable hashTableWithOptions:NSPointerFunctionsStrongMemory];
+    [gPACCActiveSprings addObject:s];
+    if (!gPACCSpringLink) {
+        gPACCSpringLink = [CADisplayLink displayLinkWithTarget:[PACCSpringTicker shared] selector:@selector(step:)];
+        if (@available(iOS 15.0, *)) gPACCSpringLink.preferredFrameRateRange = CAFrameRateRangeMake(60, 120, 120);
+        [gPACCSpringLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    }
+}
+
+static BOOL PACCInControlCenter(UIView *v) {
+    int d = 0;
+    for (UIView *p = v; p && d < 40; p = p.superview, d++) {
+        NSString *n = NSStringFromClass([p class]);
+        if ([n hasPrefix:@"CCUI"] || [n containsString:@"ControlCenter"]) return YES;
+    }
+    return NO;
+}
+
+static UIView *PACCSliderShell(UIView *slider) {
+    UIView *best = slider, *p = slider.superview;
+    for (int d = 0; p && d < 6; d++, p = p.superview) {
+        if (fabs(p.bounds.size.width - slider.bounds.size.width) <= 6 && fabs(p.bounds.size.height - slider.bounds.size.height) <= 6) best = p;
+        else if (p.bounds.size.width > slider.bounds.size.width + 6 || p.bounds.size.height > slider.bounds.size.height + 6) break;
+    }
+    return best;
+}
+
+static void PACCApplyStretch(UIView *slider, CGFloat over, int dir) {
+    UIView *v = PACCSliderShell(slider);
+    CGFloat H = v.bounds.size.height;
+    if (H < 1) return;
+    PACCSpring *s = PACCSpringFor(v);
+    CGFloat stretch = (!gSliderBounceEnabled || over <= 0) ? 0 : MIN((1.0 - 1.0 / (over * 0.5 / H + 1.0)) * H, H * 0.12);
+    CGFloat r = stretch / H;
+    s.k = 900; s.c = 60; s.angle = 0;
+    s.tx = 0; s.ty = -dir * stretch / 2; s.tsx = 1.0 - r * 0.35; s.tsy = 1.0 + r;
+    PACCWakeSpring(s);
+}
+
+static void PACCReleaseStretch(UIView *slider) {
+    UIView *v = PACCSliderShell(slider);
+    PACCSpring *s = objc_getAssociatedObject(v, kPACCSpring);
+    if (!s) return;
+    s.k = 95; s.c = 19.5;
+    s.vx = s.vy = s.vsx = s.vsy = 0;
+    s.tx = 0; s.ty = 0; s.tsx = 1; s.tsy = 1;
+    PACCWakeSpring(s);
+}
+
+@interface PACCBouncer : NSObject <UIGestureRecognizerDelegate>
++ (instancetype)shared;
+@end
+
+@implementation PACCBouncer
++ (instancetype)shared {
+    static PACCBouncer *b;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ b = [PACCBouncer new]; });
+    return b;
+}
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
+    return YES;
+}
+- (void)pan:(UIPanGestureRecognizer *)g {
+    UIView *v = g.view;
+    if (!v || !v.superview || !gEnabled || !gSliderBounceEnabled) return;
+    CGFloat H = v.bounds.size.height;
+    if (H < 1) return;
+    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
+        CGFloat over = 0;
+        int dir = 0;
+        CGFloat top = v.center.y - H / 2, bottom = v.center.y + H / 2;
+        CGFloat y = [g locationInView:v.superview].y;
+        if (y < top) { over = top - y; dir = 1; }
+        else if (y > bottom) { over = y - bottom; dir = -1; }
+        PACCApplyStretch(v, over, dir);
+    } else if (g.state >= UIGestureRecognizerStateEnded) {
+        PACCReleaseStretch(v);
+    }
+}
+@end
+
+static const void *kPACCPanAdded = &kPACCPanAdded;
+
+static void PACCAddBounce(UIView *slider) {
+    if (objc_getAssociatedObject(slider, kPACCPanAdded)) return;
+    objc_setAssociatedObject(slider, kPACCPanAdded, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:[PACCBouncer shared] action:@selector(pan:)];
+    pan.delegate = [PACCBouncer shared];
+    pan.cancelsTouchesInView = NO;
+    pan.delaysTouchesBegan = NO;
+    pan.delaysTouchesEnded = NO;
+    [slider addGestureRecognizer:pan];
+}
+
+static const void *kPACCJelly = &kPACCJelly;
+static const void *kPACCJellyStart = &kPACCJellyStart;
+static const void *kPACCJellyLast = &kPACCJellyLast;
+
+@interface PACCJelly : NSObject <UIGestureRecognizerDelegate>
++ (instancetype)shared;
+@end
 
 @implementation PACCJelly
 + (instancetype)shared {
@@ -476,43 +641,82 @@ static UIView *PACCJellyShell(UIView *v) {
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
     return YES;
 }
-- (void)pan:(UIPanGestureRecognizer *)g {
-    UIView *slider = g.view;
-    UIView *shell = PACCJellyShell(slider);
-    if (!slider || !shell || !gEnabled || !gSliderBounceEnabled) return;
-    CGFloat H = CGRectGetHeight(slider.bounds);
-    if (H < 1.0) return;
-    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
-        CGFloat y = [g locationInView:slider].y;
-        CGFloat over = 0.0;
-        int dir = 0;
-        if (y < 0.0) { over = -y; dir = 1; }
-        else if (y > H) { over = y - H; dir = -1; }
-        CGFloat stretch = over <= 0.0 ? 0.0 : MIN((1.0 - 1.0 / (over * 0.5 / H + 1.0)) * H, H * 0.12);
-        CGFloat r = stretch / H;
-        CGAffineTransform t = CGAffineTransformMakeTranslation(0.0, -dir * stretch * 0.5);
-        t = CGAffineTransformScale(t, 1.0 - r * 0.35, 1.0 + r);
-        [UIView animateWithDuration:0.12 delay:0.0
-                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionCurveEaseOut
-                         animations:^{ shell.transform = t; } completion:nil];
-    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled || g.state == UIGestureRecognizerStateFailed) {
-        [UIView animateWithDuration:0.55 delay:0.0 usingSpringWithDamping:0.55 initialSpringVelocity:0.0
-                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
-                         animations:^{ shell.transform = CGAffineTransformIdentity; } completion:nil];
+- (void)press:(UILongPressGestureRecognizer *)g {
+    UIView *v = g.view;
+    if (!v || !v.superview) return;
+    PACCSpring *s = PACCSpringFor(v);
+    if (!gEnabled || !gSliderBounceEnabled || gEditModeActive) {
+        s.tx = s.ty = 0; s.tsx = s.tsy = 1;
+        PACCWakeSpring(s);
+        return;
+    }
+    CGPoint p = [g locationInView:v.superview];
+    if (g.state == UIGestureRecognizerStateBegan) {
+        objc_setAssociatedObject(v, kPACCJellyStart, [NSValue valueWithCGPoint:p], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        s.k = 420; s.c = 24;
+        s.tx = s.ty = 0; s.tsx = s.tsy = 1.08; s.angle = 0;
+        PACCWakeSpring(s);
+    } else if (g.state == UIGestureRecognizerStateChanged) {
+        CGPoint st = [objc_getAssociatedObject(v, kPACCJellyStart) CGPointValue];
+        CGFloat dx = p.x - st.x, dy = p.y - st.y, dist = hypot(dx, dy);
+        CGFloat damp = 0.16 / (1.0 + dist / 110.0);
+        CGFloat stretch = MIN(dist / 380.0, 0.09);
+        s.k = 650; s.c = 42;
+        s.tx = dx * damp; s.ty = dy * damp;
+        if (dist > 2) s.angle = atan2(dy, dx);
+        s.tsx = 1.08 + stretch; s.tsy = 1.08 - stretch * 0.6;
+        PACCWakeSpring(s);
+        objc_setAssociatedObject(v, kPACCJellyLast, @[[NSValue valueWithCGPoint:p], @(CACurrentMediaTime())], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else if (g.state >= UIGestureRecognizerStateEnded) {
+        NSArray *last = objc_getAssociatedObject(v, kPACCJellyLast);
+        if (last) {
+            CGPoint lp = [last[0] CGPointValue];
+            CGFloat dt = MAX(CACurrentMediaTime() - [last[1] doubleValue], 1.0 / 120.0);
+            s.vx += MAX(-160, MIN(160, (p.x - lp.x) / dt * 0.12));
+            s.vy += MAX(-160, MIN(160, (p.y - lp.y) / dt * 0.12));
+        }
+        objc_setAssociatedObject(v, kPACCJellyLast, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        s.k = 300; s.c = 10;
+        s.tx = s.ty = 0; s.tsx = s.tsy = 1;
+        s.vsx += 0.6; s.vsy -= 0.6;
+        PACCWakeSpring(s);
     }
 }
 @end
 
-static void PACCAddJelly(UIView *slider) {
-    if (!slider || objc_getAssociatedObject(slider, kPACCJellyAdded)) return;
-    objc_setAssociatedObject(slider, kPACCJellyAdded, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:[PACCJelly shared] action:@selector(pan:)];
-    pan.delegate = [PACCJelly shared];
-    pan.cancelsTouchesInView = NO;
-    pan.delaysTouchesBegan = NO;
-    pan.delaysTouchesEnded = NO;
-    [slider addGestureRecognizer:pan];
+static void PACCAddJelly(UIView *v) {
+    if (objc_getAssociatedObject(v, kPACCJelly)) return;
+    objc_setAssociatedObject(v, kPACCJelly, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    UILongPressGestureRecognizer *lp = [[UILongPressGestureRecognizer alloc] initWithTarget:[PACCJelly shared] action:@selector(press:)];
+    lp.minimumPressDuration = 0;
+    lp.allowableMovement = CGFLOAT_MAX;
+    lp.cancelsTouchesInView = NO;
+    lp.delaysTouchesBegan = NO;
+    lp.delaysTouchesEnded = NO;
+    lp.delegate = [PACCJelly shared];
+    [v addGestureRecognizer:lp];
 }
+
+%hook CCUIBaseSliderView
+- (void)didMoveToWindow {
+    %orig;
+    if (self.window && gEnabled && PACCInControlCenter((UIView *)self)) PACCAddBounce((UIView *)self);
+}
+%end
+
+%hook CCUIRoundButton
+- (void)didMoveToWindow {
+    %orig;
+    if (self.window && gEnabled && PACCInControlCenter((UIView *)self)) PACCAddJelly((UIView *)self);
+}
+%end
+
+%hook CCUIButtonModuleView
+- (void)didMoveToWindow {
+    %orig;
+    if (self.window && gEnabled && PACCInControlCenter((UIView *)self)) PACCAddJelly((UIView *)self);
+}
+%end
 
 %hook CCUISliderModuleViewController
 - (void)viewDidLayoutSubviews {
@@ -527,10 +731,6 @@ static void PACCAddJelly(UIView *slider) {
         tintColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.0 alpha:1.0];
     } else if ([className containsString:@"Volume"]) {
         tintColor = [UIColor colorWithRed:0.0 green:0.8 blue:1.0 alpha:1.0];
-    }
-
-    for (UIView *sub in vc.view.subviews) {
-        if ([NSStringFromClass(sub.class) containsString:@"Slider"]) PACCAddJelly(sub);
     }
 
     if (tintColor) {
