@@ -5031,7 +5031,7 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
         if (r.size.width != 1 || r.size.height != 1) return r;
 
         busy = YES;
-        NSMutableArray<NSValue *> *freed = [NSMutableArray array];
+        NSMutableArray<NSArray *> *freed = [NSMutableArray array];
         NSMutableArray<NSDictionary *> *cands = [NSMutableArray array];
         NSUInteger sliderMaxX = 0;
         BOOL haveSlider = NO, blocked = NO;
