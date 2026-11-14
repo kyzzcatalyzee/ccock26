@@ -700,21 +700,24 @@ static void PACCAddJelly(UIView *v) {
 %hook CCUIBaseSliderView
 - (void)didMoveToWindow {
     %orig;
-    if (self.window && gEnabled && PACCInControlCenter((UIView *)self)) PACCAddBounce((UIView *)self);
+    UIView *sv = (UIView *)(id)self;
+    if (sv.window && gEnabled && PACCInControlCenter(sv)) PACCAddBounce(sv);
 }
 %end
 
 %hook CCUIRoundButton
 - (void)didMoveToWindow {
     %orig;
-    if (self.window && gEnabled && PACCInControlCenter((UIView *)self)) PACCAddJelly((UIView *)self);
+    UIView *sv = (UIView *)(id)self;
+    if (sv.window && gEnabled && PACCInControlCenter(sv)) PACCAddJelly(sv);
 }
 %end
 
 %hook CCUIButtonModuleView
 - (void)didMoveToWindow {
     %orig;
-    if (self.window && gEnabled && PACCInControlCenter((UIView *)self)) PACCAddJelly((UIView *)self);
+    UIView *sv = (UIView *)(id)self;
+    if (sv.window && gEnabled && PACCInControlCenter(sv)) PACCAddJelly(sv);
 }
 %end
 
