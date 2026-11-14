@@ -2495,7 +2495,7 @@ static void PACStopPageWatch(void) {
 
 #pragma mark Picker
 
-@interface PACAddPicker : UIView <UITableViewDataSource, UITableViewDelegate>
+@interface PACAddPicker : UIView
 @property (nonatomic, copy) void (^onPick)(NSString *mid);
 @property (nonatomic, copy) void (^onClose)(void);
 - (instancetype)initWithFrame:(CGRect)frame items:(NSArray<NSDictionary *> *)items;
@@ -2507,91 +2507,262 @@ static void PACStopPageWatch(void) {
     NSArray<NSDictionary *> *_items;
     UIView *_dim;
     UIVisualEffectView *_sheet;
-    UITableView *_table;
+    UIScrollView *_scroll;
+    UITextField *_search;
+    UIView *_grabber;
+    UIView *_searchBox;
     CGFloat _sheetH;
+    NSString *_filter;
+    CGFloat _lastBuildW;
+}
+
+static NSString *PACPickerSection(NSString *mid, NSString *name) {
+    NSString *k = [[mid stringByAppendingString:name] lowercaseString];
+    NSArray *conn = @[@"wifi", @"wi-fi", @"bluetooth", @"airplane", @"cellular", @"hotspot", @"airdrop", @"vpn", @"connectivity"];
+    for (NSString *t in conn) if ([k containsString:t]) return @"Connectivity";
+    NSArray *clock = @[@"timer", @"alarm", @"stopwatch", @"clock"];
+    for (NSString *t in clock) if ([k containsString:t]) return @"Clock";
+    NSArray *cap = @[@"camera", @"magnif", @"scan", @"qr", @"flashlight", @"torch"];
+    for (NSString *t in cap) if ([k containsString:t]) return @"Capture";
+    NSArray *media = @[@"nowplaying", @"music", @"volume", @"brightness", @"media", @"hearing", @"sound", @"airplay"];
+    for (NSString *t in media) if ([k containsString:t]) return @"Media & Display";
+    return @"Other";
+}
+
+static NSString *PACPickerSymbol(NSString *mid, NSString *name) {
+    NSString *k = [[mid stringByAppendingString:name] lowercaseString];
+    NSArray *map = @[
+        @[@"airplane", @"airplane"], @[@"hotspot", @"personalhotspot"], @[@"airdrop", @"airdrop"],
+        @[@"cellular", @"cellularbars"], @[@"bluetooth", @"bluetooth"], @[@"wifi", @"wifi"], @[@"wi-fi", @"wifi"],
+        @[@"vpn", @"network"], @[@"connectivity", @"antenna.radiowaves.left.and.right"],
+        @[@"camera", @"camera.fill"], @[@"magnif", @"plus.magnifyingglass"], @[@"scan", @"qrcode.viewfinder"], @[@"qr", @"qrcode.viewfinder"],
+        @[@"flashlight", @"flashlight.off.fill"], @[@"torch", @"flashlight.off.fill"],
+        @[@"stopwatch", @"stopwatch.fill"], @[@"timer", @"timer"], @[@"alarm", @"alarm.fill"],
+        @[@"nowplaying", @"play.fill"], @[@"music", @"music.note"], @[@"volume", @"speaker.wave.2.fill"],
+        @[@"brightness", @"sun.max.fill"], @[@"focus", @"moon.fill"], @[@"orientation", @"lock.rotation"], @[@"rotation", @"lock.rotation"],
+        @[@"mirror", @"rectangle.on.rectangle"], @[@"calculator", @"plus.forwardslash.minus"], @[@"hearing", @"ear"],
+        @[@"silent", @"bell.slash.fill"], @[@"mute", @"bell.slash.fill"], @[@"lowpower", @"battery.50"], @[@"power", @"battery.50"],
+        @[@"notes", @"note.text"], @[@"wallet", @"wallet.pass.fill"], @[@"home", @"homekit"], @[@"darkmode", @"circle.lefthalf.filled"],
+        @[@"voice", @"mic.fill"], @[@"record", @"record.circle"], @[@"accessib", @"accessibility"], @[@"textsize", @"textformat.size"]
+    ];
+    for (NSArray *p in map) if ([k containsString:p[0]]) return p[1];
+    return @"square.grid.2x2.fill";
 }
 
 - (instancetype)initWithFrame:(CGRect)frame items:(NSArray<NSDictionary *> *)items {
     if ((self = [super initWithFrame:frame])) {
         _items = items;
+        _filter = @"";
         self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
         _dim = [[UIView alloc] initWithFrame:self.bounds];
-        _dim.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.45];
+        _dim.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.35];
         _dim.alpha = 0.0;
         _dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         [_dim addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(closeTapped)]];
         [self addSubview:_dim];
 
         _sheet = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterialDark]];
-        _sheet.layer.cornerRadius = 32.0;
+        _sheet.layer.cornerRadius = 38.0;
         _sheet.layer.cornerCurve = kCACornerCurveContinuous;
         _sheet.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
         _sheet.layer.masksToBounds = YES;
         [self addSubview:_sheet];
 
-        UILabel *title = [UILabel new];
-        title.text = @"Add a Control";
-        title.textColor = UIColor.whiteColor;
-        title.font = [UIFont systemFontOfSize:22 weight:UIFontWeightBold];
-        title.tag = 71;
-        [_sheet.contentView addSubview:title];
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panned:)];
+        [_sheet addGestureRecognizer:pan];
 
-        UIButton *close = [UIButton buttonWithType:UIButtonTypeCustom];
-        close.tag = 72;
-        close.tintColor = [UIColor colorWithWhite:1.0 alpha:0.55];
-        [close setImage:[UIImage systemImageNamed:@"xmark.circle.fill"
-                                 withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:28 weight:UIImageSymbolWeightRegular]]
-               forState:UIControlStateNormal];
-        [close addTarget:self action:@selector(closeTapped) forControlEvents:UIControlEventTouchUpInside];
-        [_sheet.contentView addSubview:close];
+        _grabber = [UIView new];
+        _grabber.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.35];
+        _grabber.layer.cornerRadius = 2.5;
+        [_sheet.contentView addSubview:_grabber];
 
-        _table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
-        _table.backgroundColor = UIColor.clearColor;
-        _table.separatorColor = [UIColor colorWithWhite:1.0 alpha:0.12];
-        _table.rowHeight = 58.0;
-        _table.dataSource = self;
-        _table.delegate = self;
-        _table.alwaysBounceVertical = YES;
-        [_sheet.contentView addSubview:_table];
+        _searchBox = [UIView new];
+        _searchBox.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+        _searchBox.layer.cornerRadius = 14.0;
+        _searchBox.layer.cornerCurve = kCACornerCurveContinuous;
+        [_sheet.contentView addSubview:_searchBox];
 
-        if (!items.count) {
-            UILabel *empty = [UILabel new];
-            empty.tag = 73;
-            empty.text = @"All controls are already added";
-            empty.textColor = [UIColor colorWithWhite:1.0 alpha:0.6];
-            empty.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
-            empty.textAlignment = NSTextAlignmentCenter;
-            [_sheet.contentView addSubview:empty];
-        }
+        _search = [UITextField new];
+        _search.textColor = UIColor.whiteColor;
+        _search.font = [UIFont systemFontOfSize:19 weight:UIFontWeightRegular];
+        _search.textAlignment = NSTextAlignmentCenter;
+        _search.returnKeyType = UIReturnKeySearch;
+        _search.autocorrectionType = UITextAutocorrectionTypeNo;
+        _search.clearButtonMode = UITextFieldViewModeNever;
+        _search.attributedPlaceholder = [[NSAttributedString alloc] initWithString:@"Search Controls"
+            attributes:@{NSForegroundColorAttributeName: [UIColor colorWithWhite:1.0 alpha:0.6]}];
+        UIImageView *mag = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"magnifyingglass"
+            withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:18 weight:UIImageSymbolWeightMedium]]];
+        mag.tintColor = [UIColor colorWithWhite:1.0 alpha:0.6];
+        mag.contentMode = UIViewContentModeCenter;
+        mag.frame = CGRectMake(0, 0, 30, 24);
+        _search.leftView = mag;
+        _search.leftViewMode = UITextFieldViewModeUnlessEditing;
+        [_search addTarget:self action:@selector(searchChanged) forControlEvents:UIControlEventEditingChanged];
+        [_search addTarget:self action:@selector(endEdit) forControlEvents:UIControlEventEditingDidEndOnExit];
+        [_searchBox addSubview:_search];
+
+        _scroll = [UIScrollView new];
+        _scroll.alwaysBounceVertical = YES;
+        _scroll.showsVerticalScrollIndicator = NO;
+        _scroll.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
+        [_sheet.contentView addSubview:_scroll];
     }
     return self;
+}
+
+- (void)endEdit { [_search resignFirstResponder]; }
+
+- (void)searchChanged {
+    _filter = [_search.text lowercaseString] ?: @"";
+    [self rebuild];
+}
+
+- (void)panned:(UIPanGestureRecognizer *)g {
+    CGFloat ty = MAX(0.0, [g translationInView:self].y);
+    if (g.state == UIGestureRecognizerStateChanged) {
+        _sheet.transform = CGAffineTransformMakeTranslation(0, ty);
+    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
+        if (ty > 120.0 || [g velocityInView:self].y > 900.0) {
+            [self closeTapped];
+        } else {
+            [UIView animateWithDuration:0.3 animations:^{ self->_sheet.transform = CGAffineTransformIdentity; }];
+        }
+    }
+}
+
+- (void)rebuild {
+    for (UIView *v in [_scroll.subviews copy]) [v removeFromSuperview];
+    CGFloat w = CGRectGetWidth(self.bounds);
+    CGFloat pad = 24.0, tile = 54.0, labelH = 34.0;
+    CGFloat avail = w - pad * 2.0;
+    NSInteger cols = MAX(3, (NSInteger)floor((avail + 10.0) / (tile + 28.0)));
+    CGFloat colW = avail / (CGFloat)cols;
+
+    NSMutableArray<NSString *> *order = [NSMutableArray array];
+    NSMutableDictionary<NSString *, NSMutableArray *> *groups = [NSMutableDictionary dictionary];
+    for (NSDictionary *it in _items) {
+        NSString *name = it[@"name"] ?: @"";
+        if (_filter.length && ![[name lowercaseString] containsString:_filter]) continue;
+        NSString *sec = PACPickerSection(it[@"mid"], name);
+        if (!groups[sec]) { groups[sec] = [NSMutableArray array]; [order addObject:sec]; }
+        [groups[sec] addObject:it];
+    }
+    [order sortUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        if ([a isEqualToString:@"Other"]) return NSOrderedDescending;
+        if ([b isEqualToString:@"Other"]) return NSOrderedAscending;
+        return [a compare:b];
+    }];
+
+    CGFloat y = 14.0;
+    if (!order.count) {
+        UILabel *empty = [[UILabel alloc] initWithFrame:CGRectMake(pad, 40, avail, 24)];
+        empty.text = _items.count ? @"No Results" : @"All controls are already added";
+        empty.textColor = [UIColor colorWithWhite:1.0 alpha:0.6];
+        empty.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
+        empty.textAlignment = NSTextAlignmentCenter;
+        [_scroll addSubview:empty];
+        y = 100.0;
+    }
+    NSDictionary *tints = @{@"Capture": [UIColor colorWithRed:0.04 green:0.52 blue:1.0 alpha:1.0],
+                            @"Clock": [UIColor colorWithWhite:0.12 alpha:1.0],
+                            @"Connectivity": [UIColor colorWithRed:0.20 green:0.78 blue:0.35 alpha:1.0],
+                            @"Media & Display": [UIColor colorWithRed:1.0 green:0.27 blue:0.35 alpha:1.0],
+                            @"Other": [UIColor colorWithWhite:0.45 alpha:1.0]};
+    NSDictionary *secSym = @{@"Capture": @"camera.fill", @"Clock": @"clock.fill", @"Connectivity": @"antenna.radiowaves.left.and.right",
+                             @"Media & Display": @"play.rectangle.fill", @"Other": @"square.grid.2x2.fill"};
+    BOOL first = YES;
+    for (NSString *sec in order) {
+        if (!first) {
+            UIView *line = [[UIView alloc] initWithFrame:CGRectMake(pad, y, avail, 1.0 / UIScreen.mainScreen.scale)];
+            line.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.15];
+            [_scroll addSubview:line];
+            y += 22.0;
+        }
+        first = NO;
+        UIView *badge = [[UIView alloc] initWithFrame:CGRectMake(pad, y, 34, 34)];
+        badge.backgroundColor = tints[sec];
+        badge.layer.cornerRadius = 8.0;
+        badge.layer.cornerCurve = kCACornerCurveContinuous;
+        UIImageView *bi = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:secSym[sec]
+            withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:16 weight:UIImageSymbolWeightSemibold]]];
+        bi.tintColor = UIColor.whiteColor;
+        bi.contentMode = UIViewContentModeCenter;
+        bi.frame = badge.bounds;
+        [badge addSubview:bi];
+        [_scroll addSubview:badge];
+        UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(pad + 44, y, avail - 44, 34)];
+        t.text = sec;
+        t.textColor = UIColor.whiteColor;
+        t.font = [UIFont systemFontOfSize:22 weight:UIFontWeightSemibold];
+        [_scroll addSubview:t];
+        y += 34.0 + 22.0;
+
+        NSArray *list = groups[sec];
+        NSInteger i = 0;
+        for (NSDictionary *it in list) {
+            NSInteger r = i / cols, c = i % cols;
+            CGFloat cx = pad + colW * (CGFloat)c + colW * 0.5;
+            CGFloat top = y + (CGFloat)r * (tile + labelH + 18.0);
+            UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+            btn.frame = CGRectMake(cx - tile * 0.5, top, tile, tile);
+            btn.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.14];
+            btn.layer.cornerRadius = tile * 0.5;
+            btn.tintColor = UIColor.whiteColor;
+            [btn setImage:[UIImage systemImageNamed:PACPickerSymbol(it[@"mid"], it[@"name"])
+                withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:23 weight:UIImageSymbolWeightMedium]]
+                 forState:UIControlStateNormal];
+            btn.accessibilityLabel = it[@"name"];
+            objc_setAssociatedObject(btn, "pacMid", it[@"mid"], OBJC_ASSOCIATION_COPY_NONATOMIC);
+            [btn addTarget:self action:@selector(itemTapped:) forControlEvents:UIControlEventTouchUpInside];
+            [_scroll addSubview:btn];
+
+            UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(cx - colW * 0.5 + 2, top + tile + 6, colW - 4, labelH)];
+            l.text = it[@"name"];
+            l.numberOfLines = 2;
+            l.textAlignment = NSTextAlignmentCenter;
+            l.textColor = [UIColor colorWithWhite:1.0 alpha:0.7];
+            l.font = [UIFont systemFontOfSize:14 weight:UIFontWeightMedium];
+            l.adjustsFontSizeToFitWidth = YES;
+            l.minimumScaleFactor = 0.8;
+            [_scroll addSubview:l];
+            i++;
+        }
+        NSInteger rows = (i + cols - 1) / cols;
+        y += (CGFloat)rows * (tile + labelH + 18.0) + 6.0;
+    }
+    CGFloat safeBottom = MAX(self.safeAreaInsets.bottom, 12.0);
+    _scroll.contentSize = CGSizeMake(w, y + safeBottom + 20.0);
+}
+
+- (void)itemTapped:(UIButton *)b {
+    NSString *mid = objc_getAssociatedObject(b, "pacMid");
+    if (self.onPick && mid.length) self.onPick(mid);
 }
 
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat w = CGRectGetWidth(self.bounds), H = CGRectGetHeight(self.bounds);
-    CGFloat safeBottom = self.safeAreaInsets.bottom;
-    if (safeBottom < 1.0) safeBottom = 12.0;
-    CGFloat want = 76.0 + MAX(1, (NSInteger)_items.count) * 58.0 + safeBottom + 8.0;
-    _sheetH = MIN(H * 0.72, MAX(230.0, want));
-    BOOL presented = (_sheet.transform.ty == 0.0);
+    _sheetH = H * 0.82;
     CGAffineTransform keep = _sheet.transform;
     _sheet.transform = CGAffineTransformIdentity;
     _sheet.frame = CGRectMake(0, H - _sheetH, w, _sheetH);
-    _sheet.transform = presented ? CGAffineTransformIdentity : keep;
-
-    [_sheet.contentView viewWithTag:71].frame = CGRectMake(24, 22, w - 100, 30);
-    [_sheet.contentView viewWithTag:72].frame = CGRectMake(w - 24 - 36, 19, 36, 36);
-    _table.frame = CGRectMake(0, 70, w, _sheetH - 70);
-    _table.contentInset = UIEdgeInsetsMake(0, 0, safeBottom, 0);
-    [_sheet.contentView viewWithTag:73].frame = CGRectMake(24, 100, w - 48, 24);
+    _sheet.transform = keep;
+    _grabber.frame = CGRectMake(w * 0.5 - 18, 11, 36, 5);
+    _searchBox.frame = CGRectMake(24, 34, w - 48, 52);
+    _search.frame = CGRectInset(_searchBox.bounds, 10, 0);
+    _scroll.frame = CGRectMake(0, 96, w, _sheetH - 96);
+    if (fabs(_scroll.frame.size.width - _lastBuildW) > 0.5 || !_scroll.subviews.count) {
+        _lastBuildW = _scroll.frame.size.width;
+        [self rebuild];
+    }
 }
 
 - (void)presentAnimated {
     [self layoutIfNeeded];
     _sheet.transform = CGAffineTransformMakeTranslation(0, _sheetH + 20.0);
-    [UIView animateWithDuration:0.7 delay:0.0 usingSpringWithDamping:0.78 initialSpringVelocity:0.5
+    [UIView animateWithDuration:0.7 delay:0.0 usingSpringWithDamping:0.82 initialSpringVelocity:0.5
                         options:UIViewAnimationOptionAllowUserInteraction animations:^{
         self->_sheet.transform = CGAffineTransformIdentity;
         self->_dim.alpha = 1.0;
@@ -2599,6 +2770,7 @@ static void PACStopPageWatch(void) {
 }
 
 - (void)dismissAnimated:(void (^)(void))completion {
+    [_search resignFirstResponder];
     [UIView animateWithDuration:0.28 delay:0.0 options:UIViewAnimationOptionCurveEaseIn animations:^{
         self->_sheet.transform = CGAffineTransformMakeTranslation(0, self->_sheetH + 20.0);
         self->_dim.alpha = 0.0;
@@ -2608,33 +2780,6 @@ static void PACStopPageWatch(void) {
 }
 
 - (void)closeTapped { if (self.onClose) self.onClose(); }
-
-- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)section { return (NSInteger)_items.count; }
-
-- (UITableViewCell *)tableView:(UITableView *)tv cellForRowAtIndexPath:(NSIndexPath *)ip {
-    UITableViewCell *cell = [tv dequeueReusableCellWithIdentifier:@"pac"];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"pac"];
-        cell.backgroundColor = UIColor.clearColor;
-        cell.textLabel.textColor = UIColor.whiteColor;
-        cell.textLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightMedium];
-        UIView *sel = [UIView new];
-        sel.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
-        cell.selectedBackgroundView = sel;
-        UIImageView *plus = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"plus.circle.fill"
-            withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:24 weight:UIImageSymbolWeightRegular]]];
-        plus.tintColor = [UIColor colorWithWhite:1.0 alpha:0.9];
-        cell.accessoryView = plus;
-    }
-    cell.textLabel.text = _items[ip.row][@"name"];
-    return cell;
-}
-
-- (void)tableView:(UITableView *)tv didSelectRowAtIndexPath:(NSIndexPath *)ip {
-    [tv deselectRowAtIndexPath:ip animated:YES];
-    NSString *mid = _items[ip.row][@"mid"];
-    if (self.onPick && mid.length) self.onPick(mid);
-}
 
 @end
 
