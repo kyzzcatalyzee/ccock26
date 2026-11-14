@@ -4884,10 +4884,8 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     CGFloat lineHeight = wideRow ? ceil(titleLabel.font.lineHeight) : 14.3333;
     CGFloat textW;
     CGFloat textX;
-    CGFloat iconCenterY = H * 0.5;
     if (curW > 1 && curH == 1) {
         textX = round(H * 0.93);
-        iconCenterY = H * 0.5;
         textW = MAX(0.0, W - textX - round(H * 0.14));
     } else {
         textX = curW > 1 ? 21.0 : 10.0;
