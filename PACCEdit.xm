@@ -4806,10 +4806,9 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
 
     NSString *newText = PACPrettyNameForModule(m);
     NSString *midLower = mid.lowercaseString;
-    BOOL isFocus = [midLower containsString:@"donotdisturb"] || [midLower containsString:@"focus"];
     BOOL isOrient = [midLower containsString:@"orientation"] || [midLower containsString:@"rotationlock"];
-    if (isFocus) newText = @"Focus";
-    else if (isOrient) newText = @"Orientation";
+    BOOL isFocus = [midLower containsString:@"donotdisturb"] || [midLower containsString:@"focus"];
+    if (isOrient) newText = @"Orientation";
     CGSize bvSize = buttonView.bounds.size;
     NSUInteger sig = 1469598103934665603ULL;
     sig = (sig ^ (NSUInteger)llround(bvSize.width))  * 1099511628211ULL;
@@ -4860,11 +4859,11 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     if (!subLabel) {
         subLabel = [[UILabel alloc] init];
         subLabel.tag = 9002;
-        subLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
+        subLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
         [pres addSubview:subLabel];
     }
     if (wideRow) {
-        titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
+        titleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
         titleLabel.textColor = isSel && hasState ? UIColor.blackColor : UIColor.whiteColor;
         subLabel.text = isOrient ? (isSel ? @"Locked" : @"Unlocked") : (isSel ? @"On" : @"Off");
         subLabel.textColor = isSel ? [UIColor colorWithWhite:0 alpha:0.5] : [UIColor colorWithWhite:1 alpha:0.6];
@@ -4883,36 +4882,15 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     pres.hidden = NO;
 
     titleLabel.text = newText;
-
-    UIView *badge = [pres viewWithTag:9003];
-    if (!badge) {
-        badge = [[UIView alloc] init];
-        badge.tag = 9003;
-        badge.backgroundColor = UIColor.whiteColor;
-        badge.clipsToBounds = YES;
-        UIImageView *moon = [[UIImageView alloc] init];
-        moon.tag = 9004;
-        moon.contentMode = UIViewContentModeCenter;
-        moon.tintColor = [UIColor colorWithRed:0.35 green:0.34 blue:0.84 alpha:1.0];
-        [badge addSubview:moon];
-        [pres addSubview:badge];
-    }
-    BOOL showBadge = wideRow && isFocus;
-    badge.hidden = !showBadge;
-    if (showBadge) {
-        CGFloat bd = round(CGRectGetHeight(pres.bounds) * 0.62);
-        badge.frame = CGRectMake(round(CGRectGetHeight(pres.bounds) * 0.5 - bd * 0.5), round((CGRectGetHeight(pres.bounds) - bd) * 0.5), bd, bd);
-        badge.layer.cornerRadius = bd * 0.5;
-        UIImageView *moon = (UIImageView *)[badge viewWithTag:9004];
-        moon.frame = badge.bounds;
-        moon.image = [[UIImage systemImageNamed:@"moon.fill" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:bd * 0.48 weight:UIImageSymbolWeightSemibold]] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    if (wideRow && isFocus) {
         NSTextAttachment *att = [[NSTextAttachment alloc] init];
-        att.image = [[UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:12 weight:UIImageSymbolWeightSemibold]] imageWithTintColor:[UIColor colorWithWhite:1 alpha:0.7] renderingMode:UIImageRenderingModeAlwaysOriginal];
+        att.image = [[UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:11 weight:UIImageSymbolWeightSemibold]] imageWithTintColor:[UIColor colorWithWhite:1 alpha:0.7] renderingMode:UIImageRenderingModeAlwaysOriginal];
         NSMutableAttributedString *as = [[NSMutableAttributedString alloc] initWithString:[newText stringByAppendingString:@"  "]
             attributes:@{NSFontAttributeName: titleLabel.font, NSForegroundColorAttributeName: UIColor.whiteColor}];
         [as appendAttributedString:[NSAttributedString attributedStringWithAttachment:att]];
         titleLabel.attributedText = as;
     }
+
 
     CGFloat W = CGRectGetWidth(pres.bounds);
     CGFloat H = CGRectGetHeight(pres.bounds);

@@ -623,101 +623,11 @@ static void PACCAddBounce(UIView *slider) {
     [slider addGestureRecognizer:pan];
 }
 
-static const void *kPACCJelly = &kPACCJelly;
-static const void *kPACCJellyStart = &kPACCJellyStart;
-static const void *kPACCJellyLast = &kPACCJellyLast;
-
-@interface PACCJelly : NSObject <UIGestureRecognizerDelegate>
-+ (instancetype)shared;
-@end
-
-@implementation PACCJelly
-+ (instancetype)shared {
-    static PACCJelly *j;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ j = [PACCJelly new]; });
-    return j;
-}
-- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
-    return YES;
-}
-- (void)press:(UILongPressGestureRecognizer *)g {
-    UIView *v = g.view;
-    if (!v || !v.superview) return;
-    PACCSpring *s = PACCSpringFor(v);
-    if (!gEnabled || !gSliderBounceEnabled || gEditModeActive) {
-        s.tx = s.ty = 0; s.tsx = s.tsy = 1;
-        PACCWakeSpring(s);
-        return;
-    }
-    CGPoint p = [g locationInView:v.superview];
-    if (g.state == UIGestureRecognizerStateBegan) {
-        objc_setAssociatedObject(v, kPACCJellyStart, [NSValue valueWithCGPoint:p], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        s.k = 420; s.c = 24;
-        s.tx = s.ty = 0; s.tsx = s.tsy = 1.08; s.angle = 0;
-        PACCWakeSpring(s);
-    } else if (g.state == UIGestureRecognizerStateChanged) {
-        CGPoint st = [objc_getAssociatedObject(v, kPACCJellyStart) CGPointValue];
-        CGFloat dx = p.x - st.x, dy = p.y - st.y, dist = hypot(dx, dy);
-        CGFloat damp = 0.16 / (1.0 + dist / 110.0);
-        CGFloat stretch = MIN(dist / 380.0, 0.09);
-        s.k = 650; s.c = 42;
-        s.tx = dx * damp; s.ty = dy * damp;
-        if (dist > 2) s.angle = atan2(dy, dx);
-        s.tsx = 1.08 + stretch; s.tsy = 1.08 - stretch * 0.6;
-        PACCWakeSpring(s);
-        objc_setAssociatedObject(v, kPACCJellyLast, @[[NSValue valueWithCGPoint:p], @(CACurrentMediaTime())], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    } else if (g.state >= UIGestureRecognizerStateEnded) {
-        NSArray *last = objc_getAssociatedObject(v, kPACCJellyLast);
-        if (last) {
-            CGPoint lp = [last[0] CGPointValue];
-            CGFloat dt = MAX(CACurrentMediaTime() - [last[1] doubleValue], 1.0 / 120.0);
-            s.vx += MAX(-160, MIN(160, (p.x - lp.x) / dt * 0.12));
-            s.vy += MAX(-160, MIN(160, (p.y - lp.y) / dt * 0.12));
-        }
-        objc_setAssociatedObject(v, kPACCJellyLast, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        s.k = 300; s.c = 10;
-        s.tx = s.ty = 0; s.tsx = s.tsy = 1;
-        s.vsx += 0.6; s.vsy -= 0.6;
-        PACCWakeSpring(s);
-    }
-}
-@end
-
-static void PACCAddJelly(UIView *v) {
-    if (objc_getAssociatedObject(v, kPACCJelly)) return;
-    objc_setAssociatedObject(v, kPACCJelly, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    UILongPressGestureRecognizer *lp = [[UILongPressGestureRecognizer alloc] initWithTarget:[PACCJelly shared] action:@selector(press:)];
-    lp.minimumPressDuration = 0;
-    lp.allowableMovement = CGFLOAT_MAX;
-    lp.cancelsTouchesInView = NO;
-    lp.delaysTouchesBegan = NO;
-    lp.delaysTouchesEnded = NO;
-    lp.delegate = [PACCJelly shared];
-    [v addGestureRecognizer:lp];
-}
-
 %hook CCUIBaseSliderView
 - (void)didMoveToWindow {
     %orig;
     UIView *sv = (UIView *)(id)self;
     if (sv.window && gEnabled && PACCInControlCenter(sv)) PACCAddBounce(sv);
-}
-%end
-
-%hook CCUIRoundButton
-- (void)didMoveToWindow {
-    %orig;
-    UIView *sv = (UIView *)(id)self;
-    if (sv.window && gEnabled && PACCInControlCenter(sv)) PACCAddJelly(sv);
-}
-%end
-
-%hook CCUIButtonModuleView
-- (void)didMoveToWindow {
-    %orig;
-    UIView *sv = (UIView *)(id)self;
-    if (sv.window && gEnabled && PACCInControlCenter(sv)) PACCAddJelly(sv);
 }
 %end
 
