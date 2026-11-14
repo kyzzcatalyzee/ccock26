@@ -5041,7 +5041,7 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
             UIView *v = [value isKindOfClass:UIView.class] ? value
                       : ([value respondsToSelector:@selector(view)] ? [value view] : nil);
             if (!v) continue;
-            CCUILayoutRect nr = [self layoutView:layoutView layoutRectForSubview:v];
+            CCUILayoutRect nr = %orig(layoutView, v);
             [others addObject:@{@"k": key, @"x": @(nr.origin.x), @"y": @(nr.origin.y), @"w": @(nr.size.width), @"h": @(nr.size.height)}];
         }
         for (NSDictionary *o in others) {
