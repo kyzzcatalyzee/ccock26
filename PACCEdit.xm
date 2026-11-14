@@ -3230,6 +3230,7 @@ static void PACForceExitEdit(UIViewController *ov) {
 @interface PACEditProxy : NSObject <UIGestureRecognizerDelegate>
 + (instancetype)shared;
 - (void)bgHold:(UILongPressGestureRecognizer *)g;
+- (void)enterEditOverlay:(UIViewController *)ov;
 - (void)shieldPan:(UIGestureRecognizer *)g;
 - (void)shieldTap:(UITapGestureRecognizer *)g;
 - (void)resizePan:(UIPanGestureRecognizer *)g;
@@ -3349,7 +3350,11 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 
     CGPoint lp = [g locationInView:ov.view];
     if (PACModuleAtPoint(lp, ov)) return;
+    [self enterEditOverlay:ov];
+}
 
+- (void)enterEditOverlay:(UIViewController *)ov {
+    if (gEditModeActive || !ov) return;
     gEditModeActive = YES;
     gPACEditEpoch++;
     gEditModeEnteredAt = CACurrentMediaTime();
@@ -5274,6 +5279,21 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
 %end
 
 %hook CCUIModularControlCenterOverlayViewController
+
+%new
+- (void)presentAddSheet {
+    if (!PACEditAllowed()) return;
+    UIViewController *ov = (UIViewController *)self;
+    PACRefreshGridConstants();
+    if (gEditModeActive) {
+        [[PACEditProxy shared] addControlTap:nil];
+        return;
+    }
+    [[PACEditProxy shared] enterEditOverlay:ov];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [[PACEditProxy shared] addControlTap:nil];
+    });
+}
 
 - (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
     %orig;
