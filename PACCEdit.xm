@@ -5000,10 +5000,94 @@ static void PACInstallGestures(UIViewController *ov) {
     [ov.view addGestureRecognizer:hold];
 }
 
+static BOOL PACLandscapeIsSlider(NSString *mid) {
+    if (!mid.length) return NO;
+    NSString *l = mid.lowercaseString;
+    return [l containsString:@"control-center.displaymodule"] || [l containsString:@"controlcenter.audio"];
+}
+
 %hook CCUIModuleCollectionViewController
 
 - (CCUILayoutRect)layoutView:(id)layoutView layoutRectForSubview:(UIView *)subview {
     CCUILayoutRect r = %orig;
+    if (gEnabled && PACIsLandscape()) {
+        static BOOL busy = NO;
+        if (busy) return r;
+        NSDictionary *cont = nil;
+        @try { cont = [(id)self valueForKey:@"moduleContainerViewByIdentifier"]; }
+        @catch (__unused NSException *e) {}
+        NSString *myMid = nil;
+        for (NSString *key in cont) {
+            id value = cont[key];
+            UIView *cand = [value isKindOfClass:UIView.class] ? value
+                        : ([value respondsToSelector:@selector(view)] ? [value view] : nil);
+            if (cand == subview) { myMid = key; break; }
+        }
+        if (!myMid.length) return r;
+        if (PACLandscapeIsSlider(myMid)) {
+            if (r.size.height > 2) r.size.height = 2;
+            return r;
+        }
+        if (r.size.width != 1 || r.size.height != 1) return r;
+
+        busy = YES;
+        NSMutableArray<NSValue *> *freed = [NSMutableArray array];
+        NSMutableArray<NSDictionary *> *cands = [NSMutableArray array];
+        NSUInteger sliderMaxX = 0;
+        BOOL haveSlider = NO, blocked = NO;
+        NSMutableArray<NSDictionary *> *others = [NSMutableArray array];
+        for (NSString *key in cont) {
+            id value = cont[key];
+            UIView *v = [value isKindOfClass:UIView.class] ? value
+                      : ([value respondsToSelector:@selector(view)] ? [value view] : nil);
+            if (!v) continue;
+            CCUILayoutRect nr = [self layoutView:layoutView layoutRectForSubview:v];
+            [others addObject:@{@"k": key, @"x": @(nr.origin.x), @"y": @(nr.origin.y), @"w": @(nr.size.width), @"h": @(nr.size.height)}];
+        }
+        for (NSDictionary *o in others) {
+            NSUInteger x = [o[@"x"] unsignedIntegerValue], y = [o[@"y"] unsignedIntegerValue];
+            NSUInteger w = [o[@"w"] unsignedIntegerValue], h = [o[@"h"] unsignedIntegerValue];
+            if (PACLandscapeIsSlider(o[@"k"])) {
+                haveSlider = YES;
+                sliderMaxX = MAX(sliderMaxX, x + w - 1);
+                for (NSUInteger fy = y + 2; fy < y + h; fy++)
+                    for (NSUInteger fx = x; fx < x + w; fx++)
+                        [freed addObject:@[@(fx), @(fy)]];
+            }
+        }
+        if (haveSlider && freed.count) {
+            for (NSDictionary *o in others) {
+                if (PACLandscapeIsSlider(o[@"k"])) continue;
+                NSUInteger x = [o[@"x"] unsignedIntegerValue];
+                if (x <= sliderMaxX) continue;
+                if ([o[@"w"] unsignedIntegerValue] != 1 || [o[@"h"] unsignedIntegerValue] != 1) { blocked = YES; break; }
+                [cands addObject:o];
+            }
+        }
+        busy = NO;
+        if (!haveSlider || !freed.count || blocked || !cands.count) return r;
+
+        NSComparator byPos = ^NSComparisonResult(id a, id b) {
+            NSUInteger ax = [a isKindOfClass:NSArray.class] ? [a[0] unsignedIntegerValue] : [a[@"x"] unsignedIntegerValue];
+            NSUInteger bx = [b isKindOfClass:NSArray.class] ? [b[0] unsignedIntegerValue] : [b[@"x"] unsignedIntegerValue];
+            if (ax != bx) return ax < bx ? NSOrderedAscending : NSOrderedDescending;
+            NSUInteger ay = [a isKindOfClass:NSArray.class] ? [a[1] unsignedIntegerValue] : [a[@"y"] unsignedIntegerValue];
+            NSUInteger by = [b isKindOfClass:NSArray.class] ? [b[1] unsignedIntegerValue] : [b[@"y"] unsignedIntegerValue];
+            if (ay != by) return ay < by ? NSOrderedAscending : NSOrderedDescending;
+            return NSOrderedSame;
+        };
+        [cands sortUsingComparator:byPos];
+        NSMutableArray *slots = [NSMutableArray arrayWithArray:[freed sortedArrayUsingComparator:byPos]];
+        for (NSDictionary *c in cands) [slots addObject:@[c[@"x"], c[@"y"]]];
+        for (NSUInteger i = 0; i < cands.count; i++) {
+            if (![cands[i][@"k"] isEqualToString:myMid]) continue;
+            NSArray *slot = slots[i];
+            CCUILayoutPoint p = { [slot[0] unsignedIntegerValue], [slot[1] unsignedIntegerValue] };
+            r.origin = p;
+            break;
+        }
+        return r;
+    }
     if (!PACEditAllowed()) return r;
     PACRefreshGridConstants();
 
@@ -5052,6 +5136,14 @@ static void PACInstallGestures(UIViewController *ov) {
 
 - (CCUILayoutSize)moduleLayoutSizeForContentModuleContext:(id)context forOrientation:(NSInteger)orientation {
     CCUILayoutSize s = %orig;
+    if (gEnabled && PACIsLandscape()) {
+        NSString *lm = nil;
+        if ([context respondsToSelector:@selector(moduleIdentifier)]) {
+            lm = ((id (*)(id, SEL))objc_msgSend)(context, @selector(moduleIdentifier));
+        }
+        if (PACLandscapeIsSlider(lm) && s.height > 2) s.height = 2;
+        return s;
+    }
     if (!PACEditAllowed()) return s;
     NSString *mid = nil;
     if ([context respondsToSelector:@selector(moduleIdentifier)]) {
