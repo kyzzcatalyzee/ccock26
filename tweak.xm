@@ -450,6 +450,70 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+@interface PACCJelly : NSObject <UIGestureRecognizerDelegate>
++ (instancetype)shared;
+@end
+
+static const void *kPACCJellyAdded = &kPACCJellyAdded;
+
+static UIView *PACCJellyShell(UIView *v) {
+    Class cls = NSClassFromString(@"CCUIContentModuleContainerView");
+    UIView *p = v;
+    while (p) {
+        if (cls && [p isKindOfClass:cls]) return p;
+        p = p.superview;
+    }
+    return nil;
+}
+
+@implementation PACCJelly
++ (instancetype)shared {
+    static PACCJelly *j;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ j = [PACCJelly new]; });
+    return j;
+}
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
+    return YES;
+}
+- (void)pan:(UIPanGestureRecognizer *)g {
+    UIView *slider = g.view;
+    UIView *shell = PACCJellyShell(slider);
+    if (!slider || !shell || !gEnabled || !gSliderBounceEnabled) return;
+    CGFloat H = CGRectGetHeight(slider.bounds);
+    if (H < 1.0) return;
+    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
+        CGFloat y = [g locationInView:slider].y;
+        CGFloat over = 0.0;
+        int dir = 0;
+        if (y < 0.0) { over = -y; dir = 1; }
+        else if (y > H) { over = y - H; dir = -1; }
+        CGFloat stretch = over <= 0.0 ? 0.0 : MIN((1.0 - 1.0 / (over * 0.5 / H + 1.0)) * H, H * 0.12);
+        CGFloat r = stretch / H;
+        CGAffineTransform t = CGAffineTransformMakeTranslation(0.0, -dir * stretch * 0.5);
+        t = CGAffineTransformScale(t, 1.0 - r * 0.35, 1.0 + r);
+        [UIView animateWithDuration:0.12 delay:0.0
+                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionCurveEaseOut
+                         animations:^{ shell.transform = t; } completion:nil];
+    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled || g.state == UIGestureRecognizerStateFailed) {
+        [UIView animateWithDuration:0.55 delay:0.0 usingSpringWithDamping:0.55 initialSpringVelocity:0.0
+                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                         animations:^{ shell.transform = CGAffineTransformIdentity; } completion:nil];
+    }
+}
+@end
+
+static void PACCAddJelly(UIView *slider) {
+    if (!slider || objc_getAssociatedObject(slider, kPACCJellyAdded)) return;
+    objc_setAssociatedObject(slider, kPACCJellyAdded, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:[PACCJelly shared] action:@selector(pan:)];
+    pan.delegate = [PACCJelly shared];
+    pan.cancelsTouchesInView = NO;
+    pan.delaysTouchesBegan = NO;
+    pan.delaysTouchesEnded = NO;
+    [slider addGestureRecognizer:pan];
+}
+
 %hook CCUISliderModuleViewController
 - (void)viewDidLayoutSubviews {
     %orig;
@@ -463,6 +527,10 @@ BOOL gPagerScrubbing = NO;
         tintColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.0 alpha:1.0];
     } else if ([className containsString:@"Volume"]) {
         tintColor = [UIColor colorWithRed:0.0 green:0.8 blue:1.0 alpha:1.0];
+    }
+
+    for (UIView *sub in vc.view.subviews) {
+        if ([NSStringFromClass(sub.class) containsString:@"Slider"]) PACCAddJelly(sub);
     }
 
     if (tintColor) {

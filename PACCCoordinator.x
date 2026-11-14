@@ -341,14 +341,9 @@ BOOL gPACCRevealAll = NO;
 }
 
 - (void)animateElementsOutForOverlay:(UIViewController *)overlay {
-    UIView *host = [overlay.view viewWithTag:kQuickAccessTag];
     UIView *indicator = [overlay.view viewWithTag:kPageIndicatorTag];
 
     [UIView animateWithDuration:0.2 animations:^{
-        if (host) {
-            host.alpha = 0.0;
-            host.transform = CGAffineTransformMakeScale(0.6, 0.6);
-        }
         if (indicator) {
             indicator.alpha = 0.0;
         }

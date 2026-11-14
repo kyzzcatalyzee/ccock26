@@ -27,6 +27,7 @@ extern const void *PACCKeyMiniGlyphBaseSize;
 
 extern BOOL gEnabled;
 extern BOOL gQuickAccessButtonsEnabled;
+extern BOOL gSliderBounceEnabled;
 extern BOOL gPagingEnabled;
 extern BOOL gHapticsEnabled;
 extern BOOL gExperimentalPagingEnabled;

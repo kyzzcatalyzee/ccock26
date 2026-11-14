@@ -17,6 +17,7 @@ NSString *const kReloadNotification = @"pawxed.ccock26/ReloadPrefs";
 
 BOOL gEnabled = YES;
 BOOL gQuickAccessButtonsEnabled = YES;
+BOOL gSliderBounceEnabled = YES;
 BOOL gPagingEnabled = YES;
 BOOL gHapticsEnabled = YES;
 BOOL gExperimentalPagingEnabled = YES;
@@ -68,6 +69,7 @@ void LoadPrefs(void) {
     CFPreferencesAppSynchronize(kPrefsDomain);
     gEnabled                     = PrefBool(@"Enabled", YES);
     gQuickAccessButtonsEnabled   = PrefBool(@"QuickAccessButtonsEnabled", YES);
+    gSliderBounceEnabled         = PrefBool(@"SliderBounceEnabled", YES);
     gPagingEnabled               = PrefBool(@"PagingEnabled", YES);
     gHapticsEnabled              = PrefBool(@"HapticsEnabled", YES);
     gExperimentalPagingEnabled   = PrefBool(@"ExperimentalPaging", NO);
