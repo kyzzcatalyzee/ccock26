@@ -4734,6 +4734,16 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 
 @end
 
+static BOOL PACModuleHasState(NSString *mid) {
+    NSString *l = mid.lowercaseString;
+    NSArray<NSString *> *none = @[@"camera", @"screencapture", @"screenrecord", @"shazam", @"musicrecognition", @"recognize",
+        @"calculator", @"magnif", @"scan", @"qrcode", @"notes", @"voicememo", @"recorder", @"timer", @"stopwatch", @"alarm",
+        @"clock", @"wallet", @"home", @"remote", @"accessibility", @"hearing", @"textsize", @"donotdisturb", @"focus",
+        @"airplay", @"mirror", @"screenmirroring"];
+    for (NSString *t in none) if ([l containsString:t]) return NO;
+    return YES;
+}
+
 static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov) {
     if (!m || !m.view) return;
     NSString *mid = PACMid(m);
@@ -4802,6 +4812,12 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     sig = (sig ^ curW) * 1099511628211ULL;
     sig = (sig ^ curH) * 1099511628211ULL;
     sig = (sig ^ (NSUInteger)newText.hash) * 1099511628211ULL;
+    BOOL wideRow = (curW > 1 && curH == 1);
+    BOOL hasState = wideRow && PACModuleHasState(mid);
+    BOOL isSel = NO;
+    if ([buttonView isKindOfClass:UIControl.class]) isSel = ((UIControl *)buttonView).selected;
+    sig = (sig ^ (isSel ? 7ULL : 3ULL)) * 1099511628211ULL;
+    sig = (sig ^ (hasState ? 11ULL : 5ULL)) * 1099511628211ULL;
 
     NSNumber *lastSig = objc_getAssociatedObject(m.view, kPACLastPresKey);
     if (lastSig && lastSig.unsignedIntegerValue == sig &&
@@ -4835,6 +4851,24 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     } else {
         titleLabel = (UILabel *)[pres viewWithTag:9001];
     }
+    UILabel *subLabel = (UILabel *)[pres viewWithTag:9002];
+    if (!subLabel) {
+        subLabel = [[UILabel alloc] init];
+        subLabel.tag = 9002;
+        subLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
+        [pres addSubview:subLabel];
+    }
+    if (wideRow) {
+        titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
+        titleLabel.textColor = isSel && hasState ? UIColor.blackColor : UIColor.whiteColor;
+        subLabel.text = isSel ? @"On" : @"Off";
+        subLabel.textColor = isSel ? [UIColor colorWithWhite:0 alpha:0.5] : [UIColor colorWithWhite:1 alpha:0.6];
+        subLabel.hidden = !hasState;
+    } else {
+        titleLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
+        titleLabel.textColor = UIColor.whiteColor;
+        subLabel.hidden = YES;
+    }
 
     if (created) {
         [UIView performWithoutAnimation:^{ pres.frame = buttonView.bounds; }];
@@ -4847,14 +4881,14 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
 
     CGFloat W = CGRectGetWidth(pres.bounds);
     CGFloat H = CGRectGetHeight(pres.bounds);
-    CGFloat lineHeight = 14.3333;
+    CGFloat lineHeight = wideRow ? ceil(titleLabel.font.lineHeight) : 14.3333;
     CGFloat textW;
     CGFloat textX;
     CGFloat iconCenterY = H * 0.5;
     if (curW > 1 && curH == 1) {
-        textX = kPACCell - 10.0;
+        textX = round(H * 0.93);
         iconCenterY = H * 0.5;
-        textW = MAX(0.0, W - textX - 12.0);
+        textW = MAX(0.0, W - textX - round(H * 0.14));
     } else {
         textX = curW > 1 ? 21.0 : 10.0;
         textW = MAX(0.0, W - textX - (curW > 1 ? 24.0 : 10.0));
@@ -4867,9 +4901,10 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
 
     CGFloat top;
     if (curW > 1 && curH == 1) {
-        top = iconCenterY - titleH * 0.5;
-        if (top < 4.0) top = 4.0;
-        if (top > H - titleH - 4.0) top = H - titleH - 4.0;
+        CGFloat subH = hasState ? ceil(subLabel.font.lineHeight) : 0.0;
+        top = round((H - titleH - subH) * 0.5);
+        if (top < 2.0) top = 2.0;
+        subLabel.frame = CGRectMake(textX, top + titleH, textW, subH);
     } else {
         top = MAX(kPACCell + 7.0, H - 17.3333 - titleH);
     }
@@ -5243,6 +5278,11 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
 %end
 
 %hook CCUIButtonModuleView
+
+- (void)setSelected:(BOOL)selected {
+    %orig;
+    [(UIView *)(id)self setNeedsLayout];
+}
 
 - (void)layoutSubviews {
     %orig;
