@@ -118,7 +118,38 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
     [layer addAnimation:spring forKey:key];
 }
 
+static void PACCAddCascade(UIView *cv, NSInteger fromPage, NSInteger toPage) {
+    if (!gPageCascade || !cv || fromPage == toPage) return;
+    CGFloat span = PageSpan();
+    if (span < 1.0) return;
+    BOOL movingUp = toPage > fromPage;
+    CFTimeInterval now = CACurrentMediaTime();
+    for (UIView *v in cv.subviews) {
+        if (v.hidden || CGRectGetHeight(v.bounds) < 8.0) continue;
+        CGFloat localY = fmod(CGRectGetMidY(v.frame), span);
+        if (localY < 0.0) localY += span;
+        CGFloat rel = MIN(1.0, MAX(0.0, localY / span));
+        CGFloat lagRel = movingUp ? rel : (1.0 - rel);
+        CGFloat offset = (movingUp ? 1.0 : -1.0) * 90.0 * lagRel;
+        if (fabs(offset) < 1.0) continue;
+        CASpringAnimation *sp = [CASpringAnimation animationWithKeyPath:@"transform.translation.y"];
+        sp.additive = YES;
+        sp.fromValue = @(offset);
+        sp.toValue = @0.0;
+        sp.mass = 1.0;
+        sp.stiffness = 150.0;
+        sp.damping = 19.0;
+        sp.initialVelocity = 0.0;
+        sp.duration = sp.settlingDuration;
+        sp.fillMode = kCAFillModeBackwards;
+        sp.beginTime = [v.layer convertTime:now fromLayer:nil] + 0.11 * lagRel;
+        [v.layer removeAnimationForKey:@"PACCCascade"];
+        [v.layer addAnimation:sp forKey:@"PACCCascade"];
+    }
+}
+
 @implementation CCAPageIndicator
+
 
 - (instancetype)initWithFrame:(CGRect)frame {
     if ((self = [super initWithFrame:frame])) {
@@ -694,6 +725,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (!collection.view) return;
 
     NSUInteger target = MIN(targetPage, self.pageCount - 1);
+    NSInteger cascadeFrom = (NSInteger)self.interactiveStartPage;
     self.interactiveBeganTime = 0.0;
     self.scrubbingActive = NO;
     self.currentPage = target;
@@ -748,6 +780,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     fade.timingFunction = curve;
     [collection.view.layer addAnimation:fade forKey:@"PAnimScrubOpacity"];
 
+    PACCAddCascade(collection.view, cascadeFrom, (NSInteger)target);
     [PACC.shared layoutPageIndicatorForOverlay:self.overlay];
 
     NSUInteger token = ++self.animationToken;
@@ -879,6 +912,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (page >= self.pageCount) return;
     if (page == self.currentPage) return;
 
+    NSInteger cascadeFrom = (NSInteger)self.currentPage;
     self.currentPage = page;
     gCurrentPage = (NSInteger)page;
 
@@ -888,6 +922,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     UIViewController *collection = ModuleCollection(overlay);
     if (!collection.view) return;
     CGFloat span = PageSpan();
+    PACCAddCascade(collection.view, cascadeFrom, (NSInteger)page);
 
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
     if (player) {
@@ -926,6 +961,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (self.transitionActive || self.scrubbingActive) return;
     if (page == self.currentPage) return;
 
+    NSInteger cascadeFrom = (NSInteger)self.currentPage;
     self.currentPage = page;
     gCurrentPage = (NSInteger)page;
 
@@ -935,6 +971,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     UIViewController *collection = ModuleCollection(overlay);
     if (!collection.view) return;
     CGFloat span = PageSpan();
+    PACCAddCascade(collection.view, cascadeFrom, (NSInteger)page);
 
     CATransform3D toSub = CATransform3DTranslate(self.baseCollectionSublayerTransform, 0.0, -(CGFloat)page * span, 0.0);
     CALayer *pres = (CALayer *)collection.view.layer.presentationLayer;

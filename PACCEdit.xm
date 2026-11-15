@@ -4764,6 +4764,14 @@ static NSURL *PACCC18PackageURL(NSString *pkg) {
         NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];
         NSString *lib = [[dir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
         [dirs addObject:[lib stringByAppendingPathComponent:@"Application Support/CCock26/Packages"]];
+        NSString *full = [NSString stringWithUTF8String:info.dli_fname];
+        for (NSString *marker in @[@"/Library/", @"/usr/lib/"]) {
+            NSRange rg = [full rangeOfString:marker];
+            if (rg.location != NSNotFound) {
+                NSString *root = [full substringToIndex:rg.location];
+                [dirs addObject:[root stringByAppendingString:@"/Library/Application Support/CCock26/Packages"]];
+            }
+        }
     }
     [dirs addObject:@"/var/jb/Library/Application Support/CCock26/Packages"];
     [dirs addObject:@"/Library/Application Support/CCock26/Packages"];

@@ -20,6 +20,7 @@ BOOL gQuickAccessButtonsEnabled = YES;
 BOOL gSliderBounceEnabled = YES;
 BOOL gCC18Glyphs = YES;
 BOOL gCC18Animated = NO;
+BOOL gPageCascade = YES;
 BOOL gPagingEnabled = YES;
 BOOL gHapticsEnabled = YES;
 BOOL gExperimentalPagingEnabled = YES;
@@ -74,6 +75,7 @@ void LoadPrefs(void) {
     gSliderBounceEnabled         = PrefBool(@"SliderBounceEnabled", YES);
     gCC18Glyphs                  = PrefBool(@"CC18GlyphsEnabled", YES);
     gCC18Animated                = PrefBool(@"CC18AnimatedGlyphsEnabled", NO);
+    gPageCascade                 = PrefBool(@"PageCascadeEnabled", YES);
     gPagingEnabled               = PrefBool(@"PagingEnabled", YES);
     gHapticsEnabled              = PrefBool(@"HapticsEnabled", YES);
     gExperimentalPagingEnabled   = PrefBool(@"ExperimentalPaging", NO);
@@ -406,9 +408,17 @@ UIImage *PACCGlyphPNG(NSString *name) {
     NSMutableArray<NSString *> *dirs = [NSMutableArray array];
     Dl_info info;
     if (dladdr((const void *)&PACCGlyphPNG, &info) && info.dli_fname) {
-        NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];
+        NSString *full = [NSString stringWithUTF8String:info.dli_fname];
+        NSString *dir = [full stringByDeletingLastPathComponent];
         NSString *lib = [[dir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
         [dirs addObject:[lib stringByAppendingPathComponent:@"Application Support/CCock26/Glyphs"]];
+        for (NSString *marker in @[@"/Library/", @"/usr/lib/"]) {
+            NSRange rg = [full rangeOfString:marker];
+            if (rg.location != NSNotFound) {
+                NSString *root = [full substringToIndex:rg.location];
+                [dirs addObject:[root stringByAppendingString:@"/Library/Application Support/CCock26/Glyphs"]];
+            }
+        }
     }
     [dirs addObject:@"/var/jb/Library/Application Support/CCock26/Glyphs"];
     [dirs addObject:@"/Library/Application Support/CCock26/Glyphs"];
