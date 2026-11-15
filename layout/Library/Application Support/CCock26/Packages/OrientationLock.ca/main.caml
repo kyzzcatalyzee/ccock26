@@ -1,0 +1,412 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<caml xmlns="http://www.apple.com/CoreAnimation/1.0">
+  <CALayer allowsEdgeAntialiasing="1" allowsGroupBlending="1" allowsGroupOpacity="1" bounds="0 0 48 48" contentsFormat="RGBA8" cornerCurve="circular" geometryFlipped="0" hidden="0" inheritsTiming="1" name="Root Layer New" position="24 24">
+    <backgroundColor opacity="0" value="0 0 0"/>
+    <sublayers>
+      <CALayer allowsEdgeAntialiasing="1" allowsGroupBlending="1" allowsGroupOpacity="1" bounds="21 22 129 117" contentsFormat="RGBA8" cornerCurve="circular" hidden="0" inheritsTiming="1" name="rotater" position="25 23.5" transform="scale(0.279, 0.279, 1)">
+	<sublayers>
+	  <CATransformLayer allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.4534883797169 0.5" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="d0" position="79.5 80.5">
+	    <sublayers>
+	      <CATransformLayer id="#14" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.4534883797169 0.5" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="d1" position="58.5 58.5" transform="">
+		<sublayers>
+		  <CATransformLayer id="#13" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.4534883797169 0.5" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="d2" position="58.5 58.5" transform="">
+		    <sublayers>
+		      <CATransformLayer id="#15" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.445736438036 0.5" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="r0" position="57.5 58.5">
+			<sublayers>
+			  <CATransformLayer id="#2" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.445736438036 0.5" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="r1" position="57.5 58.5" transform="rotate(10deg)">
+			    <sublayers>
+			      <CATransformLayer id="#1" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.445736438036 0.5" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="r2" position="57.5 58.5" transform="rotate(-10deg)">
+				<sublayers>
+				  <CATransformLayer allowsEdgeAntialiasing="1" allowsGroupBlending="1" allowsGroupOpacity="1" bounds="0 0 29.979598999023 30.154006958008" contentsFormat="RGBA8" cornerCurve="circular" doubleSided="1" hidden="0" inheritsTiming="1" name="arrow" position="57.985446147205 58.73665458428" shouldRasterize="0" sortsSublayers="1" transform="rotate(180deg, 1, 0, 0) scale(3.832, 3.832, 1)">
+				    <sublayers>
+				      <CAShapeLayer id="#9" fillColor="1 0.378 0.3914" path="25.2502179 13.4378814 m 25.1120276 13.1960482 25.2307968 13 25.5004358 13 c 32.4995642 13 l 32.7759449 13 32.8846016 13.2019472 32.7497821 13.4378814 c 29.2502179 19.5621186 l 29.1120276 19.8039518 28.8846016 19.7980528 28.7497821 19.5621186 c 25.2502179 13.4378814 l h" strokeColor="1 0.3765 0.3922" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" contentsFormat="RGBA8" cornerCurve="circular" hidden="1" inheritsTiming="1" name="arrowhead old" position="7.62939453125e-6 -7.62939453125e-6"/>
+				      <CALayer allowsEdgeAntialiasing="1" allowsGroupBlending="0" allowsGroupOpacity="1" bounds="0 0 34.43489991675 29.7001295019" contentsFormat="RGBA8" hidden="0" name="Arrow Opacity" position="17.317450041625 15.077003479004">
+					<sublayers>
+					  <CABackdropLayer id="#12" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 66.632614135742 66.632614135742" contentsFormat="RGBA8" name="Coloring and Vibrancy" position="17.217449958375 14.85006475095">
+					    <filters>
+					      <CAFilter filter="vibrantColorMatrix" name="vibrantColorMatrix" inputColorMatrix="matrix(0.5 0 0 0 0.5 0 0.5 0 0 0.188 0 0 0.5 0 0.196 0 0 0 1 0)"/>
+					    </filters>
+					    <mask allowsEdgeAntialiasing="1" allowsGroupBlending="0" allowsGroupOpacity="0" bounds="0 0 28.0992725675 28.5001242695" contentsFormat="RGBA8" name="ARrow" position="30.740057026246 33.316307067871">
+					      <sublayers>
+						<CAShapeLayer id="#16" lineCap="round" lineWidth="2.8" path="29.57818165 14.23605871 m 29.15623235 6.18478749 22.28732995 0 14.23605875 0.42194925 c 6.18478748 0.8438985 0 7.71280088 0.42194925 15.76407211 c 0.84389849 23.81534341 7.71280087 30.00013081 15.76407215 29.57818161 c 18.14210025 29.45355441 20.35730035 28.76650881 22.28753205 27.65269521 c 23.43267105 26.99190851 24.47751165 26.18091521 25.39654985 25.24804001 c" strokeColor="1 0.3765 0.3922" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 29.57818165 30.00013081" contentsFormat="RGBA8" hidden="0" masksToBounds="0" name="arrow ring new" position="14.04963628375 14.25006213475" shouldRasterize="0" transform="scale(0.95, 0.95, 1)">
+						  <fillColor opacity="0" value="0 0 0"/>
+						  <backgroundColor opacity="0" value="0 0 0"/>
+						  <modules/>
+						</CAShapeLayer>
+						<CAShapeLayer id="#17" fillColor="1.021 0.3555 0.3688" path="3.8512 7.9807 m 1.4863 7.9807 l 0.3306 7.9807 0 7.0952 0.689 6.1354 c 4.5013 0.7879 l 5.0578 6.000000000004e-4 5.9232 0 6.488 0.7879 c 10.3086 6.1232 l 11.006 7.0913 10.6787 7.9807 9.5152 7.9807 c 7.1216 7.9807 l 3.8512 7.9807 l h" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 11.006 7.9807" contentsFormat="RGBA8" hidden="0" name="arrow head new" position="27.708436367 15.0589973838" transform="rotate(180deg)">
+						  <strokeColor opacity="0" value="1 0.3765 0.3922"/>
+						</CAShapeLayer>
+					      </sublayers>
+					    </mask>
+					    <modules/>
+					  </CABackdropLayer>
+					</sublayers>
+					<modules/>
+				      </CALayer>
+				    </sublayers>
+				  </CATransformLayer>
+				</sublayers>
+			      </CATransformLayer>
+			    </sublayers>
+			  </CATransformLayer>
+			</sublayers>
+		      </CATransformLayer>
+		    </sublayers>
+		  </CATransformLayer>
+		</sublayers>
+	      </CATransformLayer>
+	    </sublayers>
+	  </CATransformLayer>
+	  <CATransformLayer id="#8" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.4612403213978 0.5256410241127" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" hidden="0" inheritsTiming="1" name="dlock1" position="80.5 83.5" transform="">
+	    <sublayers>
+	      <CATransformLayer id="#5" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.4534883797169 0.5256410241127" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="dlock2" position="58.5 63.5" transform="">
+		<sublayers>
+		  <CATransformLayer id="#6" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.4534883797169 0.5256410241127" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="lock1" position="58.5 61.5" transform="rotate(5deg)">
+		    <sublayers>
+		      <CATransformLayer id="#7" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0.4534883797169 0.5256410241127" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="lock2" position="58.5 61.5" transform="rotate(-5deg)">
+			<sublayers>
+			  <CALayer allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 129 117" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="lock" position="64.5 58.5">
+			    <sublayers>
+			      <CALayer id="#3" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" backgroundColor="1 0.378 0.3914" bounds="0 0 8.322998046875 19.045181274414" contentsFormat="RGBA8" cornerCurve="circular" cornerRadius="4" hidden="0" inheritsTiming="1" name="extender" position="70.434463500977 64.672866821289"/>
+			      <CALayer id="#11" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" backgroundColor="1 0.378 0.3914" bounds="0 0 43.985366821289 26.6884765625" contentsFormat="RGBA8" cornerCurve="circular" cornerRadius="4" inheritsTiming="1" name="lock body" position="57.992691040039 46.558715820312"/>
+			    </sublayers>
+			  </CALayer>
+			  <CATransformLayer id="#4" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 12.046035766602 8.613967895508" contentsFormat="RGBA8" cornerCurve="circular" inheritsTiming="1" name="hook" position="58.023010253906 104.307" transform="scale(4.158, 4.158, 1)">
+			    <sublayers>
+			      <CAShapeLayer id="#10" fillColor="1 0.378 0.3914" path="4 8 m 4 4.007 l 4 2.9 4.897 2 6 2 c 7.103 2 8 2.9 8 4.007 c 8 5.0035 l 8 5.55384702 8.44386482 6 9 6 c 9 6 l 9.55228 6 10 5.5576887 10 5.0035 c 10 4.007 l 10 1.794 8.209 0 6 0 c 3.795 0 2 1.794 2 4.007 c 2 8 l 4 8 l h" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" contentsFormat="RGBA8" cornerCurve="circular" hidden="0" inheritsTiming="1" name="shape" position="7.62939453125e-6 -7.62939453125e-6" transform="rotate(180deg, 1, 0, 0)"/>
+			    </sublayers>
+			  </CATransformLayer>
+			</sublayers>
+		      </CATransformLayer>
+		    </sublayers>
+		  </CATransformLayer>
+		</sublayers>
+	      </CATransformLayer>
+	    </sublayers>
+	    <modules/>
+	  </CATransformLayer>
+	</sublayers>
+      </CALayer>
+    </sublayers>
+    <states>
+      <LKState name="locked">
+	<elements>
+	  <LKStateSetValue targetId="#1" keyPath="transform.rotation.z">
+	    <value type="real" value="-0.174533"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#2" keyPath="transform.rotation.z">
+	    <value type="real" value="0.174533"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#3" keyPath="position">
+	    <value type="CGPoint" value="70.434463500977 64.672866821289"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#3" keyPath="bounds">
+	    <value type="CGRect" value="0 0 8.322998046875 19.045181274414"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#4" keyPath="position.y">
+	    <value type="real" value="104.307"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#5" keyPath="position.y">
+	    <value type="real" value="63.5"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#6" keyPath="transform.rotation.z">
+	    <value type="real" value="0.0872665"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#7" keyPath="transform.rotation.z">
+	    <value type="real" value="-0.0872665"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#8" keyPath="position.x">
+	    <value type="real" value="80.5"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#9" keyPath="fillColor">
+	    <value type="CGColor" value="1 0.378 0.3914"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#10" keyPath="fillColor">
+	    <value type="CGColor" value="1 0.378 0.3914"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#3" keyPath="backgroundColor">
+	    <value type="CGColor" value="1 0.378 0.3914"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#11" keyPath="backgroundColor">
+	    <value type="CGColor" value="1 0.378 0.3914"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#12" keyPath="filters.vibrantColorMatrix.inputColorMatrix">
+	    <value type="CAColorMatrix" value="matrix(0.5 0 0 0 0.5 0 0.5 0 0 0.188 0 0 0.5 0 0.196 0 0 0 1 0)"/>
+	  </LKStateSetValue>
+	</elements>
+      </LKState>
+      <LKState name="unlocked" basedOn="locked">
+	<elements>
+	  <LKStateSetValue targetId="#3" keyPath="bounds.size.height">
+	    <value type="integer" value="1"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#3" keyPath="position.y">
+	    <value type="real" value="74.2374"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#7" keyPath="transform.rotation.z">
+	    <value type="integer" value="0"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#6" keyPath="transform.rotation.z">
+	    <value type="integer" value="0"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#13" keyPath="transform.rotation.z">
+	    <value type="real" value="-0.174533"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#14" keyPath="transform.rotation.z">
+	    <value type="real" value="0.174533"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#15" keyPath="transform.rotation.z">
+	    <value type="integer" value="0"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#4" keyPath="position.y">
+	    <value type="real" value="109.307"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#5" keyPath="position.y">
+	    <value type="real" value="61.5"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#5" keyPath="transform.rotation.z">
+	    <value type="real" value="-0.139626"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#8" keyPath="transform.rotation.z">
+	    <value type="real" value="0.139626"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#9" keyPath="fillColor">
+	    <value type="CGColor" value="1 1 1"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#10" keyPath="fillColor">
+	    <value type="CGColor" value="1 1 1"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#3" keyPath="backgroundColor">
+	    <value type="CGColor" value="1 1 1"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#11" keyPath="backgroundColor">
+	    <value type="CGColor" value="1 1 1"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#16" keyPath="strokeColor">
+	    <value type="CGColor" value="1 1 1"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#17" keyPath="fillColor">
+	    <value type="CGColor" value="1 1 1"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#12" keyPath="filters.vibrantColorMatrix.inputColorMatrix">
+	    <value type="CAColorMatrix" value="matrix(1 0 0 0 0.3 0 1 0 0 0.3 0 0 1 0 0.3 -0.0017 -0.00572 -5.77e-4 0 1)"/>
+	  </LKStateSetValue>
+	</elements>
+      </LKState>
+    </states>
+    <stateTransitions>
+      <LKStateTransition fromState="*" toState="locked">
+	<elements>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#2">
+	    <animation type="CASpringAnimation" damping="14" mass="2" stiffness="900" keyPath="transform.rotation.z" beginTime="0.3" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#1">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="transform.rotation.z" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#7">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="transform.rotation.z" beginTime="0.095" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#6">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="transform.rotation.z" beginTime="0.265" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position" targetId="#3">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="800" keyPath="position" duration="1" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="bounds" targetId="#3">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="800" keyPath="bounds" duration="1" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#4">
+	    <animation type="CASpringAnimation" damping="26" mass="2" stiffness="300" keyPath="position.y" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#5">
+	    <animation type="CASpringAnimation" damping="26" mass="2" stiffness="300" keyPath="position.y" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.x" targetId="#8">
+	    <animation type="CABasicAnimation" keyPath="position.x" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#9">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#10">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#3">
+	    <animation type="CABasicAnimation" keyPath="backgroundColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#11">
+	    <animation type="CABasicAnimation" keyPath="backgroundColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="filters.vibrantColorMatrix.inputColorMatrix" targetId="#12">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="filters.vibrantColorMatrix.inputColorMatrix" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	</elements>
+      </LKStateTransition>
+      <LKStateTransition fromState="locked" toState="*">
+	<elements>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#1">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#2">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#7">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#6">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position" targetId="#3">
+	    <animation type="CABasicAnimation" keyPath="position" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="bounds" targetId="#3">
+	    <animation type="CABasicAnimation" keyPath="bounds" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#4">
+	    <animation type="CABasicAnimation" keyPath="position.y" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#5">
+	    <animation type="CABasicAnimation" keyPath="position.y" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.x" targetId="#8">
+	    <animation type="CABasicAnimation" keyPath="position.x" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#9">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#10">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#3">
+	    <animation type="CABasicAnimation" keyPath="backgroundColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#11">
+	    <animation type="CABasicAnimation" keyPath="backgroundColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="filters.vibrantColorMatrix.inputColorMatrix" targetId="#12">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="filters.vibrantColorMatrix.inputColorMatrix" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	</elements>
+      </LKStateTransition>
+      <LKStateTransition fromState="*" toState="unlocked">
+	<elements>
+	  <LKStateTransitionElement key="bounds.size.height" targetId="#3">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="bounds.size.height" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#3">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="position.y" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#15">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="100" keyPath="transform.rotation.z" beginTime="0" duration="2" fillMode="forwards" removedOnCompletion="0" speed="1">
+	      <byValue type="real" value="-6.28319"/>
+	      <fromValue type="integer" value="0"/>
+	    </animation>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#7">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="transform.rotation.z" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#6">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="transform.rotation.z" beginTime="0.19" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#13">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#14">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#5">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" beginTime="0" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#8">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" beginTime="0" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#4">
+	    <animation type="CASpringAnimation" damping="20" mass="2" stiffness="300" keyPath="position.y" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#5">
+	    <animation type="CASpringAnimation" damping="20" mass="2" stiffness="300" keyPath="position.y" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#9">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#10">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#3">
+	    <animation type="CABasicAnimation" keyPath="backgroundColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#11">
+	    <animation type="CABasicAnimation" keyPath="backgroundColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="strokeColor" targetId="#16">
+	    <animation type="CABasicAnimation" keyPath="strokeColor" duration="0.25" fillMode="backwards" removedOnCompletion="1" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#17">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="1" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="filters.vibrantColorMatrix.inputColorMatrix" targetId="#12">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="filters.vibrantColorMatrix.inputColorMatrix" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	</elements>
+      </LKStateTransition>
+      <LKStateTransition fromState="unlocked" toState="*">
+	<elements>
+	  <LKStateTransitionElement key="bounds.size.height" targetId="#3">
+	    <animation type="CASpringAnimation" damping="26" mass="2" stiffness="300" keyPath="bounds.size.height" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#3">
+	    <animation type="CASpringAnimation" damping="26" mass="2" stiffness="300" keyPath="position.y" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#15">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#7">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#6">
+	    <animation type="CABasicAnimation" keyPath="transform.rotation.z" duration="0" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#13">
+	    <animation type="CASpringAnimation" damping="14" mass="2" stiffness="900" keyPath="transform.rotation.z" beginTime="0.3" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#14">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="transform.rotation.z" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#5">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="transform.rotation.z" beginTime="0.19" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="transform.rotation.z" targetId="#8">
+	    <animation type="CASpringAnimation" damping="400" mass="2" stiffness="300" keyPath="transform.rotation.z" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#4">
+	    <animation type="CASpringAnimation" damping="20" mass="2" stiffness="300" keyPath="position.y" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="position.y" targetId="#5">
+	    <animation type="CASpringAnimation" damping="20" mass="2" stiffness="300" keyPath="position.y" beginTime="0" duration="1.545" fillMode="backwards" removedOnCompletion="0"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#9">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#10">
+	    <animation type="CABasicAnimation" keyPath="fillColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#3">
+	    <animation type="CABasicAnimation" keyPath="backgroundColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#11">
+	    <animation type="CABasicAnimation" keyPath="backgroundColor" duration="0.25" fillMode="backwards" removedOnCompletion="0" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="strokeColor" targetId="#16">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="strokeColor" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="fillColor" targetId="#17">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="fillColor" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="filters.vibrantColorMatrix.inputColorMatrix" targetId="#12">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="filters.vibrantColorMatrix.inputColorMatrix" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	</elements>
+      </LKStateTransition>
+    </stateTransitions>
+  </CALayer>
+</caml>

@@ -286,9 +286,9 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     if ([key isEqualToString:@"ringeroff"]) return PACBigSymbol(@[@"bell.slash.fill"], pt);
     if ([key isEqualToString:@"air"])     return PACBigSymbol(@[@"airplane"], pt);
     if ([key isEqualToString:@"wifi"])    return PACBigSymbol(@[@"wifi"], pt);
-    if ([key isEqualToString:@"cell"])    return PACBigSymbol(@[@"cellularbars", @"antenna.radiowaves.left.and.right"], pt);
+    if ([key isEqualToString:@"cell"])    return PACCGlyphPNG(@"cellularbars") ?: PACBigSymbol(@[@"cellularbars", @"antenna.radiowaves.left.and.right"], pt);
     if ([key isEqualToString:@"bt"])      return PACBigDrawn(@"bt", pt);
-    if ([key isEqualToString:@"airdrop"]) return PACBigDrawn(@"airdrop", pt);
+    if ([key isEqualToString:@"airdrop"]) return PACBigSymbol(@[@"airdrop"], pt) ?: PACBigDrawn(@"airdrop", pt);
     if ([key isEqualToString:@"vpn"]) {
         UIImage *p = PACCBundledSymbol(@"network.connected.to.line.below.fill", UIColor.whiteColor, NO);
         if (p) {
@@ -297,7 +297,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
         }
         return PACBigSymbol(@[@"network", @"globe"], pt);
     }
-    if ([key isEqualToString:@"hotspot"]) return PACBigSymbol(@[@"personalhotspot", @"antenna.radiowaves.left.and.right.circle"], pt);
+    if ([key isEqualToString:@"hotspot"]) return PACCGlyphPNG(@"personalhotspot") ?: PACBigSymbol(@[@"personalhotspot", @"antenna.radiowaves.left.and.right.circle"], pt);
     return PACBigSymbol(@[@"circle.fill"], pt);
 }
 

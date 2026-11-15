@@ -134,6 +134,71 @@ known issue:
 ## 0.4.33
 - Expanded Connectivity: Apple's chrome around the panel is stripped on every container layout (the way ControlCenter26 does it) and restored afterwards.
 
+## 0.6.15
+- Eksperimental: ikon animasi ControlCenter18 (paket .ca) untuk semua ukuran modul. Default MATI, aktifkan di Pengaturan > "ControlCenter18 Icons (experimental)".
+- Modul yang punya paket: Low Power, Orientation Lock, Mute, Mirroring, Shazam, Screen Recording. Modul lain tetap pakai ikon Apple.
+- Jika paket gagal dimuat, otomatis kembali ke ikon Apple.
+
+## 0.6.14
+Cellular and Personal Hotspot icons now use the ControlCenter18 glyphs (bundled in Application Support/CCock26/Glyphs), in the own 2x1 modules and in the Connectivity tile; the Hotspot module shows the slashed glyph when off. AirDrop uses the system airdrop symbol.
+
+## 0.6.13
+Wi-Fi, Cellular, Bluetooth and Hotspot 2x1 modules use the same text size as the other pills (13pt title, 12pt subtitle).
+
+## 0.6.12
+2x1 Focus keeps its own icon and name and gets the up/down chevron next to the title again.
+
+## 0.6.11
+Jelly only on the Brightness and Volume sliders (button jelly removed). Pill module text is smaller (13pt title, 12pt subtitle) so Orientation no longer wraps. Focus is left as it was (no badge, no chevron).
+
+## 0.6.10
+Removed an unused variable that failed the build.
+
+## 0.6.9
+2x1 Focus: white circle badge with an indigo moon, title with an up/down chevron, no subtitle. 2x1 Orientation: title Orientation with Locked or Unlocked below.
+
+## 0.6.8
+Resized 2x1 Apple modules (Flashlight, Camera, Screen Recording, Low Power, ...) now use the same pill look as the Wi-Fi style modules: 16pt title vertically centred, subtitle On/Off only for modules that have a state (Camera, Screen Recording, Recognize Music, Calculator, Timer, Focus and similar show the title only), black text on the white selected fill.
+
+## 0.6.7
+Fix compile error in the jelly hooks (forward-declared classes).
+
+## 0.6.6
+Jelly now follows Control26: spring engine driven by the display link, slider stretch on CCUIBaseSliderView, and a press jelly on round buttons and module buttons (pref SliderBounceEnabled turns both off).
+
+## 0.6.5
+Quick access buttons no longer fade out as Control Center is pulled down. Brightness and Volume sliders get a jelly stretch past either end (capped at 12 percent of the height) that springs back on release; pref SliderBounceEnabled.
+
+## 0.6.4
+The power quick access button now works on a tap as well as a long press, and tries several power-off screens (SBUIPowerDownViewControllerFactory, SBPowerDownController, SBPowerDownViewController).
+
+## 0.6.3
+The + quick access button now works: it enters edit mode and opens Add a Control (it called a method that did not exist before).
+
+## 0.6.2
+Landscape: Brightness and Volume are two rows tall instead of three, and the 1x1 controls to their right shift left to fill the free cells under them (only when everything to the right is 1x1).
+
+## 0.6.1
+"Add a Control" now follows ControlCenter18: grabber, Search Controls field, sections (Capture, Clock, Connectivity...) with a badge and title, round grey icons with the name below, drag down to close.
+
+## 0.6.0
+Wi-Fi, Cellular, Bluetooth and Hotspot now look like ControlCenter18's: no circle behind the icon, the whole control turns white when it is on (colored icon, black title), and stays dark glass with a white icon when off. Long titles wrap to two lines. The corner radius is the one CCock26 already gives the control.
+
+## 0.5.9
+Wi-Fi, Cellular, Bluetooth and Hotspot (2x1): laid out with the proportions measured from ControlCenter18 (icon circle 58% of the height, 19% from the left; title 16 semibold and subtitle 14 at 60% white, centered on the middle line).
+
+## 0.5.8
+Reset Layout now brings back the two starting pages (Connectivity and Music Player, 4x6) instead of leaving only one page.
+
+## 0.5.7
+Fix: the first-install pages were laid out with a page height measured before Control Center had its grid, so the Connectivity and Music Player copies landed on page 1 and the empty pages were removed. Their spots are now worked out the first time the grid is ready, and page cleanup waits for that. A layout that only has the old seeded copies is seeded again.
+
+## 0.5.6
+First install: back to our own Connectivity and Music Player (4x6) on their own pages, as in the old version. Same fix as 0.5.5 so the check really runs first.
+
+## 0.5.5
+Fix: the first-install Music and Connectivity pages were never created, because the layout store wrote an empty list before the check ran. The check now also runs first in the store, and empty saved values count as nothing saved.
+
 ## 0.5.4
 The PACCLIQ glass no longer needs LiquidAss. With LiquidAss off or not installed, the controls use a built-in glass (blur, saturation, a light tint) with the same specular and edge layers. When LiquidAss is on, nothing changes.
 

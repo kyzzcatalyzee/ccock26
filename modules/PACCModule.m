@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#import <dlfcn.h>
 
 #ifndef PACC_KIND
 #define PACC_KIND 0
@@ -17,13 +18,34 @@
 - (UIViewController *)backgroundViewController;
 @end
 
+static UIImage *PACCModPNG(NSString *name) {
+    NSMutableArray<NSString *> *dirs = [NSMutableArray array];
+    Dl_info info;
+    if (dladdr((const void *)&PACCModPNG, &info) && info.dli_fname) {
+        NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];
+        NSString *lib = [[[dir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
+        [dirs addObject:[lib stringByAppendingPathComponent:@"Application Support/CCock26/Glyphs"]];
+    }
+    [dirs addObject:@"/var/jb/Library/Application Support/CCock26/Glyphs"];
+    [dirs addObject:@"/Library/Application Support/CCock26/Glyphs"];
+    for (NSString *d in dirs) {
+        NSData *data = [NSData dataWithContentsOfFile:[d stringByAppendingPathComponent:[name stringByAppendingString:@"@3x.png"]]];
+        if (!data) continue;
+        UIImage *img = [UIImage imageWithData:data scale:3.0];
+        if (img) return [img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    }
+    return nil;
+}
+
 static UIImage *PACCModGlyph(CGFloat pt) {
     __unused UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:pt weight:UIImageSymbolWeightSemibold];
 #if PACC_KIND == 0
     UIImage *i = [UIImage systemImageNamed:@"wifi" withConfiguration:cfg];
 #elif PACC_KIND == 1
-    UIImage *i = [UIImage systemImageNamed:@"cellularbars" withConfiguration:cfg] ?:
+    UIImage *i = PACCModPNG(@"cellularbars") ?: [UIImage systemImageNamed:@"cellularbars" withConfiguration:cfg] ?:
                  [UIImage systemImageNamed:@"antenna.radiowaves.left.and.right" withConfiguration:cfg];
+#elif PACC_KIND == 3
+    UIImage *i = PACCModPNG(@"personalhotspot");
 #else
     UIImage *i = nil;
 #endif
@@ -222,6 +244,10 @@ static UIColor *PACCModOnColor(void) {
     name = @"Bluetooth";
 #else
     name = @"Hotspot";
+#endif
+#if PACC_KIND == 3
+    UIImage *hs = PACCModPNG(on ? @"personalhotspot" : @"personalhotspot.slash");
+    if (hs) _glyph.image = hs;
 #endif
     _title.text = name;
     _sub.text = (st < 0) ? @"Unavailable" : (on ? @"On" : @"Off");

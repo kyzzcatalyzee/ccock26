@@ -42,6 +42,20 @@
             <key>PostNotification</key>
             <string>pawxed.ccock26/ReloadPrefs</string>
         </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>label</key>
+            <string>ControlCenter18 Icons (experimental)</string>
+            <key>key</key>
+            <string>CC18GlyphsEnabled</string>
+            <key>defaults</key>
+            <string>pawxed.ccock26.preferences</string>
+            <key>default</key>
+            <false/>
+            <key>PostNotification</key>
+            <string>pawxed.ccock26/ReloadPrefs</string>
+        </dict>
 
         <dict>
             <key>cell</key>

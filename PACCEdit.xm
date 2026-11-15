@@ -1001,6 +1001,7 @@ static NSArray<UIView *> *PACCompactGlyphHosts(UIView *view) {
     while (queue.count) {
         UIView *v = queue.lastObject;
         [queue removeLastObject];
+        if (v.tag == 9101) continue;
         BOOL hit = kClsCCUICAPackageView && [v isKindOfClass:kClsCCUICAPackageView];
         if (!hit) {
             NSString *cls = NSStringFromClass(v.class);
@@ -4734,6 +4735,117 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 
 @end
 
+static NSDictionary *PACCC18GlyphInfo(NSString *mid) {
+    NSString *l = mid.lowercaseString;
+    if ([l containsString:@"lowpower"]) return @{@"pkg": @"LowPower", @"on": @"enabled", @"c": @[@1.0, @0.8, @0.0]};
+    if ([l containsString:@"orientation"]) return @{@"pkg": @"OrientationLock", @"on": @"locked", @"off": @"unlocked", @"c": @[@1.0, @0.27, @0.23]};
+    if ([l containsString:@"mutemodule"] || [l hasSuffix:@".mute"]) return @{@"pkg": @"Mute", @"on": @"silent", @"off": @"ringer", @"c": @[@1.0, @0.27, @0.23]};
+    if ([l containsString:@"mirror"]) return @{@"pkg": @"Mirroring", @"on": @"on", @"off": @"off", @"c": @[@0.04, @0.52, @1.0]};
+    if ([l containsString:@"shazam"] || [l containsString:@"musicrecognition"]) return @{@"pkg": @"Shazam", @"on": @"On", @"off": @"Off", @"c": @[@0.04, @0.52, @1.0]};
+    if ([l containsString:@"screencapture"] || [l containsString:@"replaykit"]) return @{@"pkg": @"replaykit", @"on": @"recording", @"off": @"disabled", @"c": @[@1.0, @0.23, @0.19]};
+    return nil;
+}
+
+static NSURL *PACCC18PackageURL(NSString *pkg) {
+    NSMutableArray<NSString *> *dirs = [NSMutableArray array];
+    Dl_info info;
+    if (dladdr((const void *)&PACCC18PackageURL, &info) && info.dli_fname) {
+        NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];
+        NSString *lib = [[dir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
+        [dirs addObject:[lib stringByAppendingPathComponent:@"Application Support/CCock26/Packages"]];
+    }
+    [dirs addObject:@"/var/jb/Library/Application Support/CCock26/Packages"];
+    [dirs addObject:@"/Library/Application Support/CCock26/Packages"];
+    for (NSString *d in dirs) {
+        NSString *path = [d stringByAppendingPathComponent:[pkg stringByAppendingString:@".ca"]];
+        if ([NSFileManager.defaultManager fileExistsAtPath:path]) return [NSURL fileURLWithPath:path isDirectory:YES];
+    }
+    return nil;
+}
+
+static UIImage *PACCC18GlyphImage(NSString *pkg, NSString *stateName) {
+    static NSMutableDictionary<NSString *, id> *cache;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ cache = [NSMutableDictionary dictionary]; });
+    NSString *key = [NSString stringWithFormat:@"%@|%@", pkg, stateName ?: @""];
+    id hit = cache[key];
+    if (hit) return [hit isKindOfClass:UIImage.class] ? hit : nil;
+    UIImage *result = nil;
+    @try {
+        NSURL *url = PACCC18PackageURL(pkg);
+        Class pk = NSClassFromString(@"CAPackage");
+        SEL ps = NSSelectorFromString(@"packageWithContentsOfURL:type:options:error:");
+        if (url && pk && [pk respondsToSelector:ps]) {
+            NSError *err = nil;
+            id package = ((id (*)(id, SEL, NSURL *, NSString *, id, NSError **))objc_msgSend)(pk, ps, url, @"com.apple.coreanimation-bundle", nil, &err);
+            CALayer *root = [package respondsToSelector:NSSelectorFromString(@"rootLayer")] ? [package valueForKey:@"rootLayer"] : nil;
+            if ([root isKindOfClass:CALayer.class] && stateName.length) {
+                Class sc = NSClassFromString(@"CAStateController");
+                SEL initSel = NSSelectorFromString(@"initWithLayer:");
+                id ctrl = nil;
+                if (sc && [sc instancesRespondToSelector:initSel]) {
+                    ctrl = ((id (*)(id, SEL, id))objc_msgSend)([sc alloc], initSel, root);
+                }
+                id target = nil;
+                for (id st in (NSArray *)([root valueForKey:@"states"] ?: @[])) {
+                    NSString *nm = [st valueForKey:@"name"];
+                    if ([nm isEqualToString:stateName]) { target = st; break; }
+                }
+                SEL s1 = NSSelectorFromString(@"setState:ofLayer:transitionSpeed:");
+                SEL s2 = NSSelectorFromString(@"setState:ofLayer:");
+                if (ctrl && target) {
+                    if ([ctrl respondsToSelector:s1]) ((void (*)(id, SEL, id, id, float))objc_msgSend)(ctrl, s1, target, root, 1.0f);
+                    else if ([ctrl respondsToSelector:s2]) ((void (*)(id, SEL, id, id))objc_msgSend)(ctrl, s2, target, root);
+                }
+            }
+            if ([root isKindOfClass:CALayer.class] && root.bounds.size.width > 1 && root.bounds.size.height > 1) {
+                UIGraphicsImageRendererFormat *f = [UIGraphicsImageRendererFormat preferredFormat];
+                f.scale = 3.0;
+                UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:root.bounds.size format:f];
+                UIImage *img = [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+                    [root renderInContext:ctx.CGContext];
+                }];
+                if (img) result = [img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+            }
+        }
+    } @catch (__unused NSException *e) { result = nil; }
+    cache[key] = result ?: (id)NSNull.null;
+    return result;
+}
+
+static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) {
+    if (!buttonView) return;
+    UIImageView *old = (UIImageView *)[buttonView viewWithTag:9101];
+    NSDictionary *info = (gCC18Glyphs && !expanded) ? PACCC18GlyphInfo(mid) : nil;
+    BOOL sel = [buttonView isKindOfClass:UIControl.class] ? ((UIControl *)buttonView).selected : NO;
+    UIImage *img = info ? PACCC18GlyphImage(info[@"pkg"], sel ? info[@"on"] : info[@"off"]) : nil;
+    if (!img) {
+        if (old) {
+            [old removeFromSuperview];
+            for (UIView *g in PACCompactGlyphHosts(buttonView)) g.alpha = 1.0;
+        }
+        return;
+    }
+    CGSize bs = buttonView.bounds.size;
+    BOOL resized = PACWasResizedFromOneByOne(mid);
+    CGPoint c = resized ? CGPointMake(kPACCell * 0.5, kPACCell * 0.5) : CGPointMake(bs.width * 0.5, bs.height * 0.5);
+    CGFloat d = round(kPACCell * 0.5);
+    if (!old) {
+        old = [[UIImageView alloc] init];
+        old.tag = 9101;
+        old.userInteractionEnabled = NO;
+        old.contentMode = UIViewContentModeScaleAspectFit;
+        [buttonView addSubview:old];
+    }
+    old.image = img;
+    old.bounds = CGRectMake(0, 0, d, d);
+    old.center = c;
+    NSArray *rgb = info[@"c"];
+    old.tintColor = sel ? [UIColor colorWithRed:[rgb[0] doubleValue] green:[rgb[1] doubleValue] blue:[rgb[2] doubleValue] alpha:1.0] : UIColor.whiteColor;
+    [buttonView bringSubviewToFront:old];
+    for (UIView *g in PACCompactGlyphHosts(buttonView)) g.alpha = 0.0;
+}
+
 static BOOL PACModuleHasState(NSString *mid) {
     NSString *l = mid.lowercaseString;
     NSArray<NSString *> *none = @[@"camera", @"screencapture", @"screenrecord", @"shazam", @"musicrecognition", @"recognize",
@@ -4753,6 +4865,7 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     PACEnsureBaseSize(m, ov);
 
     BOOL expandedNow = PACModuleIsExpanded(m);
+    PACApplyCC18Glyph(PACModuleButtonView(m.view), mid, expandedNow);
     if (PACCBigKind(mid)) {
         NSUInteger bw = 1, bh = 1;
         PACEffectiveSize(mid, &bw, &bh);

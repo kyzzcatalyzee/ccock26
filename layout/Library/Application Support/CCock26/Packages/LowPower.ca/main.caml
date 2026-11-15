@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<caml xmlns="http://www.apple.com/CoreAnimation/1.0">
+  <CALayer allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 48 48" contentsFormat="RGBA8" hidden="0" name="lowpower" position="24 24">
+    <backgroundColor opacity="0" value="0.5 0.5 0.5"/>
+    <sublayers>
+      <CALayer allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 48 48" contentsFormat="RGBA8" hidden="0" name="NEW" position="24 24">
+	<sublayers>
+	  <CABackdropLayer id="#3" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 66.632614135742 66.632614135742" contentsFormat="RGBA8" name="Coloring and Vibrancy" position="24 24">
+	    <filters>
+	      <CAFilter filter="vibrantColorMatrix" name="vibrantColorMatrix" inputColorMatrix="matrix(1 0 0 0 0.3 0 1 0 0 0.3 0 0 1 0 0.3 -0.0017 -0.00572 -5.77e-4 0 1)"/>
+	    </filters>
+	    <mask type="CAShapeLayer" fillColor="1 1 1" path="7.02443869 0 m 26.6550921 0 l 29.0419007 0 30.8231242 0.2926223 32.1176818 1.6252801 c 33.4163472 2.9621665 33.6880749 4.7617725 33.6880749 7.2310902 c 33.6880749 11.25900232 l 33.6880749 13.72836238 33.4163472 15.53621422 32.1176818 16.86482305 c 30.8191191 18.197524146 29.0419007 18.4901771 26.6550921 18.4901771 c 7.00734018 18.4901771 l 4.64618449 18.4901771 2.86494051 18.197524146 1.56635726 16.86482305 c 0.271750307 15.53211243 0 13.71955622 0 11.28541021 c 0 7.2310902 l 0 4.7617725 0.271750307 2.9539206 1.56635726 1.6252801 c 2.86892503 0.2926223 4.64618449 0 7.02443869 0 c h 6.68198577 2.8737878 m 5.37484813 2.8737878 4.26413286 3.0625968 3.60707758 3.7260714 c 2.95857669 4.3984261 2.79161716 5.5288488 2.79161716 6.8786326 c 2.79161716 11.598034 l 2.79161716 12.96535608 2.96256121 14.08763871 3.60707758 14.76403176 c 4.26014834 15.44042482 5.38339225 15.61639992 6.70762841 15.61639992 c 27.0060994 15.61639992 l 28.3131857 15.61639992 29.4199165 15.42752745 30.0724327 14.76403176 c 30.7294674 14.09174049 30.8964475 12.97415167 30.8964475 11.6244419 c 30.8964475 6.8786326 l 30.8964475 5.5288488 30.7254624 4.402549 30.0724327 3.7260714 c 29.4279266 3.0584739 28.3131857 2.8737878 27.0060994 2.8737878 c 6.68198577 2.8737878 l h 35.6002329 5.6198704 m 36.6743071 5.6884802 38.1227 7.110891 38.1227 9.24947579 c 38.1227 11.38335622 36.6743071 12.80164406 35.6002329 12.87026441 c 35.6002329 5.6198704 l h" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" bounds="0 0 38.1227 18.4901771" contentsFormat="RGBA8" hidden="0" name="Shape" position="33.377657067871 33.318368517871">
+	      <strokeColor opacity="0" value="0 0 0"/>
+	    </mask>
+	    <modules/>
+	  </CABackdropLayer>
+	  <CALayer id="#1" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0 0.5" backgroundColor="1 1 1" bounds="0 0 6.5 9.321990966797" contentsFormat="RGBA8" cornerCurve="continuous" cornerRadius="1.5" masksToBounds="1" name="Fill Parent" position="9.465614318848 24.00202974">
+	    <mask id="#2" allowsEdgeAntialiasing="1" allowsGroupOpacity="1" anchorPoint="0 0.5" backgroundColor="1 1 1" bounds="0 0 25 9.321990966797" contentsFormat="RGBA8" cornerCurve="continuous" cornerRadius="1.5" masksToBounds="1" name="Fill" position="0 4.660995483399"/>
+	  </CALayer>
+	</sublayers>
+      </CALayer>
+    </sublayers>
+    <states>
+      <LKState name="enabled">
+	<elements>
+	  <LKStateSetValue targetId="#1" keyPath="position.x">
+	    <value type="real" value="9.46562"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#1" keyPath="bounds.size.width">
+	    <value type="real" value="24.5344"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#2" keyPath="backgroundColor">
+	    <value type="CGColor" value="1 0.7569 0"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#2" keyPath="bounds.size.width">
+	    <value type="real" value="6.5"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#1" keyPath="backgroundColor">
+	    <value type="CGColor" value="1 0.8 0"/>
+	  </LKStateSetValue>
+	  <LKStateSetValue targetId="#3" keyPath="filters.vibrantColorMatrix.inputColorMatrix">
+	    <value type="CAColorMatrix" value="matrix(0.5 0 0 0 0.5 0 0.5 0 0 0.4 0 0 0.5 0 0 0 0 0 1 0)"/>
+	  </LKStateSetValue>
+	</elements>
+      </LKState>
+    </states>
+    <stateTransitions>
+      <LKStateTransition fromState="*" toState="enabled">
+	<elements>
+	  <LKStateTransitionElement key="position.x" targetId="#1">
+	    <animation type="CASpringAnimation" damping="48.9898" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="position.x" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="bounds.size.width" targetId="#1">
+	    <animation type="CASpringAnimation" damping="400" mass="5" stiffness="300" keyPath="bounds.size.width" beginTime="0" duration="3" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="bounds.size.width" targetId="#2">
+	    <animation type="CASpringAnimation" damping="77.4597" mass="5" stiffness="300" keyPath="bounds.size.width" beginTime="0.90504" duration="3" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#1">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="backgroundColor" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#2">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="backgroundColor" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#1">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="backgroundColor" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="filters.vibrantColorMatrix.inputColorMatrix" targetId="#3">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="filters.vibrantColorMatrix.inputColorMatrix" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	</elements>
+      </LKStateTransition>
+      <LKStateTransition fromState="enabled" toState="*">
+	<elements>
+	  <LKStateTransitionElement key="position.x" targetId="#1">
+	    <animation type="CABasicAnimation" keyPath="position.x" beginTime="0.555" duration="0.10125" fillMode="backwards" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement final="false" key="bounds.size.width" targetId="#1">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="bounds.size.width" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="bounds.size.width" targetId="#2">
+	    <animation type="CABasicAnimation" keyPath="bounds.size.width" beginTime="0.637384" duration="0.10125" fillMode="backwards" timingFunction="default"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#1">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" mica_autorecalculatesDuration="1" keyPath="backgroundColor" duration="0.8" fillMode="backwards" CUI_autoreversingDuration="0.8">
+	      <animationType/>
+	    </animation>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#2">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" mica_autorecalculatesDuration="1" keyPath="backgroundColor" duration="0.8" fillMode="backwards" CUI_autoreversingDuration="0.8">
+	      <animationType/>
+	    </animation>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="backgroundColor" targetId="#1">
+	    <animation type="CASpringAnimation" damping="50" mass="2" stiffness="300" velocity="0" mica_autorecalculatesDuration="1" keyPath="backgroundColor" duration="0.8" fillMode="backwards"/>
+	  </LKStateTransitionElement>
+	  <LKStateTransitionElement key="filters.vibrantColorMatrix.inputColorMatrix" targetId="#3">
+	    <animation type="CASpringAnimation" damping="48.9898" mass="2" stiffness="300" mica_autorecalculatesDuration="1" keyPath="filters.vibrantColorMatrix.inputColorMatrix" duration="0.8" fillMode="backwards" CUI_autoreversingDuration="0.8">
+	      <animationType/>
+	    </animation>
+	  </LKStateTransitionElement>
+	</elements>
+      </LKStateTransition>
+    </stateTransitions>
+  </CALayer>
+</caml>

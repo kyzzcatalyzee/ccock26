@@ -18,6 +18,7 @@ NSString *const kReloadNotification = @"pawxed.ccock26/ReloadPrefs";
 BOOL gEnabled = YES;
 BOOL gQuickAccessButtonsEnabled = YES;
 BOOL gSliderBounceEnabled = YES;
+BOOL gCC18Glyphs = NO;
 BOOL gPagingEnabled = YES;
 BOOL gHapticsEnabled = YES;
 BOOL gExperimentalPagingEnabled = YES;
@@ -70,6 +71,7 @@ void LoadPrefs(void) {
     gEnabled                     = PrefBool(@"Enabled", YES);
     gQuickAccessButtonsEnabled   = PrefBool(@"QuickAccessButtonsEnabled", YES);
     gSliderBounceEnabled         = PrefBool(@"SliderBounceEnabled", YES);
+    gCC18Glyphs                  = PrefBool(@"CC18GlyphsEnabled", NO);
     gPagingEnabled               = PrefBool(@"PagingEnabled", YES);
     gHapticsEnabled              = PrefBool(@"HapticsEnabled", YES);
     gExperimentalPagingEnabled   = PrefBool(@"ExperimentalPaging", NO);
@@ -396,6 +398,25 @@ void PACCScaleMiniGlyphs(UIView *root, CGFloat scale) {
         view.bounds = CGRectMake(0.0, 0.0, base.width * scale, base.height * scale);
         view.center = center;
     }
+}
+
+UIImage *PACCGlyphPNG(NSString *name) {
+    NSMutableArray<NSString *> *dirs = [NSMutableArray array];
+    Dl_info info;
+    if (dladdr((const void *)&PACCGlyphPNG, &info) && info.dli_fname) {
+        NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];
+        NSString *lib = [[dir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
+        [dirs addObject:[lib stringByAppendingPathComponent:@"Application Support/CCock26/Glyphs"]];
+    }
+    [dirs addObject:@"/var/jb/Library/Application Support/CCock26/Glyphs"];
+    [dirs addObject:@"/Library/Application Support/CCock26/Glyphs"];
+    for (NSString *d in dirs) {
+        NSData *data = [NSData dataWithContentsOfFile:[d stringByAppendingPathComponent:[name stringByAppendingString:@"@3x.png"]]];
+        if (!data) continue;
+        UIImage *img = [UIImage imageWithData:data scale:3.0];
+        if (img) return [img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    }
+    return nil;
 }
 
 UIImage *PACCBundledSymbol(NSString *name, UIColor *color, BOOL hierarchical) {
