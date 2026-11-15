@@ -4832,6 +4832,21 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     UIImage *img = nil;
     if (info[@"png"]) img = PACCGlyphPNG([NSString stringWithFormat:@"%@_%d_all", info[@"png"], sel ? 1 : 0]);
     else if (info) img = PACCC18GlyphImage(info[@"pkg"], sel ? info[@"on"] : info[@"off"]);
+    static NSMutableSet<NSString *> *loggedMids;
+    static dispatch_once_t logOnce;
+    dispatch_once(&logOnce, ^{ loggedMids = [NSMutableSet set]; });
+    NSString *logLine = [NSString stringWithFormat:@"%@ enabled=%d expanded=%d info=%d img=%d\n", mid, (int)gCC18Glyphs, (int)expanded, (int)(info != nil), (int)(img != nil)];
+    if (![loggedMids containsObject:logLine]) {
+        [loggedMids addObject:logLine];
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/tmp/ccock26_glyph.log"];
+        if (!fh) {
+            [NSFileManager.defaultManager createFileAtPath:@"/var/tmp/ccock26_glyph.log" contents:nil attributes:nil];
+            fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/tmp/ccock26_glyph.log"];
+        }
+        [fh seekToEndOfFile];
+        [fh writeData:[logLine dataUsingEncoding:NSUTF8StringEncoding]];
+        [fh closeFile];
+    }
     if (!img) {
         if (old) {
             [old removeFromSuperview];
