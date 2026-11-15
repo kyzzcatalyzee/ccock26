@@ -4737,6 +4737,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 
 static NSDictionary *PACCC18GlyphInfo(NSString *mid) {
     NSString *l = mid.lowercaseString;
+    if ([l containsString:@"flashlight"]) return @{@"sf": @"flashlight.off.fill", @"sfOn": @"flashlight.on.fill"};
     if ([l containsString:@"camera"]) return @{@"png": @"camera.fill"};
     if ([l containsString:@"calculator"]) return @{@"png": @"calculator.fill"};
     if ([l containsString:@"alarm"]) return @{@"png": @"alarm.fill"};
@@ -4842,7 +4843,10 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     BOOL sel = [buttonView isKindOfClass:UIControl.class] ? ((UIControl *)buttonView).selected : NO;
     UIImage *img = nil;
     UIView *pv = nil;
-    if (info[@"png"]) {
+    if (info[@"sf"]) {
+        UIImageSymbolConfiguration *sfc = [UIImageSymbolConfiguration configurationWithPointSize:30.0 weight:UIImageSymbolWeightMedium];
+        img = [[UIImage systemImageNamed:(sel ? info[@"sfOn"] : info[@"sf"]) withConfiguration:sfc] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    } else if (info[@"png"]) {
         img = PACCGlyphPNG([NSString stringWithFormat:@"%@_%d_all", info[@"png"], sel ? 1 : 0]);
     } else if (info[@"pkg"]) {
         pv = oldPkg ?: PACCC18MakePackageView(info[@"pkg"]);
@@ -4874,7 +4878,7 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
         iv.bounds = CGRectMake(0, 0, d, d);
         iv.center = c;
         NSArray *rgb = info[@"c"];
-        iv.tintColor = (sel && rgb) ? [UIColor colorWithRed:[rgb[0] doubleValue] green:[rgb[1] doubleValue] blue:[rgb[2] doubleValue] alpha:1.0] : UIColor.whiteColor;
+        iv.tintColor = (sel && info[@"sf"]) ? UIColor.blackColor : (sel && rgb) ? [UIColor colorWithRed:[rgb[0] doubleValue] green:[rgb[1] doubleValue] blue:[rgb[2] doubleValue] alpha:1.0] : UIColor.whiteColor;
         [buttonView bringSubviewToFront:iv];
     } else {
         if (!pv.superview) {
@@ -4885,7 +4889,7 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
         CGSize isz = pv.intrinsicContentSize;
         if (isz.width < 1.0 || isz.height < 1.0) isz = [pv sizeThatFits:CGSizeMake(200.0, 200.0)];
         if (isz.width < 1.0 || isz.height < 1.0) isz = CGSizeMake(60.0, 60.0);
-        CGFloat k = d / MAX(isz.width, isz.height);
+        CGFloat k = (kPACCell * 0.85) / MAX(isz.width, isz.height);
         pv.transform = CGAffineTransformIdentity;
         pv.bounds = CGRectMake(0, 0, isz.width, isz.height);
         pv.center = c;
