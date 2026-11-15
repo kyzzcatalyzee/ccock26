@@ -1001,7 +1001,7 @@ static NSArray<UIView *> *PACCompactGlyphHosts(UIView *view) {
     while (queue.count) {
         UIView *v = queue.lastObject;
         [queue removeLastObject];
-        if (v.tag == 9101) continue;
+        if (v.tag == 9101 || v.tag == 9102) continue;
         BOOL hit = kClsCCUICAPackageView && [v isKindOfClass:kClsCCUICAPackageView];
         if (!hit) {
             NSString *cls = NSStringFromClass(v.class);
@@ -4782,82 +4782,77 @@ static NSURL *PACCC18PackageURL(NSString *pkg) {
     return nil;
 }
 
-static UIImage *PACCC18GlyphImage(NSString *pkg, NSString *stateName) {
-    static NSMutableDictionary<NSString *, id> *cache;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ cache = [NSMutableDictionary dictionary]; });
-    NSString *key = [NSString stringWithFormat:@"%@|%@", pkg, stateName ?: @""];
-    id hit = cache[key];
-    if (hit) return [hit isKindOfClass:UIImage.class] ? hit : nil;
-    UIImage *result = nil;
+static UIView *PACCC18MakePackageView(NSString *pkg) {
     @try {
-        NSURL *url = PACCC18PackageURL(pkg);
-        Class pk = NSClassFromString(@"CAPackage");
-        SEL ps = NSSelectorFromString(@"packageWithContentsOfURL:type:options:error:");
-        if (url && pk && [pk respondsToSelector:ps]) {
-            NSError *err = nil;
-            id package = ((id (*)(id, SEL, NSURL *, NSString *, id, NSError **))objc_msgSend)(pk, ps, url, @"com.apple.coreanimation-bundle", nil, &err);
-            CALayer *root = [package respondsToSelector:NSSelectorFromString(@"rootLayer")] ? [package valueForKey:@"rootLayer"] : nil;
-            if ([root isKindOfClass:CALayer.class] && stateName.length) {
-                Class sc = NSClassFromString(@"CAStateController");
-                SEL initSel = NSSelectorFromString(@"initWithLayer:");
-                id ctrl = nil;
-                if (sc && [sc instancesRespondToSelector:initSel]) {
-                    ctrl = ((id (*)(id, SEL, id))objc_msgSend)([sc alloc], initSel, root);
-                }
-                id target = nil;
-                for (id st in (NSArray *)([root valueForKey:@"states"] ?: @[])) {
-                    NSString *nm = [st valueForKey:@"name"];
-                    if ([nm isEqualToString:stateName]) { target = st; break; }
-                }
-                SEL s1 = NSSelectorFromString(@"setState:ofLayer:transitionSpeed:");
-                SEL s2 = NSSelectorFromString(@"setState:ofLayer:");
-                if (ctrl && target) {
-                    if ([ctrl respondsToSelector:s1]) ((void (*)(id, SEL, id, id, float))objc_msgSend)(ctrl, s1, target, root, 1.0f);
-                    else if ([ctrl respondsToSelector:s2]) ((void (*)(id, SEL, id, id))objc_msgSend)(ctrl, s2, target, root);
-                }
-            }
-            if ([root isKindOfClass:CALayer.class] && root.bounds.size.width > 1 && root.bounds.size.height > 1) {
-                UIGraphicsImageRendererFormat *f = [UIGraphicsImageRendererFormat preferredFormat];
-                f.scale = 3.0;
-                UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:root.bounds.size format:f];
-                UIImage *img = [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
-                    [root renderInContext:ctx.CGContext];
-                }];
-                if (img) result = [img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-            }
+        NSURL *u = PACCC18PackageURL(pkg);
+        if (!u) return nil;
+        NSBundle *bundle = [NSBundle bundleWithURL:[u URLByDeletingLastPathComponent]];
+        Class dc = NSClassFromString(@"CCUICAPackageDescription");
+        Class vc = NSClassFromString(@"CCUICAPackageView");
+        SEL ds = NSSelectorFromString(@"descriptionForPackageNamed:inBundle:");
+        SEL ps = NSSelectorFromString(@"setPackageDescription:");
+        if (!bundle || !dc || !vc || ![dc respondsToSelector:ds]) return nil;
+        id desc = ((id (*)(id, SEL, NSString *, NSBundle *))objc_msgSend)(dc, ds, pkg, bundle);
+        if (!desc) return nil;
+        UIView *v = [[vc alloc] init];
+        if (![v respondsToSelector:ps]) return nil;
+        ((void (*)(id, SEL, id))objc_msgSend)(v, ps, desc);
+        return v;
+    } @catch (__unused NSException *e) {
+        return nil;
+    }
+}
+
+static const void *kPACCC18StateKey = &kPACCC18StateKey;
+
+static void PACCC18SetState(UIView *pv, NSString *stateName) {
+    if (!stateName.length) return;
+    NSString *prev = objc_getAssociatedObject(pv, kPACCC18StateKey);
+    if ([prev isEqualToString:stateName]) return;
+    @try {
+        SEL ss = NSSelectorFromString(@"setStateName:");
+        if ([pv respondsToSelector:ss]) {
+            ((void (*)(id, SEL, id))objc_msgSend)(pv, ss, stateName);
+            objc_setAssociatedObject(pv, kPACCC18StateKey, stateName, OBJC_ASSOCIATION_COPY_NONATOMIC);
         }
-    } @catch (__unused NSException *e) { result = nil; }
-    cache[key] = result ?: (id)NSNull.null;
-    return result;
+    } @catch (__unused NSException *e) {}
+}
+
+static void PACCC18Log(NSString *line) {
+    static NSMutableSet<NSString *> *logged;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ logged = [NSMutableSet set]; });
+    if ([logged containsObject:line]) return;
+    [logged addObject:line];
+    NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/tmp/ccock26_glyph.log"];
+    if (!fh) {
+        [NSFileManager.defaultManager createFileAtPath:@"/var/tmp/ccock26_glyph.log" contents:nil attributes:nil];
+        fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/tmp/ccock26_glyph.log"];
+    }
+    [fh seekToEndOfFile];
+    [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+    [fh closeFile];
 }
 
 static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) {
     if (!buttonView) return;
-    UIImageView *old = (UIImageView *)[buttonView viewWithTag:9101];
+    UIImageView *oldImg = (UIImageView *)[buttonView viewWithTag:9101];
+    UIView *oldPkg = [buttonView viewWithTag:9102];
     NSDictionary *info = (gCC18Glyphs && !expanded) ? PACCC18GlyphInfo(mid) : nil;
     BOOL sel = [buttonView isKindOfClass:UIControl.class] ? ((UIControl *)buttonView).selected : NO;
     UIImage *img = nil;
-    if (info[@"png"]) img = PACCGlyphPNG([NSString stringWithFormat:@"%@_%d_all", info[@"png"], sel ? 1 : 0]);
-    else if (info) img = PACCC18GlyphImage(info[@"pkg"], sel ? info[@"on"] : info[@"off"]);
-    static NSMutableSet<NSString *> *loggedMids;
-    static dispatch_once_t logOnce;
-    dispatch_once(&logOnce, ^{ loggedMids = [NSMutableSet set]; });
-    NSString *logLine = [NSString stringWithFormat:@"%@ enabled=%d expanded=%d info=%d img=%d\n", mid, (int)gCC18Glyphs, (int)expanded, (int)(info != nil), (int)(img != nil)];
-    if (![loggedMids containsObject:logLine]) {
-        [loggedMids addObject:logLine];
-        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/tmp/ccock26_glyph.log"];
-        if (!fh) {
-            [NSFileManager.defaultManager createFileAtPath:@"/var/tmp/ccock26_glyph.log" contents:nil attributes:nil];
-            fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/tmp/ccock26_glyph.log"];
-        }
-        [fh seekToEndOfFile];
-        [fh writeData:[logLine dataUsingEncoding:NSUTF8StringEncoding]];
-        [fh closeFile];
+    UIView *pv = nil;
+    if (info[@"png"]) {
+        img = PACCGlyphPNG([NSString stringWithFormat:@"%@_%d_all", info[@"png"], sel ? 1 : 0]);
+    } else if (info[@"pkg"]) {
+        pv = oldPkg ?: PACCC18MakePackageView(info[@"pkg"]);
+        if (pv) PACCC18SetState(pv, sel ? info[@"on"] : info[@"off"]);
     }
-    if (!img) {
-        if (old) {
-            [old removeFromSuperview];
+    PACCC18Log([NSString stringWithFormat:@"%@ enabled=%d expanded=%d info=%d img=%d pkg=%d\n", mid, (int)gCC18Glyphs, (int)expanded, (int)(info != nil), (int)(img != nil), (int)(pv != nil)]);
+    if (!img && oldImg) [oldImg removeFromSuperview];
+    if (!pv && oldPkg) [oldPkg removeFromSuperview];
+    if (!img && !pv) {
+        if (oldImg || oldPkg) {
             for (UIView *g in PACCompactGlyphHosts(buttonView)) g.alpha = 1.0;
         }
         return;
@@ -4866,19 +4861,37 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     BOOL resized = PACWasResizedFromOneByOne(mid);
     CGPoint c = resized ? CGPointMake(kPACCell * 0.5, kPACCell * 0.5) : CGPointMake(bs.width * 0.5, bs.height * 0.5);
     CGFloat d = round(kPACCell * 0.52);
-    if (!old) {
-        old = [[UIImageView alloc] init];
-        old.tag = 9101;
-        old.userInteractionEnabled = NO;
-        old.contentMode = UIViewContentModeScaleAspectFit;
-        [buttonView addSubview:old];
+    if (img) {
+        UIImageView *iv = oldImg;
+        if (!iv) {
+            iv = [[UIImageView alloc] init];
+            iv.tag = 9101;
+            iv.userInteractionEnabled = NO;
+            iv.contentMode = UIViewContentModeScaleAspectFit;
+            [buttonView addSubview:iv];
+        }
+        iv.image = img;
+        iv.bounds = CGRectMake(0, 0, d, d);
+        iv.center = c;
+        NSArray *rgb = info[@"c"];
+        iv.tintColor = (sel && rgb) ? [UIColor colorWithRed:[rgb[0] doubleValue] green:[rgb[1] doubleValue] blue:[rgb[2] doubleValue] alpha:1.0] : UIColor.whiteColor;
+        [buttonView bringSubviewToFront:iv];
+    } else {
+        if (!pv.superview) {
+            pv.tag = 9102;
+            pv.userInteractionEnabled = NO;
+            [buttonView addSubview:pv];
+        }
+        CGSize isz = pv.intrinsicContentSize;
+        if (isz.width < 1.0 || isz.height < 1.0) isz = [pv sizeThatFits:CGSizeMake(200.0, 200.0)];
+        if (isz.width < 1.0 || isz.height < 1.0) isz = CGSizeMake(60.0, 60.0);
+        CGFloat k = d / MAX(isz.width, isz.height);
+        pv.transform = CGAffineTransformIdentity;
+        pv.bounds = CGRectMake(0, 0, isz.width, isz.height);
+        pv.center = c;
+        pv.transform = CGAffineTransformMakeScale(k, k);
+        [buttonView bringSubviewToFront:pv];
     }
-    old.image = img;
-    old.bounds = CGRectMake(0, 0, d, d);
-    old.center = c;
-    NSArray *rgb = info[@"c"];
-    old.tintColor = (sel && rgb) ? [UIColor colorWithRed:[rgb[0] doubleValue] green:[rgb[1] doubleValue] blue:[rgb[2] doubleValue] alpha:1.0] : UIColor.whiteColor;
-    [buttonView bringSubviewToFront:old];
     for (UIView *g in PACCompactGlyphHosts(buttonView)) g.alpha = 0.0;
 }
 
