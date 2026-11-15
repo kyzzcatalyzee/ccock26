@@ -1380,13 +1380,13 @@ static void PACMRUApplyTile(UIView *v) {
         return CGRectGetMidX(a.frame) < CGRectGetMidX(b.frame) ? NSOrderedAscending : NSOrderedDescending;
     }];
     CGFloat w = v.bounds.size.width, h = v.bounds.size.height;
-    CGFloat cx[3] = { w * 0.23, w * 0.508, w * 0.77 };
     CGFloat bw = floor(w * 0.26);
+    NSArray<NSNumber *> *cxs = @[@(w * 0.23), @(w * 0.508), @(w * 0.77)];
     [UIView performWithoutAnimation:^{
         for (int i = 0; i < 3; i++) {
             [btns[i].layer removeAllAnimations];
             btns[i].transform = CGAffineTransformIdentity;
-            btns[i].frame = CGRectMake(cx[i] - bw * 0.5, (h - MIN(h, bw)) * 0.5, bw, MIN(h, bw));
+            btns[i].frame = CGRectMake(cxs[i].doubleValue - bw * 0.5, (h - MIN(h, bw)) * 0.5, bw, MIN(h, bw));
             CGFloat bs2 = (i == 1) ? 0.7 : 0.4;
             btns[i].transform = CGAffineTransformMakeScale(bs2, bs2);
         }
