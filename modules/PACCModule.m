@@ -18,7 +18,7 @@
 - (UIViewController *)backgroundViewController;
 @end
 
-static UIImage *PACCModPNG(NSString *name) {
+__attribute__((unused)) static UIImage *PACCModPNG(NSString *name) {
     NSMutableArray<NSString *> *dirs = [NSMutableArray array];
     Dl_info info;
     if (dladdr((const void *)&PACCModPNG, &info) && info.dli_fname) {
