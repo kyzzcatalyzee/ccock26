@@ -220,7 +220,9 @@ static NSString *PACBigTime(double t, BOOL negative) {
 @property (nonatomic) BOOL iconOnly;
 @property (nonatomic, copy) void (^onTap)(void);
 @property (nonatomic, strong) UIView *material;
+@property (nonatomic, copy) NSString *subPlain;
 - (void)setOn:(BOOL)on;
+- (void)setSubText:(NSString *)text;
 @end
 
 static UIColor *PACBigOnColor(NSString *key) {
@@ -354,16 +356,16 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
     }
     if (_tall) {
         self.layer.cornerRadius = MIN(36.0, h * 0.3);
-        CGFloat d = 44.0;
-        _icon.frame = CGRectMake(16.0, 16.0, d, d);
+        CGFloat d = 38.0;
+        _icon.frame = CGRectMake(14.0, 14.0, d, d);
         _icon.layer.cornerRadius = d * 0.5;
         _icon.layer.masksToBounds = YES;
         _icon.image = PACBigIconForKey(_key, d * 0.46);
-        _title.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
-        _sub.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
-        CGFloat tw = MAX(0, w - 32.0);
-        _sub.frame = CGRectMake(16.0, h - 16.0 - 17.0, tw, 17.0);
-        _title.frame = CGRectMake(16.0, h - 16.0 - 17.0 - 21.0, tw, 21.0);
+        _title.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
+        _sub.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
+        CGFloat tw = MAX(0, w - 28.0);
+        _sub.frame = CGRectMake(14.0, h - 14.0 - 15.0, tw, 15.0);
+        _title.frame = CGRectMake(14.0, h - 14.0 - 15.0 - 18.0, tw, 18.0);
         return;
     }
     self.layer.cornerRadius = MIN(h * 0.5, 36.0);
@@ -379,6 +381,24 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
     CGFloat tw = MAX(0, w - tx - 10.0);
     _title.frame = CGRectMake(tx, h * 0.5 - 18.0, tw, 18.0);
     _sub.frame = CGRectMake(tx, h * 0.5 + 1.0, tw, 16.0);
+}
+- (void)setSubText:(NSString *)text {
+    BOOL chev = _tall && ([_key isEqualToString:@"wifi"] || [_key isEqualToString:@"airdrop"] || [_key isEqualToString:@"bt"]);
+    NSString *sig = [NSString stringWithFormat:@"%@|%d", text, (int)chev];
+    if ([_subPlain isEqualToString:sig]) return;
+    _subPlain = sig;
+    if (!chev) { _sub.attributedText = nil; _sub.text = text; return; }
+    NSMutableAttributedString *as = [[NSMutableAttributedString alloc] initWithString:[text stringByAppendingString:@" "]
+                                                                          attributes:@{NSFontAttributeName: _sub.font, NSForegroundColorAttributeName: _sub.textColor}];
+    UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:10 weight:UIImageSymbolWeightSemibold];
+    UIImage *ci = [[UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:cfg] imageWithTintColor:[UIColor colorWithWhite:1 alpha:0.7] renderingMode:UIImageRenderingModeAlwaysOriginal];
+    if (ci) {
+        NSTextAttachment *att = [NSTextAttachment new];
+        att.image = ci;
+        att.bounds = CGRectMake(0, -1.0, ci.size.width, ci.size.height);
+        [as appendAttributedString:[NSAttributedString attributedStringWithAttachment:att]];
+    }
+    _sub.attributedText = as;
 }
 - (void)setOn:(BOOL)on {
     _isOn = on;
@@ -554,7 +574,7 @@ static BOOL PACBigVPNActive(void) {
             card.target = nil; card.labeled = nil;
             if (![card.title.text isEqualToString:@"VPN"]) card.title.text = @"VPN";
             NSString *vs = vpnOn ? @"Connected" : @"Not Connected";
-            if (![card.sub.text isEqualToString:vs]) card.sub.text = vs;
+            [card setSubText:vs];
             [card setOn:vpnOn];
             card.alpha = 1.0;
             card.enabled = NO;
@@ -579,7 +599,7 @@ static BOOL PACBigVPNActive(void) {
         if (![sub isKindOfClass:NSString.class] || !sub.length || [sub isEqualToString:title]) sub = on ? @"On" : @"Off";
         if (!round) sub = @"Unavailable";
         if (![card.title.text isEqualToString:title]) card.title.text = title;
-        if (![card.sub.text isEqualToString:sub]) card.sub.text = sub;
+        [card setSubText:sub];
         [card setOn:on];
         card.alpha = round ? (round.enabled ? 1.0 : 0.5) : 0.4;
         card.enabled = round != nil && !gEditModeActive;
@@ -1368,7 +1388,8 @@ static id PACMRUIvar(id obj, NSString *name) {
     for (int i = 0; i < 3; i++) {
         btns[i].transform = CGAffineTransformIdentity;
         btns[i].frame = CGRectMake(cx[i] - bw * 0.5, (h - MIN(h, bw)) * 0.5, bw, MIN(h, bw));
-        if (i != 1) btns[i].transform = CGAffineTransformMakeScale(0.78, 0.78);
+        CGFloat bs2 = (i == 1) ? 0.7 : 0.4;
+        btns[i].transform = CGAffineTransformMakeScale(bs2, bs2);
     }
 }
 %end
