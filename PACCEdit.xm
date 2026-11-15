@@ -4805,6 +4805,7 @@ static UIView *PACCC18MakePackageView(NSString *pkg) {
 }
 
 static const void *kPACCC18StateKey = &kPACCC18StateKey;
+static const void *kPACCC18MidKey = &kPACCC18MidKey;
 
 static void PACCC18SetState(UIView *pv, NSString *stateName) {
     if (!stateName.length) return;
@@ -4841,6 +4842,15 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     UIView *oldPkg = [buttonView viewWithTag:9102];
     NSDictionary *info = (gCC18Glyphs && !expanded) ? PACCC18GlyphInfo(mid) : nil;
     BOOL sel = [buttonView isKindOfClass:UIControl.class] ? ((UIControl *)buttonView).selected : NO;
+    objc_setAssociatedObject(buttonView, kPACCC18MidKey, info ? mid : nil, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    if (oldPkg && info[@"pkg"]) {
+        NSString *wantState = sel ? info[@"on"] : info[@"off"];
+        NSString *prevState = objc_getAssociatedObject(oldPkg, kPACCC18StateKey);
+        if (!wantState.length && prevState.length) {
+            [oldPkg removeFromSuperview];
+            oldPkg = nil;
+        }
+    }
     UIImage *img = nil;
     UIView *pv = nil;
     if (info[@"sf"]) {
@@ -4863,7 +4873,8 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     }
     CGSize bs = buttonView.bounds.size;
     BOOL resized = PACWasResizedFromOneByOne(mid);
-    CGPoint c = resized ? CGPointMake(kPACCell * 0.5, kPACCell * 0.5) : CGPointMake(bs.width * 0.5, bs.height * 0.5);
+    BOOL wideBtn = bs.width > bs.height * 1.25;
+    CGPoint c = (resized || wideBtn) ? CGPointMake(MIN(bs.width, bs.height) * 0.5, bs.height * 0.5) : CGPointMake(bs.width * 0.5, bs.height * 0.5);
     CGFloat d = round(kPACCell * 0.52);
     if (img) {
         UIImageView *iv = oldImg;
@@ -5458,7 +5469,10 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
 
 - (void)setSelected:(BOOL)selected {
     %orig;
-    [(UIView *)(id)self setNeedsLayout];
+    UIView *selfView = (UIView *)(id)self;
+    NSString *glyphMid = objc_getAssociatedObject(selfView, kPACCC18MidKey);
+    if (glyphMid.length) PACApplyCC18Glyph(selfView, glyphMid, NO);
+    [selfView setNeedsLayout];
 }
 
 - (void)layoutSubviews {
