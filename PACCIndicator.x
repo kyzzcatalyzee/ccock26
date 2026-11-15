@@ -110,6 +110,22 @@ static void PACCAddJelly(CALayer *layer, CGFloat endStretch) {
     PACCAddJellyFrom(layer, 1.0 - endStretch * 1.1, 1.0 + endStretch);
 }
 
+static void PACCAddSlideSquash(CALayer *layer, CGFloat amount) {
+    CAKeyframeAnimation *ky = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.y"];
+    ky.values = @[@1.0, @(1.0 + amount), @1.0];
+    CAKeyframeAnimation *kx = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.x"];
+    kx.values = @[@1.0, @(1.0 - amount * 1.1), @1.0];
+    for (CAKeyframeAnimation *k in @[ky, kx]) {
+        k.keyTimes = @[@0.0, @0.38, @1.0];
+        k.timingFunctions = @[[CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut],
+                              [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut]];
+    }
+    CAAnimationGroup *g = [CAAnimationGroup animation];
+    g.animations = @[ky, kx];
+    g.duration = 0.6;
+    [layer addAnimation:g forKey:@"PAnimJelly"];
+}
+
 static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
     CASpringAnimation *spring = [CASpringAnimation animationWithKeyPath:@"sublayerTransform.translation.y"];
     spring.fromValue = @(from.m42);
@@ -946,7 +962,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     target.m43 = 0.0;
 
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
-    PACCAddJelly(collection.view.layer, 0.10);
+    PACCAddSlideSquash(collection.view.layer, 0.10);
     gPageAnimating = YES;
     [UIView animateWithDuration:0.8 delay:0.0 usingSpringWithDamping:1.0 initialSpringVelocity:0.0
                         options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
@@ -990,7 +1006,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
-    PACCAddJelly(collection.view.layer, 0.10);
+    PACCAddSlideSquash(collection.view.layer, 0.10);
 
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
     if (player) {

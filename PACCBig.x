@@ -1365,6 +1365,10 @@ static id PACMRUIvar(id obj, NSString *name) {
     CGFloat w = v.bounds.size.width, h = v.bounds.size.height;
     CGFloat cx[3] = { w * 0.23, w * 0.508, w * 0.77 };
     CGFloat bw = floor(w * 0.26);
-    for (int i = 0; i < 3; i++) btns[i].frame = CGRectMake(cx[i] - bw * 0.5, (h - MIN(h, bw)) * 0.5, bw, MIN(h, bw));
+    for (int i = 0; i < 3; i++) {
+        btns[i].transform = CGAffineTransformIdentity;
+        btns[i].frame = CGRectMake(cx[i] - bw * 0.5, (h - MIN(h, bw)) * 0.5, bw, MIN(h, bw));
+        if (i != 1) btns[i].transform = CGAffineTransformMakeScale(0.78, 0.78);
+    }
 }
 %end

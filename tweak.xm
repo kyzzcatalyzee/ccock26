@@ -381,6 +381,8 @@ BOOL gPagerScrubbing = NO;
     CGFloat spacing = width * 0.32;
 
     left.hidden = NO;
+    left.transform = CGAffineTransformMakeScale(0.78, 0.78);
+    right.transform = CGAffineTransformMakeScale(0.78, 0.78);
     center.center = CGPointMake(width / 2, y);
     left.center = CGPointMake(width / 2 - spacing, y);
     right.center = CGPointMake(width / 2 + spacing, y);
