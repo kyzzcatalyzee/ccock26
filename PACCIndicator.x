@@ -88,16 +88,21 @@ static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D
 }
 
 static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
-    CAKeyframeAnimation *jy = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.y"];
-    jy.values = @[@(startY), @0.945, @1.032, @0.985, @1.0];
-    jy.keyTimes = @[@0.0, @0.28, @0.55, @0.8, @1.0];
-    CAKeyframeAnimation *jx = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.x"];
-    jx.values = @[@(startX), @1.03, @0.985, @1.008, @1.0];
-    jx.keyTimes = jy.keyTimes;
+    CASpringAnimation *jy = [CASpringAnimation animationWithKeyPath:@"transform.scale.y"];
+    jy.fromValue = @(startY);
+    jy.toValue = @1.0;
+    CASpringAnimation *jx = [CASpringAnimation animationWithKeyPath:@"transform.scale.x"];
+    jx.fromValue = @(startX);
+    jx.toValue = @1.0;
+    for (CASpringAnimation *sp in @[jy, jx]) {
+        sp.mass = 1.0;
+        sp.stiffness = 170.0;
+        sp.damping = 26.5;
+        sp.initialVelocity = 0.0;
+    }
     CAAnimationGroup *jelly = [CAAnimationGroup animation];
     jelly.animations = @[jy, jx];
-    jelly.duration = 0.75;
-    jelly.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    jelly.duration = MAX(jy.settlingDuration, jx.settlingDuration);
     [layer addAnimation:jelly forKey:@"PAnimJelly"];
 }
 
@@ -769,7 +774,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
 
     CGFloat heldX = fromTrans.m11, heldY = fromTrans.m22;
-    if (fabs(heldX - 1.0) < 0.004 && fabs(heldY - 1.0) < 0.004) { heldX = 0.986; heldY = 1.035; }
+    if (fabs(heldX - 1.0) < 0.004 && fabs(heldY - 1.0) < 0.004) { heldX = 0.98; heldY = 1.05; }
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
     PACCAddJellyFrom(collection.view.layer, heldX, heldY);
 
@@ -941,7 +946,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     target.m43 = 0.0;
 
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
-    PACCAddJelly(collection.view.layer, 0.035);
+    PACCAddJelly(collection.view.layer, 0.05);
     gPageAnimating = YES;
     [UIView animateWithDuration:0.8 delay:0.0 usingSpringWithDamping:1.0 initialSpringVelocity:0.0
                         options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
@@ -985,7 +990,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
-    PACCAddJelly(collection.view.layer, 0.035);
+    PACCAddJelly(collection.view.layer, 0.05);
 
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
     if (player) {
