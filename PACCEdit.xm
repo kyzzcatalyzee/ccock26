@@ -4806,6 +4806,31 @@ static UIView *PACCC18MakePackageView(NSString *pkg) {
 
 static const void *kPACCC18StateKey = &kPACCC18StateKey;
 static const void *kPACCC18MidKey = &kPACCC18MidKey;
+static const void *kPACCC18HiddenKey = &kPACCC18HiddenKey;
+
+static void PACCC18HideExtraGlyphs(UIView *buttonView, BOOL hide) {
+    NSMutableArray<UIView *> *hid = objc_getAssociatedObject(buttonView, kPACCC18HiddenKey);
+    if (!hide) {
+        for (UIView *v in hid) v.alpha = 1.0;
+        objc_setAssociatedObject(buttonView, kPACCC18HiddenKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return;
+    }
+    if (!hid) {
+        hid = [NSMutableArray array];
+        objc_setAssociatedObject(buttonView, kPACCC18HiddenKey, hid, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGSize bs = buttonView.bounds.size;
+    CGFloat mn = MIN(bs.width, bs.height);
+    for (UIView *v in buttonView.subviews) {
+        if (v.tag != 0) continue;
+        CGSize vs = v.bounds.size;
+        if (vs.width < 8.0 || vs.height < 8.0) continue;
+        if (vs.width < mn * 0.85 && vs.height < mn * 0.85) {
+            v.alpha = 0.0;
+            if (![hid containsObject:v]) [hid addObject:v];
+        }
+    }
+}
 
 static void PACCC18SetState(UIView *pv, NSString *stateName) {
     if (!stateName.length) return;
@@ -4868,6 +4893,7 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     if (!img && !pv) {
         if (oldImg || oldPkg) {
             for (UIView *g in PACCompactGlyphHosts(buttonView)) g.alpha = 1.0;
+            PACCC18HideExtraGlyphs(buttonView, NO);
         }
         return;
     }
@@ -4908,6 +4934,7 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
         [buttonView bringSubviewToFront:pv];
     }
     for (UIView *g in PACCompactGlyphHosts(buttonView)) g.alpha = 0.0;
+    if (img) PACCC18HideExtraGlyphs(buttonView, YES);
 }
 
 static BOOL PACModuleHasState(NSString *mid) {
@@ -5477,8 +5504,10 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
 
 - (void)layoutSubviews {
     %orig;
+    UIView *glyphSelf = (UIView *)(id)self;
+    NSString *glyphMid2 = objc_getAssociatedObject(glyphSelf, kPACCC18MidKey);
+    if (glyphMid2.length && glyphSelf.bounds.size.height <= kPACCell * 1.2) PACApplyCC18Glyph(glyphSelf, glyphMid2, NO);
     BOOL landscape = PACIsLandscape();
-    if (!landscape && !PACEditAllowed()) return;
     UIResponder *r = (UIResponder *)(id)self;
     UIViewController *module = nil;
     while (r) {
@@ -5489,6 +5518,23 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
         }
         r = r.nextResponder;
     }
+    if (module) {
+        NSString *glassMid = PACMid(module);
+        if ([glassMid hasPrefix:@"zilvyn.ccock26.module."]) {
+            CGFloat glassRadius = glyphSelf.layer.cornerRadius;
+            if (glassRadius < 1.0) glassRadius = glyphSelf.superview.layer.cornerRadius;
+            if (glassRadius < 1.0) glassRadius = MIN(glyphSelf.bounds.size.width, glyphSelf.bounds.size.height) * 0.5;
+            if (PACCLIQApplyGlass(glyphSelf, glassRadius)) {
+                for (NSString *key in @[@"moduleMaterialView", @"backgroundView", @"_backgroundView"]) {
+                    @try {
+                        id bg = [module.view valueForKey:key];
+                        if ([bg isKindOfClass:UIView.class] && ((UIView *)bg).tag != 190001) ((UIView *)bg).hidden = YES;
+                    } @catch (__unused NSException *e) {}
+                }
+            }
+        }
+    }
+    if (!landscape && !PACEditAllowed()) return;
     if (!module) return;
     if (landscape) { PACTearDownModule(module); return; }
     UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);

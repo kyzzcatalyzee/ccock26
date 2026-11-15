@@ -107,7 +107,7 @@ static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
 }
 
 static void PACCAddJelly(CALayer *layer, CGFloat endStretch) {
-    PACCAddJellyFrom(layer, 1.0 - endStretch * 0.5, 1.0 + endStretch);
+    PACCAddJellyFrom(layer, 1.0 - endStretch * 1.1, 1.0 + endStretch);
 }
 
 static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
@@ -774,7 +774,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
 
     CGFloat heldX = fromTrans.m11, heldY = fromTrans.m22;
-    if (fabs(heldX - 1.0) < 0.004 && fabs(heldY - 1.0) < 0.004) { heldX = 0.95; heldY = 1.10; }
+    if (fabs(heldX - 1.0) < 0.004 && fabs(heldY - 1.0) < 0.004) { heldX = 0.89; heldY = 1.10; }
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
     PACCAddJellyFrom(collection.view.layer, heldX, heldY);
 
