@@ -4737,6 +4737,17 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 
 static NSDictionary *PACCC18GlyphInfo(NSString *mid) {
     NSString *l = mid.lowercaseString;
+    if ([l containsString:@"camera"]) return @{@"png": @"camera.fill"};
+    if ([l containsString:@"calculator"]) return @{@"png": @"calculator.fill"};
+    if ([l containsString:@"alarm"]) return @{@"png": @"alarm.fill"};
+    if ([l containsString:@"stopwatch"]) return @{@"png": @"stopwatch"};
+    if ([l containsString:@"magnifier"]) return @{@"png": @"plus.magnifyingglass"};
+    if ([l containsString:@"qrcode"] || [l containsString:@"scancode"]) return @{@"png": @"qrcode.viewfinder"};
+    if ([l containsString:@"wallet"]) return @{@"png": @"wallet.fill"};
+    if ([l containsString:@"voicememo"]) return @{@"png": @"waveform"};
+    if ([l containsString:@"appletvremote"] || [l containsString:@"tvremote"]) return @{@"png": @"appletvremote.gen4.fill"};
+    if ([l containsString:@"guidedaccess"]) return @{@"png": @"lock.circle.dotted"};
+    if (!gCC18Animated) return nil;
     if ([l containsString:@"lowpower"]) return @{@"pkg": @"LowPower", @"on": @"enabled", @"c": @[@1.0, @0.8, @0.0]};
     if ([l containsString:@"orientation"]) return @{@"pkg": @"OrientationLock", @"on": @"locked", @"off": @"unlocked", @"c": @[@1.0, @0.27, @0.23]};
     if ([l containsString:@"mutemodule"] || [l hasSuffix:@".mute"]) return @{@"pkg": @"Mute", @"on": @"silent", @"off": @"ringer", @"c": @[@1.0, @0.27, @0.23]};
@@ -4818,7 +4829,9 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     UIImageView *old = (UIImageView *)[buttonView viewWithTag:9101];
     NSDictionary *info = (gCC18Glyphs && !expanded) ? PACCC18GlyphInfo(mid) : nil;
     BOOL sel = [buttonView isKindOfClass:UIControl.class] ? ((UIControl *)buttonView).selected : NO;
-    UIImage *img = info ? PACCC18GlyphImage(info[@"pkg"], sel ? info[@"on"] : info[@"off"]) : nil;
+    UIImage *img = nil;
+    if (info[@"png"]) img = PACCGlyphPNG([NSString stringWithFormat:@"%@_%d_all", info[@"png"], sel ? 1 : 0]);
+    else if (info) img = PACCC18GlyphImage(info[@"pkg"], sel ? info[@"on"] : info[@"off"]);
     if (!img) {
         if (old) {
             [old removeFromSuperview];
@@ -4829,7 +4842,7 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     CGSize bs = buttonView.bounds.size;
     BOOL resized = PACWasResizedFromOneByOne(mid);
     CGPoint c = resized ? CGPointMake(kPACCell * 0.5, kPACCell * 0.5) : CGPointMake(bs.width * 0.5, bs.height * 0.5);
-    CGFloat d = round(kPACCell * 0.5);
+    CGFloat d = round(kPACCell * 0.52);
     if (!old) {
         old = [[UIImageView alloc] init];
         old.tag = 9101;
@@ -4841,7 +4854,7 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     old.bounds = CGRectMake(0, 0, d, d);
     old.center = c;
     NSArray *rgb = info[@"c"];
-    old.tintColor = sel ? [UIColor colorWithRed:[rgb[0] doubleValue] green:[rgb[1] doubleValue] blue:[rgb[2] doubleValue] alpha:1.0] : UIColor.whiteColor;
+    old.tintColor = (sel && rgb) ? [UIColor colorWithRed:[rgb[0] doubleValue] green:[rgb[1] doubleValue] blue:[rgb[2] doubleValue] alpha:1.0] : UIColor.whiteColor;
     [buttonView bringSubviewToFront:old];
     for (UIView *g in PACCompactGlyphHosts(buttonView)) g.alpha = 0.0;
 }

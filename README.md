@@ -134,6 +134,11 @@ known issue:
 ## 0.4.33
 - Expanded Connectivity: Apple's chrome around the panel is stripped on every container layout (the way ControlCenter26 does it) and restored afterwards.
 
+## 0.6.16
+- Ikon CC18 statis (PNG) kini AKTIF default untuk: Camera, Calculator, Alarm, Stopwatch, Magnifier, QR Code, Wallet, Voice Memos, Apple TV Remote, Guided Access.
+- Ikon animasi (.ca) dipisah jadi switch sendiri "CC18 Animated Icons (experimental)", default mati.
+- Wi-Fi, Bluetooth, Flashlight, AirDrop, Airplane tidak punya ikon di CC18, tetap ikon Apple.
+
 ## 0.6.15
 - Eksperimental: ikon animasi ControlCenter18 (paket .ca) untuk semua ukuran modul. Default MATI, aktifkan di Pengaturan > "ControlCenter18 Icons (experimental)".
 - Modul yang punya paket: Low Power, Orientation Lock, Mute, Mirroring, Shazam, Screen Recording. Modul lain tetap pakai ikon Apple.

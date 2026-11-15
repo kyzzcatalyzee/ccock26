@@ -29,6 +29,7 @@ extern BOOL gEnabled;
 extern BOOL gQuickAccessButtonsEnabled;
 extern BOOL gSliderBounceEnabled;
 extern BOOL gCC18Glyphs;
+extern BOOL gCC18Animated;
 extern BOOL gPagingEnabled;
 extern BOOL gHapticsEnabled;
 extern BOOL gExperimentalPagingEnabled;
