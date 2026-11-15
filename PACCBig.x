@@ -1370,12 +1370,9 @@ static id PACMRUIvar(id obj, NSString *name) {
 }
 %end
 
-%hook MRUNowPlayingTransportControlsView
-- (void)layoutSubviews {
-    %orig;
+static void PACMRUApplyTile(UIView *v) {
     CGSize z;
-    if (!PACMRUTile((UIView *)self, &z)) return;
-    UIView *v = (UIView *)self;
+    if (!PACMRUTile(v, &z)) return;
     NSMutableArray<UIView *> *btns = [NSMutableArray array];
     for (UIView *sub in v.subviews) if ([NSStringFromClass(sub.class) hasPrefix:@"MRUTransportButton"] && !sub.hidden) [btns addObject:sub];
     if (btns.count != 3) return;
@@ -1385,11 +1382,29 @@ static id PACMRUIvar(id obj, NSString *name) {
     CGFloat w = v.bounds.size.width, h = v.bounds.size.height;
     CGFloat cx[3] = { w * 0.23, w * 0.508, w * 0.77 };
     CGFloat bw = floor(w * 0.26);
-    for (int i = 0; i < 3; i++) {
-        btns[i].transform = CGAffineTransformIdentity;
-        btns[i].frame = CGRectMake(cx[i] - bw * 0.5, (h - MIN(h, bw)) * 0.5, bw, MIN(h, bw));
-        CGFloat bs2 = (i == 1) ? 0.7 : 0.4;
-        btns[i].transform = CGAffineTransformMakeScale(bs2, bs2);
+    [UIView performWithoutAnimation:^{
+        for (int i = 0; i < 3; i++) {
+            [btns[i].layer removeAllAnimations];
+            btns[i].transform = CGAffineTransformIdentity;
+            btns[i].frame = CGRectMake(cx[i] - bw * 0.5, (h - MIN(h, bw)) * 0.5, bw, MIN(h, bw));
+            CGFloat bs2 = (i == 1) ? 0.7 : 0.4;
+            btns[i].transform = CGAffineTransformMakeScale(bs2, bs2);
+        }
+    }];
+}
+
+%hook MRUNowPlayingTransportControlsView
+- (void)layoutSubviews {
+    %orig;
+    UIView *v = (UIView *)self;
+    PACMRUApplyTile(v);
+    __weak UIView *wv = v;
+    for (NSNumber *d in @[@0.05, @0.2, @0.5, @0.9]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *sv = wv;
+            if (sv) PACMRUApplyTile(sv);
+        });
     }
 }
 %end
+
