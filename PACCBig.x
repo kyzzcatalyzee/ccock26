@@ -1003,16 +1003,16 @@ static BOOL PACBigVPNActive(void) {
     } completion:nil];
     [UIView animateWithDuration:0.12 delay:0.03 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
     if (card) {
-        card.transform = CGAffineTransformMakeScale(sd / MAX(1.0, cfr.size.width), sd / MAX(1.0, cfr.size.height));
-        [UIView animateWithDuration:0.1 delay:0.08 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
-        [UIView animateWithDuration:0.5 delay:0.08 usingSpringWithDamping:0.78 initialSpringVelocity:0.0 options:0 animations:^{
+        card.transform = CGAffineTransformMakeScale(0.6, 0.6);
+        [UIView animateWithDuration:0.12 delay:0.16 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
+        [UIView animateWithDuration:0.6 delay:0.16 usingSpringWithDamping:0.5 initialSpringVelocity:0.0 options:0 animations:^{
             card.transform = CGAffineTransformIdentity;
         } completion:nil];
         CABasicAnimation *ra = [CABasicAnimation animationWithKeyPath:@"cornerRadius"];
-        ra.fromValue = @(sd * 0.5);
+        ra.fromValue = @(MIN(cfr.size.width, cfr.size.height) * 0.5);
         ra.toValue = @(cardRad);
-        ra.duration = 0.4;
-        ra.beginTime = CACurrentMediaTime() + 0.08;
+        ra.duration = 0.45;
+        ra.beginTime = CACurrentMediaTime() + 0.16;
         ra.fillMode = kCAFillModeBackwards;
         ra.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
         [card.layer addAnimation:ra forKey:@"PACCloseRound"];
