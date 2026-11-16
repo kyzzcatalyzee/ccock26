@@ -927,14 +927,6 @@ static BOOL PACBigVPNActive(void) {
     [_dim addTarget:self action:@selector(closeMenu) forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:_dim];
     {
-        UIVisualEffectView *bgBlur = [[UIVisualEffectView alloc] initWithEffect:nil];
-        bgBlur.frame = _dim.bounds;
-        bgBlur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        bgBlur.userInteractionEnabled = NO;
-        [_dim addSubview:bgBlur];
-        [UIView animateWithDuration:0.3 animations:^{ bgBlur.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial]; }];
-    }
-    {
         __weak typeof(self) wself = self;
         PACBigOutsideTap *ot = [[PACBigOutsideTap alloc] initWithTarget:nil action:NULL];
         ot.onTap = ^{ [wself closeMenu]; };
@@ -953,6 +945,12 @@ static BOOL PACBigVPNActive(void) {
     mat.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [menu addSubview:mat];
     if (PACCLIQGlassOn()) mat.hidden = PACBigLGGlass(menu, endRad);
+    UIVisualEffectView *bgBlur = [[UIVisualEffectView alloc] initWithEffect:nil];
+    bgBlur.frame = menu.bounds;
+    bgBlur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    bgBlur.userInteractionEnabled = NO;
+    [menu addSubview:bgBlur];
+    [UIView animateWithDuration:0.3 animations:^{ bgBlur.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial]; }];
     UIView *frost = [[UIView alloc] initWithFrame:menu.bounds];
     frost.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     frost.backgroundColor = PACBigDyn([UIColor colorWithWhite:0.0 alpha:0.32], [UIColor colorWithWhite:1.0 alpha:0.38]);
@@ -991,9 +989,7 @@ static BOOL PACBigVPNActive(void) {
     PACBigOutsideTap *ot = _outsideTap;
     _menu = nil; _menuCard = nil; _dim = nil; _menuItems = nil; _outsideTap = nil;
     [ot.view removeGestureRecognizer:ot];
-    dim.userInteractionEnabled = NO;
-    UIVisualEffectView *bgBlur = [dim.subviews.firstObject isKindOfClass:UIVisualEffectView.class] ? (UIVisualEffectView *)dim.subviews.firstObject : nil;
-    [UIView animateWithDuration:0.25 animations:^{ bgBlur.effect = nil; } completion:^(BOOL f) { [dim removeFromSuperview]; }];
+    [dim removeFromSuperview];
     UIView *content = menu.subviews.lastObject;
     menu.userInteractionEnabled = NO;
     CGRect cfr = card ? card.frame : menu.frame;
