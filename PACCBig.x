@@ -5,6 +5,7 @@
 #import <QuartzCore/QuartzCore.h>
 #include <time.h>
 #include <dlfcn.h>
+#import <UIKit/UIGestureRecognizerSubclass.h>
 #include <stdio.h>
 
 static const NSInteger kPACBigTag = 182100;
@@ -558,10 +559,41 @@ static NSDictionary *PACBigMenuItem(NSString *title, BOOL on, void (^act)(void))
 }
 
 static UIColor *PACBigDyn(UIColor *dark, UIColor *light) {
-    return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) {
-        return t.userInterfaceStyle == UIUserInterfaceStyleDark ? dark : light;
-    }];
+    BOOL isDark = [UIScreen mainScreen].traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
+    return isDark ? dark : light;
 }
+
+@interface PACBigOutsideTap : UIGestureRecognizer <UIGestureRecognizerDelegate>
+@property (nonatomic, weak) UIView *safeView;
+@property (nonatomic, copy) void (^onTap)(void);
+@end
+
+@implementation PACBigOutsideTap
+- (instancetype)initWithTarget:(id)t action:(SEL)a {
+    if ((self = [super initWithTarget:t action:a])) self.delegate = self;
+    return self;
+}
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)e {
+    UITouch *t = touches.anyObject;
+    UIView *v = self.safeView;
+    if (!v || !t || [t.view isDescendantOfView:v]) { self.state = UIGestureRecognizerStateFailed; return; }
+    self.state = UIGestureRecognizerStateBegan;
+}
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)e {
+    if (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged) self.state = UIGestureRecognizerStateChanged;
+}
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)e {
+    if (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged) {
+        self.state = UIGestureRecognizerStateEnded;
+        void (^cb)(void) = self.onTap;
+        if (cb) dispatch_async(dispatch_get_main_queue(), cb);
+    }
+}
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)e {
+    self.state = UIGestureRecognizerStateCancelled;
+}
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)g shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)other { return YES; }
+@end
 
 static void *PACBigWiFiSym(const char *n) {
     static void *h;
@@ -748,6 +780,7 @@ static BOOL PACBigVPNActive(void) {
     NSMutableDictionary<NSString *, PACBigCard *> *_cards;
     NSTimer *_timer;
     UIControl *_dim;
+    PACBigOutsideTap *_outsideTap;
     UIView *_menu;
     PACBigCard *_menuCard;
     NSArray<NSDictionary *> *_menuItems;
@@ -772,6 +805,7 @@ static BOOL PACBigVPNActive(void) {
     } else if (_menu) {
         [_menu removeFromSuperview]; _menu = nil;
         [_dim removeFromSuperview]; _dim = nil;
+        [_outsideTap.view removeGestureRecognizer:_outsideTap]; _outsideTap = nil;
         _menuCard.alpha = 1.0; _menuCard = nil;
     }
 }
@@ -892,8 +926,16 @@ static BOOL PACBigVPNActive(void) {
     _dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [_dim addTarget:self action:@selector(closeMenu) forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:_dim];
+    {
+        __weak typeof(self) wself = self;
+        PACBigOutsideTap *ot = [[PACBigOutsideTap alloc] initWithTarget:nil action:NULL];
+        ot.onTap = ^{ [wself closeMenu]; };
+        [self.window addGestureRecognizer:ot];
+        _outsideTap = ot;
+    }
 
     UIView *menu = [[UIView alloc] initWithFrame:sf];
+    _outsideTap.safeView = menu;
     menu.clipsToBounds = YES;
     menu.layer.cornerRadius = startRad;
     menu.layer.cornerCurve = kCACornerCurveContinuous;
@@ -915,9 +957,7 @@ static BOOL PACBigVPNActive(void) {
     [self addSubview:menu];
     _menu = menu;
 
-    UIControl *dimv = _dim;
     [UIView animateWithDuration:0.1 animations:^{ card.alpha = 0; }];
-    [UIView animateWithDuration:0.3 animations:^{ dimv.backgroundColor = [UIColor colorWithWhite:0 alpha:0.14]; }];
     [UIView animateWithDuration:0.6 delay:0 usingSpringWithDamping:0.74 initialSpringVelocity:0.0
                         options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{
@@ -940,21 +980,22 @@ static BOOL PACBigVPNActive(void) {
     PACBigCard *card = _menuCard;
     if (!menu) return;
     UIControl *dim = _dim;
-    _menu = nil; _menuCard = nil; _dim = nil; _menuItems = nil;
+    PACBigOutsideTap *ot = _outsideTap;
+    _menu = nil; _menuCard = nil; _dim = nil; _menuItems = nil; _outsideTap = nil;
+    [ot.view removeGestureRecognizer:ot];
     [dim removeFromSuperview];
     UIView *content = menu.subviews.lastObject;
     menu.userInteractionEnabled = NO;
-    CGRect cfr = card ? card.frame : menu.frame;
-    CGFloat sd = MIN(cfr.size.width, cfr.size.height) * 0.85;
-    CGRect to = CGRectMake(CGRectGetMidX(cfr) - sd * 0.5, CGRectGetMidY(cfr) - sd * 0.5, sd, sd);
-    CGFloat rad = sd * 0.5;
+    CGRect to = card ? card.frame : menu.frame;
+    CGFloat rad = card ? card.layer.cornerRadius : menu.layer.cornerRadius;
     [UIView animateWithDuration:0.12 animations:^{ content.alpha = 0; }];
-    [UIView animateWithDuration:0.22 delay:0.2 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
-    [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.88 initialSpringVelocity:0.0 options:0
+    [UIView animateWithDuration:0.18 delay:0.08 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
+    [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut
                      animations:^{
         menu.frame = to;
         menu.layer.cornerRadius = rad;
-    } completion:^(BOOL f) { [menu removeFromSuperview]; }];
+    } completion:nil];
+    [UIView animateWithDuration:0.16 delay:0.14 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
 }
 - (void)refresh {
     PACCCrumb("PACBigConn refresh");
