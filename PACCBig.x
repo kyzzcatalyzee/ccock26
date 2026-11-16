@@ -978,7 +978,7 @@ static BOOL PACBigVPNActive(void) {
     [menu addSubview:mat];
     if (PACCLIQGlassOn()) {
         mat.hidden = PACBigLGGlass(menu, endRad);
-        PACCLIQSetFixedBlur(menu, 1.0);
+        PACCLIQSetFixedBlur(menu, 4.0);
     }
     UIView *frost = [[UIView alloc] initWithFrame:menu.bounds];
     frost.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -1795,6 +1795,12 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     }
     mine.apple = root;
     mine.hidden = NO;
+    {
+        static NSString *lastSize;
+        NSString *sz = [NSString stringWithFormat:@"expanded root %@ container %@ window %.0f", NSStringFromCGRect(root.bounds),
+                        NSStringFromCGRect(root.superview.bounds), root.window.bounds.size.height];
+        if (![sz isEqualToString:lastSize]) { lastSize = sz; PACCCrashLog(sz); }
+    }
     PACBigHideModuleMaterialEx(root, YES, YES);
     PACBigDropPlatter(root, mine);
     {

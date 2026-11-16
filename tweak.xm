@@ -430,7 +430,12 @@ BOOL gPagerScrubbing = NO;
 
 %hook CCUIConnectivityModuleViewController
 - (CGFloat)preferredExpandedContentHeight {
-    return gEnabled ? 526.0 : %orig;
+    CGFloat orig = %orig;
+    if (!gEnabled) return orig;
+    static NSString *lastNote;
+    NSString *note = [NSString stringWithFormat:@"expanded height: orig %.1f -> 526, screen %.1f", orig, [UIScreen mainScreen].bounds.size.height];
+    if (![note isEqualToString:lastNote]) { lastNote = note; PACCCrashLog(note); }
+    return 526.0;
 }
 - (BOOL)providesOwnPlatter {
     if (gEnabled) {
