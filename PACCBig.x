@@ -986,16 +986,32 @@ static BOOL PACBigVPNActive(void) {
     [dim removeFromSuperview];
     UIView *content = menu.subviews.lastObject;
     menu.userInteractionEnabled = NO;
-    CGRect to = card ? card.frame : menu.frame;
-    CGFloat rad = card ? card.layer.cornerRadius : menu.layer.cornerRadius;
+    CGRect cfr = card ? card.frame : menu.frame;
+    CGFloat sd = MIN(cfr.size.width, cfr.size.height) * 0.85;
+    CGRect to = CGRectMake(CGRectGetMidX(cfr) - sd * 0.5, CGRectGetMidY(cfr) - sd * 0.5, sd, sd);
+    CGFloat rad = sd * 0.5;
+    CGFloat cardRad = card ? card.layer.cornerRadius : 0;
     [UIView animateWithDuration:0.12 animations:^{ content.alpha = 0; }];
-    [UIView animateWithDuration:0.18 delay:0.08 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
-    [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut
+    [UIView animateWithDuration:0.45 delay:0 usingSpringWithDamping:0.82 initialSpringVelocity:0.0 options:0
                      animations:^{
         menu.frame = to;
         menu.layer.cornerRadius = rad;
     } completion:nil];
-    [UIView animateWithDuration:0.16 delay:0.14 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
+    [UIView animateWithDuration:0.16 delay:0.2 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
+    if (card) {
+        card.transform = CGAffineTransformMakeScale(0.6, 0.6);
+        [UIView animateWithDuration:0.12 delay:0.16 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
+        [UIView animateWithDuration:0.6 delay:0.16 usingSpringWithDamping:0.5 initialSpringVelocity:0.0 options:0
+                         animations:^{ card.transform = CGAffineTransformIdentity; } completion:nil];
+        CABasicAnimation *ra = [CABasicAnimation animationWithKeyPath:@"cornerRadius"];
+        ra.fromValue = @(MIN(cfr.size.width, cfr.size.height) * 0.5);
+        ra.toValue = @(cardRad);
+        ra.duration = 0.45;
+        ra.beginTime = CACurrentMediaTime() + 0.16;
+        ra.fillMode = kCAFillModeBackwards;
+        ra.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+        [card.layer addAnimation:ra forKey:@"PACCloseRound"];
+    }
 }
 - (void)refresh {
     PACCCrumb("PACBigConn refresh");
@@ -1578,6 +1594,8 @@ static void PACBigMaskPlate(UIView *s, BOOL hide) {
     }
 }
 
+static const char kPACPlateLGHidden = 0;
+
 static void PACBigHideModuleMaterialEx(UIView *host, BOOL hide, BOOL includeLG) {
     CGFloat screenW = UIScreen.mainScreen.bounds.size.width;
     CGRect area = [host convertRect:host.bounds toView:nil];
@@ -1594,6 +1612,15 @@ static void PACBigHideModuleMaterialEx(UIView *host, BOOL hide, BOOL includeLG) 
             if (f.size.width >= screenW * 0.97 || f.size.width < area.size.width * 0.8) continue;
             if (!CGRectIntersectsRect(f, area)) continue;
             PACBigMaskPlate(s, hide);
+            if (includeLG && [n hasPrefix:@"LG"]) {
+                if (hide && !s.hidden) {
+                    s.hidden = YES;
+                    objc_setAssociatedObject(s, &kPACPlateLGHidden, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                } else if (!hide && objc_getAssociatedObject(s, &kPACPlateLGHidden)) {
+                    s.hidden = NO;
+                    objc_setAssociatedObject(s, &kPACPlateLGHidden, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                }
+            }
         }
     }
 }
@@ -1659,7 +1686,7 @@ void PACCBigStripContainer(UIView *container) {
     NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:container];
     while (queue.count) {
         UIView *v = queue.firstObject; [queue removeObjectAtIndex:0];
-        if (v == mine) continue;
+        if (v == mine || v.tag == 190001) continue;
         [queue addObjectsFromArray:v.subviews];
         CALayer *l = v.layer;
         NSDictionary *saved = objc_getAssociatedObject(l, &kPACChromeKey);
@@ -1698,6 +1725,19 @@ void PACCBigStripContainer(UIView *container) {
     }
 }
 
+static const char kPACExpGlass = 0;
+
+static void PACBigExpandedGlass(UIView *root, BOOL on) {
+    if (!root) return;
+    if (on && PACCLIQGlassOn()) {
+        PACCLIQApplyGlass(root, 38.0);
+        objc_setAssociatedObject(root, &kPACExpGlass, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else if (objc_getAssociatedObject(root, &kPACExpGlass)) {
+        [[root viewWithTag:190001] removeFromSuperview];
+        objc_setAssociatedObject(root, &kPACExpGlass, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+
 void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     UIView *root = controller.view;
     if (!root) return;
@@ -1708,6 +1748,7 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     if (!expanded) {
         if (mine && !mine.hidden) {
             PACBigHideModuleMaterialEx(root, NO, YES);
+            PACBigExpandedGlass(root, NO);
             mine.hidden = YES;
             UIView *c = root.superview; Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
             while (c && cc && ![c isKindOfClass:cc]) c = c.superview;
@@ -1725,13 +1766,14 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     mine.apple = root;
     mine.hidden = NO;
     PACBigHideModuleMaterialEx(root, YES, YES);
+    PACBigExpandedGlass(root, YES);
     {
         __weak UIView *wroot = root;
         for (NSNumber *d in @[@0.15, @0.5, @1.0]) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 UIView *r = wroot;
                 UIView *m2 = r ? [r viewWithTag:190200] : nil;
-                if (r && m2 && !m2.hidden && m2.window) PACBigHideModuleMaterialEx(r, YES, YES);
+                if (r && m2 && !m2.hidden && m2.window) { PACBigHideModuleMaterialEx(r, YES, YES); PACBigExpandedGlass(r, YES); }
             });
         }
     }
