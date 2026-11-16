@@ -563,6 +563,38 @@ static UIColor *PACBigDyn(UIColor *dark, UIColor *light) {
     return isDark ? dark : light;
 }
 
+static id PACBigMakeBlur(CGFloat r) {
+    Class C = NSClassFromString(@"CAFilter");
+    SEL sel = NSSelectorFromString(@"filterWithType:");
+    if (!C || ![C respondsToSelector:sel]) return nil;
+    id f = ((id (*)(id, SEL, id))objc_msgSend)(C, sel, @"gaussianBlur");
+    if (!f) return nil;
+    @try {
+        [f setValue:@(r) forKey:@"inputRadius"];
+        [f setValue:@"pacBlur" forKey:@"name"];
+    } @catch (...) { return nil; }
+    return f;
+}
+
+static void PACBigAnimateBlur(UIView *v, CGFloat from, CGFloat to, CFTimeInterval dur, CFTimeInterval delay, BOOL clearAtEnd) {
+    if (!v) return;
+    id f = PACBigMakeBlur(to);
+    if (!f) return;
+    v.layer.filters = @[f];
+    CABasicAnimation *a = [CABasicAnimation animationWithKeyPath:@"filters.pacBlur.inputRadius"];
+    a.fromValue = @(from);
+    a.toValue = @(to);
+    a.duration = dur;
+    a.beginTime = CACurrentMediaTime() + delay;
+    a.fillMode = kCAFillModeBackwards;
+    a.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    [v.layer addAnimation:a forKey:@"PACBlur"];
+    if (clearAtEnd) {
+        __weak UIView *wv = v;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((delay + dur + 0.05) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ wv.layer.filters = nil; });
+    }
+}
+
 @interface PACBigOutsideTap : UIGestureRecognizer <UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *safeView;
 @property (nonatomic, copy) void (^onTap)(void);
@@ -944,13 +976,10 @@ static BOOL PACBigVPNActive(void) {
     mat.frame = menu.bounds;
     mat.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [menu addSubview:mat];
-    if (PACCLIQGlassOn()) mat.hidden = PACBigLGGlass(menu, endRad);
-    UIVisualEffectView *bgBlur = [[UIVisualEffectView alloc] initWithEffect:nil];
-    bgBlur.frame = menu.bounds;
-    bgBlur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    bgBlur.userInteractionEnabled = NO;
-    [menu addSubview:bgBlur];
-    [UIView animateWithDuration:0.3 animations:^{ bgBlur.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial]; }];
+    if (PACCLIQGlassOn()) {
+        mat.hidden = PACBigLGGlass(menu, endRad);
+        PACCLIQSetFixedBlur(menu, 1.0);
+    }
     UIView *frost = [[UIView alloc] initWithFrame:menu.bounds];
     frost.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     frost.backgroundColor = PACBigDyn([UIColor colorWithWhite:0.0 alpha:0.32], [UIColor colorWithWhite:1.0 alpha:0.38]);
@@ -972,6 +1001,7 @@ static BOOL PACBigVPNActive(void) {
     } completion:nil];
     [UIView animateWithDuration:0.22 delay:0.2 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.alpha = 1; } completion:nil];
+    PACBigAnimateBlur(content, 3.0, 0.0, 0.3, 0.2, YES);
 }
 - (void)menuRowDown:(UIControl *)row { row.backgroundColor = PACBigDyn([UIColor colorWithWhite:1 alpha:0.14], [UIColor colorWithWhite:0 alpha:0.08]); }
 - (void)menuRowUp:(UIControl *)row { row.backgroundColor = UIColor.clearColor; }
@@ -996,12 +1026,7 @@ static BOOL PACBigVPNActive(void) {
     CGFloat sd = MIN(cfr.size.width, cfr.size.height) * 0.85;
     CGRect circle = CGRectMake(CGRectGetMidX(cfr) - sd * 0.5, CGRectGetMidY(cfr) - sd * 0.5, sd, sd);
     CGFloat cardRad = card ? card.layer.cornerRadius : sd * 0.5;
-    UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:nil];
-    blur.frame = menu.bounds;
-    blur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    blur.userInteractionEnabled = NO;
-    [menu addSubview:blur];
-    [UIView animateWithDuration:0.1 animations:^{ blur.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterial]; }];
+    PACBigAnimateBlur(content, 0.0, 3.0, 0.1, 0.0, NO);
     [UIView animateWithDuration:0.08 animations:^{ content.alpha = 0; }];
     [UIView animateWithDuration:0.24 delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0.0 options:0 animations:^{
         menu.frame = circle;

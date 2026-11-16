@@ -103,6 +103,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
 BOOL PACCLIQIsActive(void);
 BOOL PACCLIQGlassOn(void);
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius);
+void PACCLIQSetFixedBlur(UIView *host, CGFloat blur);
 BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 BOOL PACCLIQStyleDarkEdge(CAGradientLayer *g);
 BOOL PACCLIQStyleRim(CAGradientLayer *g);

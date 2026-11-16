@@ -210,6 +210,7 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     CGFloat _appliedOpacity, _appliedFresnel;
 }
 @property (nonatomic, assign) CGFloat glassCornerRadius;
+@property (nonatomic, assign) CGFloat blurOverride;
 - (instancetype)initWithFrame:(CGRect)frame cornerRadius:(CGFloat)radius;
 - (void)applyGlassFilter;
 - (void)forceReapply;
@@ -231,6 +232,7 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     self = [super initWithFrame:frame];
     if (!self) return nil;
     _glassCornerRadius = radius;
+    _blurOverride = -1.0;
     self.userInteractionEnabled = NO;
     self.backgroundColor = UIColor.clearColor;
     self.opaque = NO;
@@ -321,7 +323,7 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
         }
         layer.backgroundColor = NULL;
 
-        CGFloat blur = MAX(0.0, PACCLIQNumPref(@"ControlCenter.Blur", 1.0));
+        CGFloat blur = _blurOverride >= 0.0 ? _blurOverride : MAX(0.0, PACCLIQNumPref(@"ControlCenter.Blur", 1.0));
         NSString *want = [self wantedType];
         if ([self filterIsLive] && [_appliedType isEqualToString:want] && fabs(blur - _appliedBlur) < 0.01) return;
 
@@ -541,6 +543,14 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
     if (![glass filterIsLive]) [glass forceReapply];
     [host sendSubviewToBack:glass];
     return glass;
+}
+
+void PACCLIQSetFixedBlur(UIView *host, CGFloat blur) {
+    PACCLIQGlassView *glass = (PACCLIQGlassView *)[host viewWithTag:kPACCLIQGlassTag];
+    if (![glass isKindOfClass:PACCLIQGlassView.class]) return;
+    if (fabs(glass.blurOverride - blur) < 0.001) return;
+    glass.blurOverride = blur;
+    [glass forceReapply];
 }
 
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius) {
