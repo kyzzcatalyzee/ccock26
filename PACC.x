@@ -491,8 +491,8 @@ void PACCConfigureConnectivity(UIViewController *controller) {
         return;
     }
     PACCBigConfigureExpanded(controller, NO);
-    CGFloat inset = MAX(4.0, round(side * 0.066));
-    CGFloat gap = MAX(4.0, round(side * 0.05));
+    CGFloat inset = MAX(6.0, round(side * 0.103));
+    CGFloat gap = MAX(4.0, round(side * 0.055));
     CGFloat cell = floor((side - inset * 2.0 - gap) * 0.5);
     CGFloat originX = round((CGRectGetWidth(root.bounds) - (cell * 2.0 + gap)) * 0.5);
     CGFloat originY = round((CGRectGetHeight(root.bounds) - (cell * 2.0 + gap)) * 0.5);
