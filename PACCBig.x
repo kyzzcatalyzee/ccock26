@@ -990,22 +990,33 @@ static BOOL PACBigVPNActive(void) {
     CGFloat sd = MIN(cfr.size.width, cfr.size.height) * 0.85;
     CGRect circle = CGRectMake(CGRectGetMidX(cfr) - sd * 0.5, CGRectGetMidY(cfr) - sd * 0.5, sd, sd);
     CGFloat cardRad = card ? card.layer.cornerRadius : sd * 0.5;
-    [UIView animateWithDuration:0.12 animations:^{ content.alpha = 0; }];
-    [UIView animateWithDuration:0.24 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+    UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:nil];
+    blur.frame = menu.bounds;
+    blur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    blur.userInteractionEnabled = NO;
+    [menu addSubview:blur];
+    [UIView animateWithDuration:0.1 animations:^{ blur.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterial]; }];
+    [UIView animateWithDuration:0.08 animations:^{ content.alpha = 0; }];
+    [UIView animateWithDuration:0.24 delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0.0 options:0 animations:^{
         menu.frame = circle;
         menu.layer.cornerRadius = sd * 0.5;
-    } completion:^(BOOL f) {
-        if (card) card.transform = CGAffineTransformMakeScale(0.94, 0.94);
-        [UIView animateWithDuration:0.45 delay:0 usingSpringWithDamping:0.84 initialSpringVelocity:0.0 options:0 animations:^{
-            menu.frame = cfr;
-            menu.layer.cornerRadius = cardRad;
+    } completion:nil];
+    [UIView animateWithDuration:0.12 delay:0.03 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
+    if (card) {
+        card.transform = CGAffineTransformMakeScale(sd / MAX(1.0, cfr.size.width), sd / MAX(1.0, cfr.size.height));
+        [UIView animateWithDuration:0.1 delay:0.08 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
+        [UIView animateWithDuration:0.5 delay:0.08 usingSpringWithDamping:0.78 initialSpringVelocity:0.0 options:0 animations:^{
             card.transform = CGAffineTransformIdentity;
         } completion:nil];
-        [UIView animateWithDuration:0.18 delay:0.12 options:0 animations:^{
-            card.alpha = 1.0;
-            menu.alpha = 0;
-        } completion:^(BOOL f2) { [menu removeFromSuperview]; }];
-    }];
+        CABasicAnimation *ra = [CABasicAnimation animationWithKeyPath:@"cornerRadius"];
+        ra.fromValue = @(sd * 0.5);
+        ra.toValue = @(cardRad);
+        ra.duration = 0.4;
+        ra.beginTime = CACurrentMediaTime() + 0.08;
+        ra.fillMode = kCAFillModeBackwards;
+        ra.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+        [card.layer addAnimation:ra forKey:@"PACCloseRound"];
+    }
 }
 - (void)refresh {
     PACCCrumb("PACBigConn refresh");
