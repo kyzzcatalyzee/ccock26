@@ -498,19 +498,44 @@ static int PACBigAirDropMode(void) {
     id c = PACBigAirDropCtl();
     SEL s = NSSelectorFromString(@"discoverableMode");
     if (!c || ![c respondsToSelector:s]) return -1;
-    id m = ((id (*)(id, SEL))objc_msgSend)(c, s);
-    NSString *str = [m isKindOfClass:NSString.class] ? [(NSString *)m lowercaseString] : @"";
-    if ([str containsString:@"every"]) return 2;
-    if ([str containsString:@"contact"]) return 1;
-    return 0;
+    NSMethodSignature *sig = [c methodSignatureForSelector:s];
+    if (!sig) return -1;
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+    inv.target = c;
+    inv.selector = s;
+    [inv invoke];
+    if (sig.methodReturnType[0] == '@') {
+        __unsafe_unretained id m = nil;
+        [inv getReturnValue:&m];
+        NSString *str = [m isKindOfClass:NSString.class] ? [(NSString *)m lowercaseString] : @"";
+        if ([str containsString:@"every"]) return 2;
+        if ([str containsString:@"contact"]) return 1;
+        return 0;
+    }
+    long long v = 0;
+    if (sig.methodReturnLength <= sizeof(v)) [inv getReturnValue:&v];
+    return (int)MAX(0LL, MIN(2LL, v));
 }
 
 static BOOL PACBigSetAirDropMode(int mode) {
     id c = PACBigAirDropCtl();
     SEL s = NSSelectorFromString(@"setDiscoverableMode:");
     if (!c || ![c respondsToSelector:s]) return NO;
-    NSArray *names = @[@"Off", @"ContactsOnly", @"Everyone"];
-    ((void (*)(id, SEL, id))objc_msgSend)(c, s, names[MAX(0, MIN(2, mode))]);
+    NSMethodSignature *sig = [c methodSignatureForSelector:s];
+    if (!sig || sig.numberOfArguments < 3) return NO;
+    mode = MAX(0, MIN(2, mode));
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+    inv.target = c;
+    inv.selector = s;
+    if ([sig getArgumentTypeAtIndex:2][0] == '@') {
+        NSArray *names = @[@"Off", @"ContactsOnly", @"Everyone"];
+        __unsafe_unretained id arg = names[mode];
+        [inv setArgument:&arg atIndex:2];
+    } else {
+        long long v = mode;
+        [inv setArgument:&v atIndex:2];
+    }
+    [inv invoke];
     if (mode == 2) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(600.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (PACBigAirDropMode() == 2) PACBigSetAirDropMode(1);
@@ -530,6 +555,169 @@ static void PACBigOpenSettings(NSString *url) {
 
 static NSDictionary *PACBigMenuItem(NSString *title, BOOL on, void (^act)(void)) {
     return @{@"t": title, @"on": @(on), @"a": [act copy]};
+}
+
+static UIColor *PACBigDyn(UIColor *dark, UIColor *light) {
+    return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) {
+        return t.userInterfaceStyle == UIUserInterfaceStyleDark ? dark : light;
+    }];
+}
+
+static void *PACBigWiFiSym(const char *n) {
+    static void *h;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ h = dlopen("/System/Library/PrivateFrameworks/MobileWiFi.framework/MobileWiFi", RTLD_LAZY); });
+    return h ? dlsym(h, n) : NULL;
+}
+
+static void PACBigNoopAssoc(void *d, void *n, CFDictionaryRef r, int e, void *c) {}
+
+static CFTypeRef sPACBigWFClient;
+static NSArray<NSDictionary *> *sPACBigWFScan;
+static BOOL sPACBigWFScanning;
+static BOOL sPACBigWFScheduled;
+
+static void PACBigWFScanCB(CFTypeRef dev, CFArrayRef results, CFTypeRef err, void *ctx) {
+    CFStringRef (*ssidOf)(CFTypeRef) = PACBigWiFiSym("WiFiNetworkGetSSID");
+    CFTypeRef (*prop)(CFTypeRef, CFStringRef) = PACBigWiFiSym("WiFiNetworkGetProperty");
+    NSMutableDictionary *best = [NSMutableDictionary dictionary];
+    if (results && ssidOf) {
+        for (CFIndex i = 0; i < CFArrayGetCount(results); i++) {
+            CFTypeRef n = CFArrayGetValueAtIndex(results, i);
+            CFStringRef cs = n ? ssidOf(n) : NULL;
+            NSString *name = cs ? [(__bridge NSString *)cs copy] : nil;
+            if (!name.length) continue;
+            double rssi = -200.0;
+            if (prop) {
+                CFTypeRef r = prop(n, CFSTR("RSSI"));
+                if (r && CFGetTypeID(r) == CFNumberGetTypeID()) CFNumberGetValue(r, kCFNumberDoubleType, &rssi);
+            }
+            NSDictionary *old = best[name];
+            if (!old || [old[@"rssi"] doubleValue] < rssi) best[name] = @{@"n": name, @"rssi": @(rssi), @"net": (__bridge id)n};
+        }
+    }
+    NSArray *sorted = [best.allValues sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *x, NSDictionary *y) {
+        return [y[@"rssi"] compare:x[@"rssi"]];
+    }];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        sPACBigWFScan = sorted;
+        sPACBigWFScanning = NO;
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"PACBigWiFiScanDone" object:nil];
+    });
+}
+
+static void PACBigWiFiStartScan(void) {
+    if (sPACBigWFScanning) return;
+    CFTypeRef (*create)(CFAllocatorRef, int) = PACBigWiFiSym("WiFiManagerClientCreate");
+    CFArrayRef (*copyDev)(CFTypeRef) = PACBigWiFiSym("WiFiManagerClientCopyDevices");
+    void (*sched)(CFTypeRef, CFRunLoopRef, CFStringRef) = PACBigWiFiSym("WiFiManagerClientScheduleWithRunLoop");
+    int (*scan)(CFTypeRef, CFDictionaryRef, void *, void *) = PACBigWiFiSym("WiFiDeviceClientScanAsync");
+    if (!create || !copyDev || !scan) return;
+    if (!sPACBigWFClient) sPACBigWFClient = create(kCFAllocatorDefault, 0);
+    if (!sPACBigWFClient) return;
+    if (sched && !sPACBigWFScheduled) {
+        sched(sPACBigWFClient, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+        sPACBigWFScheduled = YES;
+    }
+    CFArrayRef devs = copyDev(sPACBigWFClient);
+    CFTypeRef dev = (devs && CFArrayGetCount(devs) > 0) ? CFArrayGetValueAtIndex(devs, 0) : NULL;
+    if (dev) {
+        sPACBigWFScanning = YES;
+        scan(dev, (__bridge CFDictionaryRef)@{}, (void *)PACBigWFScanCB, NULL);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ sPACBigWFScanning = NO; });
+    }
+    if (devs) CFRelease(devs);
+}
+
+static NSArray<NSDictionary *> *PACBigWiFiItems(NSUInteger maxN) {
+    CFTypeRef (*create)(CFAllocatorRef, int) = PACBigWiFiSym("WiFiManagerClientCreate");
+    CFArrayRef (*copyDev)(CFTypeRef) = PACBigWiFiSym("WiFiManagerClientCopyDevices");
+    CFArrayRef (*copyNets)(CFTypeRef) = PACBigWiFiSym("WiFiManagerClientCopyNetworks");
+    CFTypeRef (*curNet)(CFTypeRef) = PACBigWiFiSym("WiFiDeviceClientCopyCurrentNetwork");
+    CFStringRef (*ssidOf)(CFTypeRef) = PACBigWiFiSym("WiFiNetworkGetSSID");
+    int (*assoc)(CFTypeRef, CFTypeRef, void *, void *) = PACBigWiFiSym("WiFiDeviceClientAssociateAsync");
+    if (!create || !copyDev || !copyNets || !ssidOf) return @[];
+    if (!sPACBigWFClient) sPACBigWFClient = create(kCFAllocatorDefault, 0);
+    if (!sPACBigWFClient) return @[];
+    CFArrayRef devs = copyDev(sPACBigWFClient);
+    CFTypeRef dev = (devs && CFArrayGetCount(devs) > 0) ? CFArrayGetValueAtIndex(devs, 0) : NULL;
+    NSString *curName = nil;
+    if (dev && curNet) {
+        CFTypeRef n = curNet(dev);
+        if (n) {
+            CFStringRef cs = ssidOf(n);
+            if (cs) curName = [(__bridge NSString *)cs copy];
+            CFRelease(n);
+        }
+    }
+    id devObj = dev ? (__bridge id)dev : nil;
+    NSMutableDictionary *known = [NSMutableDictionary dictionary];
+    CFArrayRef nets = copyNets(sPACBigWFClient);
+    for (CFIndex i = 0; nets && i < CFArrayGetCount(nets); i++) {
+        CFTypeRef n = CFArrayGetValueAtIndex(nets, i);
+        CFStringRef cs = n ? ssidOf(n) : NULL;
+        NSString *name = cs ? [(__bridge NSString *)cs copy] : nil;
+        if (name.length && !known[name]) known[name] = (__bridge id)n;
+    }
+    NSMutableArray *out = [NSMutableArray array];
+    NSMutableSet *seen = [NSMutableSet set];
+    NSArray *scan = sPACBigWFScan;
+    NSMutableArray *names = [NSMutableArray array];
+    if (scan.count) {
+        for (NSDictionary *e in scan) [names addObject:e[@"n"]];
+    } else {
+        [names addObjectsFromArray:known.allKeys];
+    }
+    if (curName.length && ![names containsObject:curName]) [names insertObject:curName atIndex:0];
+    for (NSString *name in names) {
+        if ([seen containsObject:name]) continue;
+        [seen addObject:name];
+        BOOL isCur = curName && [name isEqualToString:curName];
+        id knownNet = known[name];
+        NSDictionary *it = PACBigMenuItem(name, isCur, ^{
+            if (isCur) return;
+            if (knownNet && assoc && devObj) assoc((__bridge CFTypeRef)devObj, (__bridge CFTypeRef)knownNet, (void *)PACBigNoopAssoc, NULL);
+            else PACBigOpenSettings(@"prefs:root=WIFI");
+        });
+        if (isCur) [out insertObject:it atIndex:0]; else [out addObject:it];
+    }
+    if (devs) CFRelease(devs);
+    if (nets) CFRelease(nets);
+    if (out.count > maxN) [out removeObjectsInRange:NSMakeRange(maxN, out.count - maxN)];
+    return out;
+}
+
+static NSArray<NSDictionary *> *PACBigBTItems(NSUInteger maxN) {
+    Class C = NSClassFromString(@"BluetoothManager");
+    if (!C) {
+        dlopen("/System/Library/PrivateFrameworks/BluetoothManager.framework/BluetoothManager", RTLD_LAZY);
+        C = NSClassFromString(@"BluetoothManager");
+    }
+    SEL si = NSSelectorFromString(@"sharedInstance");
+    SEL pd = NSSelectorFromString(@"pairedDevices");
+    if (!C || ![C respondsToSelector:si]) return @[];
+    id m = ((id (*)(id, SEL))objc_msgSend)(C, si);
+    if (!m || ![m respondsToSelector:pd]) return @[];
+    NSArray *devs = ((id (*)(id, SEL))objc_msgSend)(m, pd);
+    if (![devs isKindOfClass:NSArray.class]) return @[];
+    SEL sn = NSSelectorFromString(@"name");
+    SEL sc = NSSelectorFromString(@"connected");
+    SEL sCon = NSSelectorFromString(@"connect");
+    SEL sDis = NSSelectorFromString(@"disconnect");
+    NSMutableArray *out = [NSMutableArray array];
+    for (id d in devs) {
+        if (![d respondsToSelector:sn]) continue;
+        NSString *name = ((id (*)(id, SEL))objc_msgSend)(d, sn);
+        if (![name isKindOfClass:NSString.class] || !name.length) continue;
+        BOOL conn = [d respondsToSelector:sc] ? ((BOOL (*)(id, SEL))objc_msgSend)(d, sc) : NO;
+        NSDictionary *it = PACBigMenuItem(name, conn, ^{
+            SEL act = conn ? sDis : sCon;
+            if ([d respondsToSelector:act]) ((void (*)(id, SEL))objc_msgSend)(d, act);
+        });
+        if (conn) [out insertObject:it atIndex:0]; else [out addObject:it];
+    }
+    if (out.count > maxN) [out removeObjectsInRange:NSMakeRange(maxN, out.count - maxN)];
+    return out;
 }
 
 #pragma mark - big connectivity
@@ -553,6 +741,7 @@ static BOOL PACBigVPNActive(void) {
 - (void)refresh;
 - (void)openMenuFromCard:(PACBigCard *)card;
 - (void)closeMenu;
+- (void)pacScanUpdated;
 @end
 
 @implementation PACBigConn {
@@ -573,7 +762,10 @@ static BOOL PACBigVPNActive(void) {
 - (void)didMoveToWindow {
     [super didMoveToWindow];
     [_timer invalidate]; _timer = nil;
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:@"PACBigWiFiScanDone" object:nil];
     if (self.window) {
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(pacScanUpdated) name:@"PACBigWiFiScanDone" object:nil];
+        PACBigWiFiStartScan();
         __weak typeof(self) ws = self;
         _timer = [NSTimer timerWithTimeInterval:0.6 repeats:YES block:^(NSTimer *t) { [ws refresh]; }];
         [[NSRunLoop mainRunLoop] addTimer:_timer forMode:NSRunLoopCommonModes];
@@ -583,7 +775,7 @@ static BOOL PACBigVPNActive(void) {
         _menuCard.alpha = 1.0; _menuCard = nil;
     }
 }
-- (void)dealloc { [_timer invalidate]; }
+- (void)dealloc { [_timer invalidate]; [[NSNotificationCenter defaultCenter] removeObserver:self]; }
 - (void)layoutSubviews { [super layoutSubviews]; [self refresh]; }
 - (NSArray<NSDictionary *> *)menuItemsForCard:(PACBigCard *)card {
     NSString *k = card.key;
@@ -602,25 +794,95 @@ static BOOL PACBigVPNActive(void) {
     BOOL wifi = [k isEqualToString:@"wifi"];
     NSString *name = wifi ? @"Wi-Fi" : @"Bluetooth";
     NSString *url = wifi ? @"prefs:root=WIFI" : @"prefs:root=Bluetooth";
-    return @[PACBigMenuItem(name, card.isOn, ^{ [wc tapped]; }),
-             PACBigMenuItem([name stringByAppendingString:@" Settings"], NO, ^{ PACBigOpenSettings(url); })];
+    NSUInteger maxRows = MAX((NSUInteger)2, (NSUInteger)((self.bounds.size.height - 12.0) / 46.0));
+    maxRows = MIN(maxRows, (NSUInteger)7);
+    NSArray *list = wifi ? (card.isOn ? PACBigWiFiItems(maxRows - 1) : @[]) : PACBigBTItems(maxRows - 1);
+    NSMutableArray *res = [NSMutableArray array];
+    if (list.count) [res addObjectsFromArray:list];
+    else [res addObject:PACBigMenuItem(name, card.isOn, ^{ [wc tapped]; })];
+    [res addObject:PACBigMenuItem([name stringByAppendingString:@" Settings"], NO, ^{ PACBigOpenSettings(url); })];
+    return res;
+}
+- (CGRect)pacMenuFrameForCount:(NSUInteger)n card:(PACBigCard *)card width:(CGFloat)mw {
+    CGSize S = self.bounds.size;
+    CGRect cf = card.frame;
+    CGFloat mh = 12.0 + 46.0 * n;
+    CGFloat mx = (CGRectGetMidX(cf) > S.width * 0.5) ? CGRectGetMaxX(cf) - mw : cf.origin.x;
+    mx = MAX(0, MIN(mx, S.width - mw));
+    CGFloat my = MAX(0, MIN(cf.origin.y, S.height - mh));
+    return CGRectMake(mx, my, mw, mh);
+}
+- (UIView *)pacContentForItems:(NSArray<NSDictionary *> *)items width:(CGFloat)mw {
+    CGFloat rowH = 46.0, padV = 6.0;
+    UIView *content = [[UIView alloc] initWithFrame:CGRectMake(0, 0, mw, padV * 2.0 + rowH * items.count)];
+    for (NSUInteger i = 0; i < items.count; i++) {
+        NSDictionary *it = items[i];
+        UIControl *row = [[UIControl alloc] initWithFrame:CGRectMake(0, padV + i * rowH, mw, rowH)];
+        row.tag = (NSInteger)i;
+        if ([it[@"on"] boolValue]) {
+            UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightBold];
+            UIImageView *ck = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"checkmark" withConfiguration:cfg]];
+            ck.tintColor = PACBigDyn(UIColor.whiteColor, [UIColor colorWithWhite:0.08 alpha:1.0]);
+            ck.contentMode = UIViewContentModeCenter;
+            ck.frame = CGRectMake(14, 0, 22, rowH);
+            ck.userInteractionEnabled = NO;
+            [row addSubview:ck];
+        }
+        UILabel *lb = [[UILabel alloc] initWithFrame:CGRectMake(44, 0, mw - 44 - 14, rowH)];
+        lb.text = it[@"t"];
+        lb.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
+        lb.textColor = PACBigDyn(UIColor.whiteColor, [UIColor colorWithWhite:0.08 alpha:1.0]);
+        lb.userInteractionEnabled = NO;
+        [row addSubview:lb];
+        if (i > 0) {
+            UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(44, 0, mw - 44 - 14, 0.5)];
+            sep.backgroundColor = PACBigDyn([UIColor colorWithWhite:1 alpha:0.18], [UIColor colorWithWhite:0 alpha:0.14]);
+            sep.userInteractionEnabled = NO;
+            [row addSubview:sep];
+        }
+        [row addTarget:self action:@selector(menuRowDown:) forControlEvents:UIControlEventTouchDown];
+        [row addTarget:self action:@selector(menuRowUp:) forControlEvents:UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+        [row addTarget:self action:@selector(menuRowTapped:) forControlEvents:UIControlEventTouchUpInside];
+        [content addSubview:row];
+    }
+    return content;
+}
+- (void)pacScanUpdated {
+    PACBigCard *card = _menuCard;
+    UIView *menu = _menu;
+    if (!menu || !card || ![card.key isEqualToString:@"wifi"]) return;
+    NSArray<NSDictionary *> *items = [self menuItemsForCard:card];
+    if (!items.count) return;
+    BOOL same = items.count == _menuItems.count;
+    for (NSUInteger i = 0; same && i < items.count; i++) {
+        if (![items[i][@"t"] isEqualToString:_menuItems[i][@"t"]] || [items[i][@"on"] boolValue] != [_menuItems[i][@"on"] boolValue]) same = NO;
+    }
+    if (same) return;
+    _menuItems = items;
+    CGFloat mw = menu.bounds.size.width;
+    CGRect mf = [self pacMenuFrameForCount:items.count card:card width:mw];
+    UIView *old = menu.subviews.lastObject;
+    UIView *content = [self pacContentForItems:items width:mw];
+    content.alpha = 0;
+    [menu addSubview:content];
+    [UIView animateWithDuration:0.2 animations:^{ old.alpha = 0; content.alpha = 1; } completion:^(BOOL f) { [old removeFromSuperview]; }];
+    [UIView animateWithDuration:0.4 delay:0 usingSpringWithDamping:0.86 initialSpringVelocity:0.0
+                        options:UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ menu.frame = mf; } completion:nil];
 }
 - (void)openMenuFromCard:(PACBigCard *)card {
     if (_menu || !card || !self.window) return;
+    if ([card.key isEqualToString:@"wifi"]) PACBigWiFiStartScan();
     NSArray<NSDictionary *> *items = [self menuItemsForCard:card];
     if (!items.count) return;
     _menuItems = items;
     _menuCard = card;
 
     CGSize S = self.bounds.size;
-    CGFloat rowH = 46.0, padV = 6.0;
     CGRect cf = card.frame;
     CGFloat mw = MIN(S.width, MAX(cf.size.width * 1.5, 250.0));
-    CGFloat mh = padV * 2.0 + rowH * items.count;
-    CGFloat mx = (CGRectGetMidX(cf) > S.width * 0.5) ? CGRectGetMaxX(cf) - mw : cf.origin.x;
-    mx = MAX(0, MIN(mx, S.width - mw));
-    CGFloat my = MAX(0, MIN(cf.origin.y, S.height - mh));
-    CGRect mf = CGRectMake(mx, my, mw, mh);
+    CGRect mf = [self pacMenuFrameForCount:items.count card:card width:mw];
+    CGFloat mh = mf.size.height;
     CGFloat side = MIN(cf.size.width, cf.size.height) * 0.85;
     CGRect sf = CGRectMake(CGRectGetMidX(cf) - side * 0.5, CGRectGetMidY(cf) - side * 0.5, side, side);
     CGFloat startRad = side * 0.5;
@@ -643,42 +905,12 @@ static BOOL PACBigVPNActive(void) {
     if (PACCLIQGlassOn()) mat.hidden = PACBigLGGlass(menu, endRad);
     UIView *frost = [[UIView alloc] initWithFrame:menu.bounds];
     frost.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    frost.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.38];
+    frost.backgroundColor = PACBigDyn([UIColor colorWithWhite:0.0 alpha:0.32], [UIColor colorWithWhite:1.0 alpha:0.38]);
     frost.userInteractionEnabled = NO;
     [menu addSubview:frost];
 
-    UIView *content = [[UIView alloc] initWithFrame:CGRectMake(0, 0, mw, mh)];
+    UIView *content = [self pacContentForItems:items width:mw];
     content.alpha = 0;
-    for (NSUInteger i = 0; i < items.count; i++) {
-        NSDictionary *it = items[i];
-        UIControl *row = [[UIControl alloc] initWithFrame:CGRectMake(0, padV + i * rowH, mw, rowH)];
-        row.tag = (NSInteger)i;
-        if ([it[@"on"] boolValue]) {
-            UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightBold];
-            UIImageView *ck = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"checkmark" withConfiguration:cfg]];
-            ck.tintColor = [UIColor colorWithWhite:0.08 alpha:1.0];
-            ck.contentMode = UIViewContentModeCenter;
-            ck.frame = CGRectMake(14, 0, 22, rowH);
-            ck.userInteractionEnabled = NO;
-            [row addSubview:ck];
-        }
-        UILabel *lb = [[UILabel alloc] initWithFrame:CGRectMake(44, 0, mw - 44 - 14, rowH)];
-        lb.text = it[@"t"];
-        lb.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
-        lb.textColor = [UIColor colorWithWhite:0.08 alpha:1.0];
-        lb.userInteractionEnabled = NO;
-        [row addSubview:lb];
-        if (i > 0) {
-            UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(44, 0, mw - 44 - 14, 0.5)];
-            sep.backgroundColor = [UIColor colorWithWhite:0 alpha:0.14];
-            sep.userInteractionEnabled = NO;
-            [row addSubview:sep];
-        }
-        [row addTarget:self action:@selector(menuRowDown:) forControlEvents:UIControlEventTouchDown];
-        [row addTarget:self action:@selector(menuRowUp:) forControlEvents:UIControlEventTouchUpOutside | UIControlEventTouchCancel];
-        [row addTarget:self action:@selector(menuRowTapped:) forControlEvents:UIControlEventTouchUpInside];
-        [content addSubview:row];
-    }
     [menu addSubview:content];
     [self addSubview:menu];
     _menu = menu;
@@ -695,7 +927,7 @@ static BOOL PACBigVPNActive(void) {
     [UIView animateWithDuration:0.22 delay:0.2 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.alpha = 1; } completion:nil];
 }
-- (void)menuRowDown:(UIControl *)row { row.backgroundColor = [UIColor colorWithWhite:0 alpha:0.08]; }
+- (void)menuRowDown:(UIControl *)row { row.backgroundColor = PACBigDyn([UIColor colorWithWhite:1 alpha:0.14], [UIColor colorWithWhite:0 alpha:0.08]); }
 - (void)menuRowUp:(UIControl *)row { row.backgroundColor = UIColor.clearColor; }
 - (void)menuRowTapped:(UIControl *)row {
     void (^act)(void) = (row.tag >= 0 && (NSUInteger)row.tag < _menuItems.count) ? _menuItems[row.tag][@"a"] : nil;
