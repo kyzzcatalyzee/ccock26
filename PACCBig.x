@@ -1578,7 +1578,7 @@ static void PACBigMaskPlate(UIView *s, BOOL hide) {
     }
 }
 
-static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
+static void PACBigHideModuleMaterialEx(UIView *host, BOOL hide, BOOL includeLG) {
     CGFloat screenW = UIScreen.mainScreen.bounds.size.width;
     CGRect area = [host convertRect:host.bounds toView:nil];
     UIView *child = host;
@@ -1587,7 +1587,7 @@ static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
         for (UIView *s in p.subviews) {
             if (s == child || [s isKindOfClass:PACBigView.class]) continue;
             NSString *n = NSStringFromClass(s.class);
-            if (PACCLIQGlassOn() && ([n hasPrefix:@"LG"] || [n isEqualToString:@"MTMaterialView"])) continue;
+            if (!includeLG && PACCLIQGlassOn() && ([n hasPrefix:@"LG"] || [n isEqualToString:@"MTMaterialView"])) continue;
             if (!([n containsString:@"Material"] || [n containsString:@"Backdrop"] || [n containsString:@"Background"] ||
                   [n containsString:@"Blur"] || [n containsString:@"Platter"])) continue;
             CGRect f = [s convertRect:s.bounds toView:nil];
@@ -1596,6 +1596,10 @@ static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
             PACBigMaskPlate(s, hide);
         }
     }
+}
+
+static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
+    PACBigHideModuleMaterialEx(host, hide, NO);
 }
 
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded) {
@@ -1703,7 +1707,7 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     if (L) PACBigCollect(root, L, 0, found);
     if (!expanded) {
         if (mine && !mine.hidden) {
-            PACBigHideModuleMaterial(root, NO);
+            PACBigHideModuleMaterialEx(root, NO, YES);
             mine.hidden = YES;
             UIView *c = root.superview; Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
             while (c && cc && ![c isKindOfClass:cc]) c = c.superview;
@@ -1720,7 +1724,17 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
     }
     mine.apple = root;
     mine.hidden = NO;
-    PACBigHideModuleMaterial(root, YES);
+    PACBigHideModuleMaterialEx(root, YES, YES);
+    {
+        __weak UIView *wroot = root;
+        for (NSNumber *d in @[@0.15, @0.5, @1.0]) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                UIView *r = wroot;
+                UIView *m2 = r ? [r viewWithTag:190200] : nil;
+                if (r && m2 && !m2.hidden && m2.window) PACBigHideModuleMaterialEx(r, YES, YES);
+            });
+        }
+    }
     mine.frame = root.bounds;
     {
         UIView *c = root.superview; Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
