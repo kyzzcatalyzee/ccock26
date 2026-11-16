@@ -4,6 +4,7 @@
 #import <notify.h>
 #import <QuartzCore/QuartzCore.h>
 #include <time.h>
+#include <dlfcn.h>
 #include <stdio.h>
 
 static const NSInteger kPACBigTag = 182100;
@@ -219,10 +220,12 @@ static NSString *PACBigTime(double t, BOOL negative) {
 @property (nonatomic) BOOL tall;
 @property (nonatomic) BOOL iconOnly;
 @property (nonatomic, copy) void (^onTap)(void);
+@property (nonatomic, copy) void (^onMenu)(PACBigCard *card);
 @property (nonatomic, strong) UIView *material;
 @property (nonatomic, copy) NSString *subPlain;
 - (void)setOn:(BOOL)on;
 - (void)setSubText:(NSString *)text;
+- (void)tapped;
 @end
 
 static UIColor *PACBigOnColor(NSString *key) {
@@ -329,9 +332,33 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
         _sub.textColor = [UIColor colorWithWhite:1 alpha:0.7];
         _sub.userInteractionEnabled = NO;
         [self addSubview:_sub];
-        [self addTarget:self action:@selector(tapped) forControlEvents:UIControlEventTouchUpInside];
+        [self addTarget:self action:@selector(tapped:forEvent:) forControlEvents:UIControlEventTouchUpInside];
+        UILongPressGestureRecognizer *lp = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(longPressed:)];
+        lp.minimumPressDuration = 0.35;
+        [self addGestureRecognizer:lp];
     }
     return self;
+}
+- (BOOL)pacMenuCapable {
+    return self.onMenu && self.enabled && ([_key isEqualToString:@"wifi"] || [_key isEqualToString:@"airdrop"] || [_key isEqualToString:@"bt"]);
+}
+- (void)longPressed:(UILongPressGestureRecognizer *)g {
+    if (g.state != UIGestureRecognizerStateBegan || ![self pacMenuCapable]) return;
+    if (gHapticsEnabled) Haptic();
+    self.onMenu(self);
+}
+- (void)tapped:(id)sender forEvent:(UIEvent *)e {
+    if ([self pacMenuCapable]) {
+        UITouch *t = [[e touchesForView:self] anyObject];
+        CGPoint p = t ? [t locationInView:self] : CGPointZero;
+        BOOL onIcon = CGRectContainsPoint(CGRectInset(_icon.frame, -10.0, -10.0), p);
+        if ([_key isEqualToString:@"airdrop"] || !onIcon) {
+            if (gHapticsEnabled) Haptic();
+            self.onMenu(self);
+            return;
+        }
+    }
+    [self tapped];
 }
 - (void)layoutSubviews {
     [self pacLayoutCore];
@@ -451,6 +478,60 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 }
 @end
 
+#pragma mark - connectivity menu
+
+static id sPACBigAirDrop;
+
+static id PACBigAirDropCtl(void) {
+    if (!sPACBigAirDrop) {
+        Class C = NSClassFromString(@"SFAirDropDiscoveryController");
+        if (!C) {
+            dlopen("/System/Library/PrivateFrameworks/Sharing.framework/Sharing", RTLD_LAZY);
+            C = NSClassFromString(@"SFAirDropDiscoveryController");
+        }
+        if (C) sPACBigAirDrop = [[C alloc] init];
+    }
+    return sPACBigAirDrop;
+}
+
+static int PACBigAirDropMode(void) {
+    id c = PACBigAirDropCtl();
+    SEL s = NSSelectorFromString(@"discoverableMode");
+    if (!c || ![c respondsToSelector:s]) return -1;
+    id m = ((id (*)(id, SEL))objc_msgSend)(c, s);
+    NSString *str = [m isKindOfClass:NSString.class] ? [(NSString *)m lowercaseString] : @"";
+    if ([str containsString:@"every"]) return 2;
+    if ([str containsString:@"contact"]) return 1;
+    return 0;
+}
+
+static BOOL PACBigSetAirDropMode(int mode) {
+    id c = PACBigAirDropCtl();
+    SEL s = NSSelectorFromString(@"setDiscoverableMode:");
+    if (!c || ![c respondsToSelector:s]) return NO;
+    NSArray *names = @[@"Off", @"ContactsOnly", @"Everyone"];
+    ((void (*)(id, SEL, id))objc_msgSend)(c, s, names[MAX(0, MIN(2, mode))]);
+    if (mode == 2) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(600.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (PACBigAirDropMode() == 2) PACBigSetAirDropMode(1);
+        });
+    }
+    return YES;
+}
+
+static void PACBigOpenSettings(NSString *url) {
+    Class W = NSClassFromString(@"LSApplicationWorkspace");
+    SEL d = NSSelectorFromString(@"defaultWorkspace");
+    if (!W || ![W respondsToSelector:d]) return;
+    id ws = ((id (*)(id, SEL))objc_msgSend)(W, d);
+    SEL o = NSSelectorFromString(@"openSensitiveURL:withOptions:");
+    if (ws && [ws respondsToSelector:o]) ((BOOL (*)(id, SEL, id, id))objc_msgSend)(ws, o, [NSURL URLWithString:url], nil);
+}
+
+static NSDictionary *PACBigMenuItem(NSString *title, BOOL on, void (^act)(void)) {
+    return @{@"t": title, @"on": @(on), @"a": [act copy]};
+}
+
 #pragma mark - big connectivity
 
 static BOOL PACBigVPNActive(void) {
@@ -470,11 +551,17 @@ static BOOL PACBigVPNActive(void) {
 @interface PACBigConn : PACBigView
 @property (nonatomic, weak) UIView *apple;
 - (void)refresh;
+- (void)openMenuFromCard:(PACBigCard *)card;
+- (void)closeMenu;
 @end
 
 @implementation PACBigConn {
     NSMutableDictionary<NSString *, PACBigCard *> *_cards;
     NSTimer *_timer;
+    UIControl *_dim;
+    UIView *_menu;
+    PACBigCard *_menuCard;
+    NSArray<NSDictionary *> *_menuItems;
 }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
@@ -490,10 +577,153 @@ static BOOL PACBigVPNActive(void) {
         __weak typeof(self) ws = self;
         _timer = [NSTimer timerWithTimeInterval:0.6 repeats:YES block:^(NSTimer *t) { [ws refresh]; }];
         [[NSRunLoop mainRunLoop] addTimer:_timer forMode:NSRunLoopCommonModes];
+    } else if (_menu) {
+        [_menu removeFromSuperview]; _menu = nil;
+        [_dim removeFromSuperview]; _dim = nil;
+        _menuCard.alpha = 1.0; _menuCard = nil;
     }
 }
 - (void)dealloc { [_timer invalidate]; }
 - (void)layoutSubviews { [super layoutSubviews]; [self refresh]; }
+- (NSArray<NSDictionary *> *)menuItemsForCard:(PACBigCard *)card {
+    NSString *k = card.key;
+    __weak PACBigCard *wc = card;
+    if ([k isEqualToString:@"airdrop"]) {
+        int cur = PACBigAirDropMode();
+        NSArray *names = @[@"Receiving Off", @"Contacts Only", @"Everyone for 10 Minutes"];
+        NSMutableArray *out = [NSMutableArray array];
+        for (int i = 0; i < 3; i++) {
+            [out addObject:PACBigMenuItem(names[i], cur == i, ^{
+                if (!PACBigSetAirDropMode(i)) [wc tapped];
+            })];
+        }
+        return out;
+    }
+    BOOL wifi = [k isEqualToString:@"wifi"];
+    NSString *name = wifi ? @"Wi-Fi" : @"Bluetooth";
+    NSString *url = wifi ? @"prefs:root=WIFI" : @"prefs:root=Bluetooth";
+    return @[PACBigMenuItem(name, card.isOn, ^{ [wc tapped]; }),
+             PACBigMenuItem([name stringByAppendingString:@" Settings"], NO, ^{ PACBigOpenSettings(url); })];
+}
+- (void)openMenuFromCard:(PACBigCard *)card {
+    if (_menu || !card || !self.window) return;
+    NSArray<NSDictionary *> *items = [self menuItemsForCard:card];
+    if (!items.count) return;
+    _menuItems = items;
+    _menuCard = card;
+
+    CGSize S = self.bounds.size;
+    CGFloat rowH = 46.0, padV = 6.0;
+    CGRect cf = card.frame;
+    CGFloat mw = MIN(S.width, MAX(cf.size.width * 1.5, 250.0));
+    CGFloat mh = padV * 2.0 + rowH * items.count;
+    CGFloat mx = (CGRectGetMidX(cf) > S.width * 0.5) ? CGRectGetMaxX(cf) - mw : cf.origin.x;
+    mx = MAX(0, MIN(mx, S.width - mw));
+    CGFloat my = MAX(0, MIN(cf.origin.y, S.height - mh));
+    CGRect mf = CGRectMake(mx, my, mw, mh);
+    CGFloat side = MIN(cf.size.width, cf.size.height) * 0.85;
+    CGRect sf = CGRectMake(CGRectGetMidX(cf) - side * 0.5, CGRectGetMidY(cf) - side * 0.5, side, side);
+    CGFloat startRad = side * 0.5;
+    CGFloat endRad = MIN(36.0, mh * 0.3);
+
+    _dim = [[UIControl alloc] initWithFrame:self.bounds];
+    _dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [_dim addTarget:self action:@selector(closeMenu) forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:_dim];
+
+    UIView *menu = [[UIView alloc] initWithFrame:sf];
+    menu.clipsToBounds = YES;
+    menu.layer.cornerRadius = startRad;
+    menu.layer.cornerCurve = kCACornerCurveContinuous;
+    UIView *mat = PACCModuleMaterial();
+    mat.userInteractionEnabled = NO;
+    mat.frame = menu.bounds;
+    mat.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [menu addSubview:mat];
+    if (PACCLIQGlassOn()) mat.hidden = PACBigLGGlass(menu, endRad);
+    UIView *frost = [[UIView alloc] initWithFrame:menu.bounds];
+    frost.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    frost.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.38];
+    frost.userInteractionEnabled = NO;
+    [menu addSubview:frost];
+
+    UIView *content = [[UIView alloc] initWithFrame:CGRectMake(0, 0, mw, mh)];
+    content.alpha = 0;
+    for (NSUInteger i = 0; i < items.count; i++) {
+        NSDictionary *it = items[i];
+        UIControl *row = [[UIControl alloc] initWithFrame:CGRectMake(0, padV + i * rowH, mw, rowH)];
+        row.tag = (NSInteger)i;
+        if ([it[@"on"] boolValue]) {
+            UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightBold];
+            UIImageView *ck = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"checkmark" withConfiguration:cfg]];
+            ck.tintColor = [UIColor colorWithWhite:0.08 alpha:1.0];
+            ck.contentMode = UIViewContentModeCenter;
+            ck.frame = CGRectMake(14, 0, 22, rowH);
+            ck.userInteractionEnabled = NO;
+            [row addSubview:ck];
+        }
+        UILabel *lb = [[UILabel alloc] initWithFrame:CGRectMake(44, 0, mw - 44 - 14, rowH)];
+        lb.text = it[@"t"];
+        lb.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
+        lb.textColor = [UIColor colorWithWhite:0.08 alpha:1.0];
+        lb.userInteractionEnabled = NO;
+        [row addSubview:lb];
+        if (i > 0) {
+            UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(44, 0, mw - 44 - 14, 0.5)];
+            sep.backgroundColor = [UIColor colorWithWhite:0 alpha:0.14];
+            sep.userInteractionEnabled = NO;
+            [row addSubview:sep];
+        }
+        [row addTarget:self action:@selector(menuRowDown:) forControlEvents:UIControlEventTouchDown];
+        [row addTarget:self action:@selector(menuRowUp:) forControlEvents:UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+        [row addTarget:self action:@selector(menuRowTapped:) forControlEvents:UIControlEventTouchUpInside];
+        [content addSubview:row];
+    }
+    [menu addSubview:content];
+    [self addSubview:menu];
+    _menu = menu;
+
+    UIControl *dimv = _dim;
+    [UIView animateWithDuration:0.1 animations:^{ card.alpha = 0; }];
+    [UIView animateWithDuration:0.3 animations:^{ dimv.backgroundColor = [UIColor colorWithWhite:0 alpha:0.14]; }];
+    [UIView animateWithDuration:0.6 delay:0 usingSpringWithDamping:0.74 initialSpringVelocity:0.0
+                        options:UIViewAnimationOptionAllowUserInteraction
+                     animations:^{
+        menu.frame = mf;
+        menu.layer.cornerRadius = endRad;
+    } completion:nil];
+    [UIView animateWithDuration:0.22 delay:0.2 options:UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ content.alpha = 1; } completion:nil];
+}
+- (void)menuRowDown:(UIControl *)row { row.backgroundColor = [UIColor colorWithWhite:0 alpha:0.08]; }
+- (void)menuRowUp:(UIControl *)row { row.backgroundColor = UIColor.clearColor; }
+- (void)menuRowTapped:(UIControl *)row {
+    void (^act)(void) = (row.tag >= 0 && (NSUInteger)row.tag < _menuItems.count) ? _menuItems[row.tag][@"a"] : nil;
+    if (gHapticsEnabled) Haptic();
+    [self closeMenu];
+    if (act) act();
+}
+- (void)closeMenu {
+    UIView *menu = _menu;
+    PACBigCard *card = _menuCard;
+    if (!menu) return;
+    UIControl *dim = _dim;
+    _menu = nil; _menuCard = nil; _dim = nil; _menuItems = nil;
+    [dim removeFromSuperview];
+    UIView *content = menu.subviews.lastObject;
+    menu.userInteractionEnabled = NO;
+    CGRect cfr = card ? card.frame : menu.frame;
+    CGFloat sd = MIN(cfr.size.width, cfr.size.height) * 0.85;
+    CGRect to = CGRectMake(CGRectGetMidX(cfr) - sd * 0.5, CGRectGetMidY(cfr) - sd * 0.5, sd, sd);
+    CGFloat rad = sd * 0.5;
+    [UIView animateWithDuration:0.12 animations:^{ content.alpha = 0; }];
+    [UIView animateWithDuration:0.22 delay:0.2 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
+    [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.88 initialSpringVelocity:0.0 options:0
+                     animations:^{
+        menu.frame = to;
+        menu.layer.cornerRadius = rad;
+    } completion:^(BOOL f) { [menu removeFromSuperview]; }];
+}
 - (void)refresh {
     PACCCrumb("PACBigConn refresh");
     @try { [self refreshImpl]; } @catch (NSException *e) { NSLog(@"[CCock26] connectivity refresh: %@", e); }
@@ -562,6 +792,8 @@ static BOOL PACBigVPNActive(void) {
         if (!card) {
             card = [[PACBigCard alloc] initWithFrame:CGRectZero];
             card.key = k;
+            __weak typeof(self) wself = self;
+            card.onMenu = ^(PACBigCard *c) { [wself openMenuFromCard:c]; };
             _cards[k] = card;
             [self addSubview:card];
         }
@@ -601,7 +833,7 @@ static BOOL PACBigVPNActive(void) {
         if (![card.title.text isEqualToString:title]) card.title.text = title;
         [card setSubText:sub];
         [card setOn:on];
-        card.alpha = round ? (round.enabled ? 1.0 : 0.5) : 0.4;
+        if (card != _menuCard) card.alpha = round ? (round.enabled ? 1.0 : 0.5) : 0.4;
         card.enabled = round != nil && !gEditModeActive;
     }
 }
