@@ -1799,7 +1799,7 @@ void PACCBigConfigureExpanded(UIViewController *controller, BOOL expanded) {
         static NSString *lastSize;
         NSString *sz = [NSString stringWithFormat:@"expanded root %@ container %@ window %.0f", NSStringFromCGRect(root.bounds),
                         NSStringFromCGRect(root.superview.bounds), root.window.bounds.size.height];
-        if (![sz isEqualToString:lastSize]) { lastSize = sz; PACCCrashLog(sz); }
+        if (![sz isEqualToString:lastSize]) { lastSize = sz; PACCSizeLog(sz); }
     }
     PACBigHideModuleMaterialEx(root, YES, YES);
     PACBigDropPlatter(root, mine);

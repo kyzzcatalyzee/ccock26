@@ -428,13 +428,38 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+%hook CCUIContentModuleContainerViewController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    @try {
+        UIViewController *me = (UIViewController *)self;
+        UIViewController *content = nil;
+        SEL cs = NSSelectorFromString(@"contentViewController");
+        if ([me respondsToSelector:cs]) content = ((id (*)(id, SEL))objc_msgSend)(me, cs);
+        if (![NSStringFromClass(content.class) containsString:@"Connectivity"]) return;
+        double pref = -1;
+        SEL ps = NSSelectorFromString(@"preferredExpandedContentHeight");
+        if ([content respondsToSelector:ps]) pref = ((double (*)(id, SEL))objc_msgSend)(content, ps);
+        BOOL exp = NO;
+        SEL es = NSSelectorFromString(@"isExpanded");
+        if ([me respondsToSelector:es]) exp = ((BOOL (*)(id, SEL))objc_msgSend)(me, es);
+        static NSString *lastNote;
+        NSString *note = [NSString stringWithFormat:@"container %@ view %@ content %@ pref %.1f expanded %d",
+                          NSStringFromClass(me.class), NSStringFromCGRect(me.view.frame),
+                          NSStringFromCGRect(content.view.frame), pref, (int)exp];
+        if (![note isEqualToString:lastNote]) { lastNote = note; PACCSizeLog(note); }
+    } @catch (__unused NSException *e) {}
+}
+%end
+
 %hook CCUIConnectivityModuleViewController
 - (CGFloat)preferredExpandedContentHeight {
     CGFloat orig = %orig;
+    PACCSizeLog([NSString stringWithFormat:@"hook height called: orig %.1f enabled %d", orig, (int)gEnabled]);
     if (!gEnabled) return orig;
     static NSString *lastNote;
     NSString *note = [NSString stringWithFormat:@"expanded height: orig %.1f -> 526, screen %.1f", orig, [UIScreen mainScreen].bounds.size.height];
-    if (![note isEqualToString:lastNote]) { lastNote = note; PACCCrashLog(note); }
+    if (![note isEqualToString:lastNote]) { lastNote = note; PACCSizeLog(note); }
     return 526.0;
 }
 - (BOOL)providesOwnPlatter {

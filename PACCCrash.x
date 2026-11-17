@@ -36,6 +36,19 @@ void PACCCrashLog(NSString *line) {
     PACCCrashWrite(out.UTF8String);
 }
 
+void PACCSizeLog(NSString *line) {
+    if (!line.length) return;
+    static int fd = -1;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        fd = open("/var/mobile/Library/Preferences/ccock26-size.log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    });
+    if (fd < 0) return;
+    NSString *out = [NSString stringWithFormat:@"[%.0f] %@\n", [NSDate date].timeIntervalSince1970, line];
+    const char *c = out.UTF8String;
+    if (c) write(fd, c, strlen(c));
+}
+
 static void PACCCrashDump(const char *title) {
     char buf[256];
     snprintf(buf, sizeof(buf), "\n===== CRASH: %s  (time %ld) =====\n", title, (long)time(NULL));
