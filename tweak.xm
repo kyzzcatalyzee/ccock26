@@ -443,10 +443,25 @@ BOOL gPagerScrubbing = NO;
         BOOL exp = NO;
         SEL es = NSSelectorFromString(@"isExpanded");
         if ([me respondsToSelector:es]) exp = ((BOOL (*)(id, SEL))objc_msgSend)(me, es);
+        UIView *cv = content.view;
+        UIView *wrap = cv.superview;
+        const CGFloat kWant = 526.0;
+        if (gEnabled && exp && wrap && wrap != me.view && CGAffineTransformIsIdentity(wrap.transform) &&
+            wrap.bounds.size.height > 300.0 && wrap.bounds.size.height < kWant - 0.5) {
+            CGRect f = wrap.frame;
+            CGFloat dh = kWant - f.size.height;
+            f.origin.y -= dh * 0.5;
+            f.size.height = kWant;
+            CGFloat maxH = me.view.bounds.size.height;
+            if (f.origin.y < 10.0) f.origin.y = 10.0;
+            if (CGRectGetMaxY(f) > maxH - 10.0) f.origin.y = maxH - 10.0 - f.size.height;
+            wrap.frame = f;
+            cv.frame = wrap.bounds;
+        }
         static NSString *lastNote;
-        NSString *note = [NSString stringWithFormat:@"container %@ view %@ content %@ pref %.1f expanded %d",
+        NSString *note = [NSString stringWithFormat:@"container %@ view %@ content %@ wrap %@ %@ pref %.1f expanded %d",
                           NSStringFromClass(me.class), NSStringFromCGRect(me.view.frame),
-                          NSStringFromCGRect(content.view.frame), pref, (int)exp];
+                          NSStringFromCGRect(cv.frame), NSStringFromClass(wrap.class), NSStringFromCGRect(wrap.frame), pref, (int)exp];
         if (![note isEqualToString:lastNote]) { lastNote = note; PACCSizeLog(note); }
     } @catch (__unused NSException *e) {}
 }
