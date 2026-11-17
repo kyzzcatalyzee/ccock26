@@ -993,12 +993,22 @@ static BOOL PACBigVPNActive(void) {
     _menu = menu;
 
     [UIView animateWithDuration:0.1 animations:^{ card.alpha = 0; }];
-    [UIView animateWithDuration:0.6 delay:0 usingSpringWithDamping:0.74 initialSpringVelocity:0.0
-                        options:UIViewAnimationOptionAllowUserInteraction
-                     animations:^{
-        menu.frame = mf;
-        menu.layer.cornerRadius = endRad;
-    } completion:nil];
+    CGRect over = mf;
+    over.origin.y += 7.0;
+    over.size.height += 13.0;
+    over.size.width += 4.0;
+    over.origin.x -= 2.0;
+    [UIView animateKeyframesWithDuration:0.62 delay:0
+                                 options:UIViewKeyframeAnimationOptionAllowUserInteraction | UIViewKeyframeAnimationOptionCalculationModeCubic
+                              animations:^{
+        [UIView addKeyframeWithRelativeStartTime:0.0 relativeDuration:0.5 animations:^{
+            menu.frame = over;
+            menu.layer.cornerRadius = endRad;
+        }];
+        [UIView addKeyframeWithRelativeStartTime:0.5 relativeDuration:0.5 animations:^{
+            menu.frame = mf;
+        }];
+    } completion:^(BOOL finished) { menu.frame = mf; }];
     [UIView animateWithDuration:0.22 delay:0.2 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.alpha = 1; } completion:nil];
     PACBigAnimateBlur(content, 3.0, 0.0, 0.3, 0.2, YES);

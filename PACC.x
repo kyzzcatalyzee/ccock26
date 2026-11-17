@@ -305,7 +305,7 @@ void PACCConfigureMedia(UIView *view) {
     CGRect artworkFrame = CGRectMake(14, 14, 50, 50);
     UIView *module = PACCModuleAncestor(view);
     (void)module;
-    CGFloat artworkRadius = 10.0;
+    CGFloat artworkRadius = 15.0;
     [UIView performWithoutAnimation:^{
         view.clipsToBounds = YES;
         header.frame = view.bounds;

@@ -378,8 +378,8 @@ BOOL gPagerScrubbing = NO;
 
     CGFloat width = CGRectGetWidth(view.bounds);
     CGFloat y = CGRectGetHeight(view.bounds) / 2;
-    CGFloat spacing = width * 0.27;
-    CGAffineTransform big = CGAffineTransformMakeScale(1.4, 1.4);
+    CGFloat spacing = width * 0.29;
+    CGAffineTransform big = CGAffineTransformMakeScale(1.28, 1.28);
     left.transform = big; center.transform = big; right.transform = big;
 
     left.hidden = NO;
