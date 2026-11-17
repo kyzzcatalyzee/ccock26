@@ -1016,22 +1016,28 @@ static BOOL PACBigVPNActive(void) {
                                                     CGAffineTransformMakeTranslation(-(k - 1.0) * cs.width * 0.5, -(k - 1.0) * cs.height * 0.5));
     }
     [menu addSubview:content];
+    UIView *snap = [card snapshotViewAfterScreenUpdates:NO];
+    if (snap) {
+        snap.frame = CGRectMake(0, 0, cf.size.width, cf.size.height);
+        snap.userInteractionEnabled = NO;
+        [menu insertSubview:snap belowSubview:content];
+    }
     [self addSubview:menu];
     _menu = menu;
 
-    [UIView animateWithDuration:0.22 delay:0.05 options:0 animations:^{ card.alpha = 0; } completion:nil];
+    card.alpha = 0;
     CGRect over = mf;
     over.origin.y += 7.0;
     over.size.height += 13.0;
     over.size.width += 4.0;
     over.origin.x -= 2.0;
-    [UIView animateKeyframesWithDuration:0.62 delay:0
+    [UIView animateKeyframesWithDuration:1.0 delay:0
                                  options:UIViewKeyframeAnimationOptionAllowUserInteraction | UIViewKeyframeAnimationOptionCalculationModeCubic
                               animations:^{
-        [UIView addKeyframeWithRelativeStartTime:0.0 relativeDuration:0.5 animations:^{
+        [UIView addKeyframeWithRelativeStartTime:0.0 relativeDuration:0.62 animations:^{
             menu.frame = over;
         }];
-        [UIView addKeyframeWithRelativeStartTime:0.5 relativeDuration:0.5 animations:^{
+        [UIView addKeyframeWithRelativeStartTime:0.62 relativeDuration:0.38 animations:^{
             menu.frame = mf;
         }];
     } completion:^(BOOL finished) {
@@ -1054,20 +1060,22 @@ static BOOL PACBigVPNActive(void) {
         menu.layer.mask = mk;
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
         ka.values = @[(__bridge id)p0, (__bridge id)p1, (__bridge id)p2, (__bridge id)p3];
-        ka.keyTimes = @[@0.0, @0.25, @0.5, @1.0];
-        ka.duration = 0.62;
+        ka.keyTimes = @[@0.0, @0.3, @0.62, @1.0];
+        ka.duration = 1.0;
         ka.calculationMode = kCAAnimationCubic;
         [mk addAnimation:ka forKey:@"pacBlob"];
         CGPathRelease(p0); CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3);
     }
-    [UIView animateWithDuration:0.3 delay:0.0 options:UIViewAnimationOptionAllowUserInteraction
+    [UIView animateWithDuration:0.5 delay:0.1 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ frost.alpha = 1; } completion:nil];
-    [UIView animateWithDuration:0.16 delay:0.04 options:UIViewAnimationOptionAllowUserInteraction
+    [UIView animateWithDuration:0.3 delay:0.35 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.alpha = 1; } completion:nil];
-    [UIView animateWithDuration:0.5 delay:0.0 usingSpringWithDamping:0.9 initialSpringVelocity:0.0
+    [UIView animateWithDuration:0.4 delay:0.1 options:UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ snap.alpha = 0; } completion:^(BOOL f) { [snap removeFromSuperview]; }];
+    [UIView animateWithDuration:0.75 delay:0.25 usingSpringWithDamping:0.9 initialSpringVelocity:0.0
                         options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.transform = CGAffineTransformIdentity; } completion:nil];
-    PACBigAnimateBlur(content, 7.0, 0.0, 0.42, 0.0, YES);
+    PACBigAnimateBlur(content, 7.0, 0.0, 0.6, 0.3, YES);
 }
 - (void)menuRowDown:(UIControl *)row { row.backgroundColor = PACBigDyn([UIColor colorWithWhite:1 alpha:0.14], [UIColor colorWithWhite:0 alpha:0.08]); }
 - (void)menuRowUp:(UIControl *)row { row.backgroundColor = UIColor.clearColor; }
