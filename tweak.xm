@@ -232,10 +232,10 @@ BOOL gPagerScrubbing = NO;
 
     NSArray *filters = PACCMediaMaterialFilters(view);
     CGFloat labelHeight = 34.0;
-    CGFloat labelY = (artwork && transport ? (CGRectGetMaxY(artwork.frame) + CGRectGetMinY(transport.frame) - labelHeight) * 0.5 : 64.0) + 6.5;
+    CGFloat labelY = (artwork && transport ? (CGRectGetMaxY(artwork.frame) + CGRectGetMinY(transport.frame) - labelHeight) * 0.5 : 64.0);
 
     CGRect routingFrame = CGRectMake(width - 54, 14, side, side);
-    CGRect labelFrame = CGRectMake(14, labelY, width - 28, labelHeight);
+    CGRect labelFrame = CGRectMake(16, labelY, width - 32, labelHeight);
 
     [UIView performWithoutAnimation:^{
         if (headerTransport) headerTransport.hidden = YES;

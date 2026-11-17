@@ -299,7 +299,7 @@ void PACCConfigureMedia(UIView *view) {
     objc_setAssociatedObject(view, PACCKeyMediaMode, mode, OBJC_ASSOCIATION_COPY_NONATOMIC);
     if (!header || !transport) return;
     CGFloat width = CGRectGetWidth(view.bounds);
-    CGRect artworkFrame = CGRectMake(14, 14, 50, 50);
+    CGRect artworkFrame = CGRectMake(14, 14, 52, 52);
     UIView *module = PACCModuleAncestor(view);
     CGFloat artworkInset = MIN(CGRectGetMinX(artworkFrame), CGRectGetMinY(artworkFrame));
     CGFloat artworkRadius = MAX(0.0, PACCRadiusForModule(module) - artworkInset) * 0.75;
@@ -308,7 +308,7 @@ void PACCConfigureMedia(UIView *view) {
         header.frame = view.bounds;
         for (UIView *item in @[PACCViewIvar(wrapper, "_routingButton") ?: (id)NSNull.null, PACCViewIvar(wrapper, "_moreButton") ?: (id)NSNull.null]) if ((id)item != NSNull.null) item.hidden = YES;
         if (artwork) { artwork.frame = artworkFrame; artwork.hidden = NO; artwork.alpha = 1.0; artwork.backgroundColor = UIColor.clearColor; artwork.layer.cornerRadius = artworkRadius; artwork.layer.cornerCurve = kCACornerCurveContinuous; artwork.layer.masksToBounds = YES; }
-        transport.frame = CGRectMake(floor((width - 110.0) * 0.5), 102, 110, 44); transport.hidden = NO; transport.alpha = 1.0;
+        transport.frame = CGRectMake(14, floor(CGRectGetHeight(view.bounds) - 12.0 - 26.0), width - 28.0, 26); transport.hidden = NO; transport.alpha = 1.0;
         if (time) { time.hidden = YES; time.alpha = 0; }
         if (volume) { volume.hidden = YES; volume.alpha = 0; }
     }];
