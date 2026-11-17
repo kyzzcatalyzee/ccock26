@@ -1673,7 +1673,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     UIView *existing = [host viewWithTag:kPACBigTag];
     BOOL big = NO;
     if (kind == 1) big = (w >= 4 && h >= 4);
-    else if (kind == 2) big = (w >= 2 && h >= 2);
+    else if (kind == 2) big = (w >= 2 && h >= 2 && !(w == 2 && h == 2));
     if (expanded || !big || !gEnabled || PACCBigKind(mid) == 0 ||
         host.bounds.size.width < 60 || host.bounds.size.height < 60) {
         if (existing) {
