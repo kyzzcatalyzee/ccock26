@@ -205,6 +205,9 @@ BOOL gPagerScrubbing = NO;
         child.layer.cornerCurve = kCACornerCurveContinuous;
         child.layer.masksToBounds = YES;
     }
+    UIView *backing = view.subviews.firstObject;
+    NSArray *filters = PACCMediaMaterialFilters(view);
+    if (backing && filters.count) { backing.backgroundColor = UIColor.whiteColor; backing.layer.filters = filters; }
 }
 %end
 
@@ -227,11 +230,12 @@ BOOL gPagerScrubbing = NO;
     UIView *artwork = PACCViewIvar(nowPlaying, "_artworkView");
     UIView *transport = PACCViewIvar(nowPlaying, "_transportControlsView");
 
+    NSArray *filters = PACCMediaMaterialFilters(view);
     CGFloat labelHeight = 34.0;
-    CGFloat labelY = (artwork && transport ? (CGRectGetMaxY(artwork.frame) + CGRectGetMinY(transport.frame) - labelHeight) * 0.5 : 64.0);
+    CGFloat labelY = (artwork && transport ? (CGRectGetMaxY(artwork.frame) + CGRectGetMinY(transport.frame) - labelHeight) * 0.5 : 64.0) + 6.5;
 
     CGRect routingFrame = CGRectMake(width - 54, 14, side, side);
-    CGRect labelFrame = CGRectMake(16, labelY, width - 32, labelHeight);
+    CGRect labelFrame = CGRectMake(14, labelY, width - 28, labelHeight);
 
     [UIView performWithoutAnimation:^{
         if (headerTransport) headerTransport.hidden = YES;
@@ -246,7 +250,24 @@ BOOL gPagerScrubbing = NO;
             routing.layer.cornerRadius = side / 2;
             routing.layer.masksToBounds = YES;
 
-            [[routing viewWithTag:PACCTagMediaButtonMaterial] removeFromSuperview];
+            UIView *material = [routing viewWithTag:PACCTagMediaButtonMaterial];
+            if (!material) {
+                material = [UIView new];
+                material.tag = PACCTagMediaButtonMaterial;
+                material.userInteractionEnabled = NO;
+                [routing insertSubview:material atIndex:0];
+            }
+            material.frame = routing.bounds;
+            if (filters.count) {
+                material.backgroundColor = UIColor.whiteColor;
+                material.layer.filters = filters;
+            } else {
+                material.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.16];
+                material.layer.filters = nil;
+            }
+            material.layer.cornerRadius = side / 2;
+            material.layer.masksToBounds = YES;
+
             PACCResizeMediaRoutingGlyph(routing);
         }
 
@@ -357,7 +378,9 @@ BOOL gPagerScrubbing = NO;
 
     CGFloat width = CGRectGetWidth(view.bounds);
     CGFloat y = CGRectGetHeight(view.bounds) / 2;
-    CGFloat spacing = width * 0.32;
+    CGFloat spacing = width * 0.27;
+    CGAffineTransform big = CGAffineTransformMakeScale(1.4, 1.4);
+    left.transform = big; center.transform = big; right.transform = big;
 
     left.hidden = NO;
     center.center = CGPointMake(width / 2, y);
