@@ -1031,11 +1031,18 @@ static BOOL PACBigVPNActive(void) {
     over.size.height += 13.0;
     over.size.width += 4.0;
     over.origin.x -= 2.0;
-    [UIView animateKeyframesWithDuration:1.0 delay:0
+    CGFloat cside = MIN(cf.size.width, cf.size.height) * 0.85;
+    CGRect cr = CGRectMake(CGRectGetMidX(cf) - cside * 0.5, CGRectGetMidY(cf) - cside * 0.5, cside, cside);
+    CGFloat bw = cside * 0.95;
+    CGRect pull = CGRectMake(CGRectGetMidX(cf) - bw * 0.5, over.origin.y, bw, over.size.height);
+    [UIView animateKeyframesWithDuration:0.62 delay:0
                                  options:UIViewKeyframeAnimationOptionAllowUserInteraction | UIViewKeyframeAnimationOptionCalculationModeCubic
                               animations:^{
-        [UIView addKeyframeWithRelativeStartTime:0.0 relativeDuration:0.62 animations:^{
-            menu.frame = over;
+        [UIView addKeyframeWithRelativeStartTime:0.0 relativeDuration:0.14 animations:^{
+            menu.frame = cr;
+        }];
+        [UIView addKeyframeWithRelativeStartTime:0.14 relativeDuration:0.48 animations:^{
+            menu.frame = pull;
         }];
         [UIView addKeyframeWithRelativeStartTime:0.62 relativeDuration:0.38 animations:^{
             menu.frame = mf;
@@ -1046,36 +1053,36 @@ static BOOL PACBigVPNActive(void) {
         menu.layer.cornerRadius = endRad;
     }];
     {
-        CGSize s0 = sf.size, s2 = over.size, s3 = mf.size;
-        CGSize s1 = CGSizeMake((s0.width + s2.width) * 0.5, (s0.height + s2.height) * 0.5);
-        CGFloat d1 = MIN(s1.width, s1.height);
+        CGSize s0 = sf.size, sc = cr.size, s2 = pull.size, s3 = mf.size;
+        CGSize sm = CGSizeMake((s2.width + s3.width) * 0.5, (s2.height + s3.height) * 0.5);
         CGFloat r0 = MAX(1.0, card.layer.cornerRadius);
         CGPathRef p0 = PACBigBlobPath(s0, r0, r0, r0, r0);
-        CGPathRef p1 = PACBigBlobPath(s1, d1 * 0.62, d1 * 0.38, d1 * 0.55, d1 * 0.30);
-        CGPathRef p2 = PACBigBlobPath(s2, endRad * 1.5, endRad * 0.8, endRad * 1.3, endRad * 0.9);
-        CGPathRef p3 = PACBigBlobPath(s3, endRad, endRad, endRad, endRad);
+        CGPathRef p1 = PACBigBlobPath(sc, cside * 0.5, cside * 0.46, cside * 0.5, cside * 0.44);
+        CGPathRef p2 = PACBigBlobPath(s2, bw * 0.5, bw * 0.46, bw * 0.5, bw * 0.42);
+        CGPathRef p3 = PACBigBlobPath(sm, endRad * 1.8, endRad * 1.2, endRad * 1.6, endRad * 1.3);
+        CGPathRef p4 = PACBigBlobPath(s3, endRad, endRad, endRad, endRad);
         CAShapeLayer *mk = [CAShapeLayer layer];
         mk.frame = CGRectMake(0, 0, MAX(s2.width, s3.width) + 8.0, MAX(s2.height, s3.height) + 8.0);
-        mk.path = p3;
+        mk.path = p4;
         menu.layer.mask = mk;
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
-        ka.values = @[(__bridge id)p0, (__bridge id)p1, (__bridge id)p2, (__bridge id)p3];
-        ka.keyTimes = @[@0.0, @0.3, @0.62, @1.0];
-        ka.duration = 1.0;
+        ka.values = @[(__bridge id)p0, (__bridge id)p1, (__bridge id)p2, (__bridge id)p3, (__bridge id)p4];
+        ka.keyTimes = @[@0.0, @0.14, @0.62, @0.8, @1.0];
+        ka.duration = 0.62;
         ka.calculationMode = kCAAnimationCubic;
         [mk addAnimation:ka forKey:@"pacBlob"];
-        CGPathRelease(p0); CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3);
+        CGPathRelease(p0); CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3); CGPathRelease(p4);
     }
-    [UIView animateWithDuration:0.5 delay:0.1 options:UIViewAnimationOptionAllowUserInteraction
+    [UIView animateWithDuration:0.3 delay:0.1 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ frost.alpha = 1; } completion:nil];
-    [UIView animateWithDuration:0.3 delay:0.35 options:UIViewAnimationOptionAllowUserInteraction
+    [UIView animateWithDuration:0.2 delay:0.3 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.alpha = 1; } completion:nil];
-    [UIView animateWithDuration:0.4 delay:0.1 options:UIViewAnimationOptionAllowUserInteraction
+    [UIView animateWithDuration:0.2 delay:0.0 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ snap.alpha = 0; } completion:^(BOOL f) { [snap removeFromSuperview]; }];
-    [UIView animateWithDuration:0.75 delay:0.25 usingSpringWithDamping:0.9 initialSpringVelocity:0.0
+    [UIView animateWithDuration:0.5 delay:0.25 usingSpringWithDamping:0.9 initialSpringVelocity:0.0
                         options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.transform = CGAffineTransformIdentity; } completion:nil];
-    PACBigAnimateBlur(content, 7.0, 0.0, 0.6, 0.3, YES);
+    PACBigAnimateBlur(content, 7.0, 0.0, 0.42, 0.25, YES);
 }
 - (void)menuRowDown:(UIControl *)row { row.backgroundColor = PACBigDyn([UIColor colorWithWhite:1 alpha:0.14], [UIColor colorWithWhite:0 alpha:0.08]); }
 - (void)menuRowUp:(UIControl *)row { row.backgroundColor = UIColor.clearColor; }
