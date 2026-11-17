@@ -1035,7 +1035,7 @@ static BOOL PACBigVPNActive(void) {
     CGRect cr = CGRectMake(CGRectGetMidX(cf) - cside * 0.5, CGRectGetMidY(cf) - cside * 0.5, cside, cside);
     CGFloat bw = cside * 0.95;
     CGRect pull = CGRectMake(CGRectGetMidX(cf) - bw * 0.5, over.origin.y, bw, over.size.height);
-    [UIView animateKeyframesWithDuration:0.62 delay:0
+    [UIView animateKeyframesWithDuration:0.44 delay:0
                                  options:UIViewKeyframeAnimationOptionAllowUserInteraction | UIViewKeyframeAnimationOptionCalculationModeCubic
                               animations:^{
         [UIView addKeyframeWithRelativeStartTime:0.0 relativeDuration:0.14 animations:^{
@@ -1068,21 +1068,21 @@ static BOOL PACBigVPNActive(void) {
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
         ka.values = @[(__bridge id)p0, (__bridge id)p1, (__bridge id)p2, (__bridge id)p3, (__bridge id)p4];
         ka.keyTimes = @[@0.0, @0.14, @0.62, @0.8, @1.0];
-        ka.duration = 0.62;
+        ka.duration = 0.44;
         ka.calculationMode = kCAAnimationCubic;
         [mk addAnimation:ka forKey:@"pacBlob"];
         CGPathRelease(p0); CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3); CGPathRelease(p4);
     }
-    [UIView animateWithDuration:0.3 delay:0.1 options:UIViewAnimationOptionAllowUserInteraction
+    [UIView animateWithDuration:0.25 delay:0.04 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ frost.alpha = 1; } completion:nil];
-    [UIView animateWithDuration:0.2 delay:0.3 options:UIViewAnimationOptionAllowUserInteraction
+    [UIView animateWithDuration:0.16 delay:0.14 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.alpha = 1; } completion:nil];
-    [UIView animateWithDuration:0.2 delay:0.0 options:UIViewAnimationOptionAllowUserInteraction
+    [UIView animateWithDuration:0.14 delay:0.0 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ snap.alpha = 0; } completion:^(BOOL f) { [snap removeFromSuperview]; }];
-    [UIView animateWithDuration:0.5 delay:0.25 usingSpringWithDamping:0.9 initialSpringVelocity:0.0
+    [UIView animateWithDuration:0.42 delay:0.12 usingSpringWithDamping:0.9 initialSpringVelocity:0.0
                         options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.transform = CGAffineTransformIdentity; } completion:nil];
-    PACBigAnimateBlur(content, 7.0, 0.0, 0.42, 0.25, YES);
+    PACBigAnimateBlur(content, 7.0, 0.0, 0.36, 0.12, YES);
 }
 - (void)menuRowDown:(UIControl *)row { row.backgroundColor = PACBigDyn([UIColor colorWithWhite:1 alpha:0.14], [UIColor colorWithWhite:0 alpha:0.08]); }
 - (void)menuRowUp:(UIControl *)row { row.backgroundColor = UIColor.clearColor; }
@@ -1109,22 +1109,52 @@ static BOOL PACBigVPNActive(void) {
     CGFloat cardRad = card ? card.layer.cornerRadius : sd * 0.5;
     PACBigAnimateBlur(content, 0.0, 3.0, 0.1, 0.0, NO);
     [UIView animateWithDuration:0.08 animations:^{ content.alpha = 0; }];
-    [UIView animateWithDuration:0.24 delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0.0 options:0 animations:^{
-        menu.frame = circle;
-        menu.layer.cornerRadius = sd * 0.5;
+    CGRect mf = menu.frame;
+    CGFloat bw = sd * 0.95;
+    CGRect pull = CGRectMake(CGRectGetMidX(cfr) - bw * 0.5, mf.origin.y, bw, mf.size.height);
+    CGFloat endRad = menu.layer.cornerRadius;
+    menu.layer.cornerRadius = 0.0;
+    {
+        CGSize s3 = mf.size, s2 = pull.size, sc = circle.size;
+        CGSize sm = CGSizeMake((s2.width + s3.width) * 0.5, (s2.height + s3.height) * 0.5);
+        CGPathRef p4 = PACBigBlobPath(s3, endRad, endRad, endRad, endRad);
+        CGPathRef p3 = PACBigBlobPath(sm, endRad * 1.8, endRad * 1.2, endRad * 1.6, endRad * 1.3);
+        CGPathRef p2 = PACBigBlobPath(s2, bw * 0.5, bw * 0.46, bw * 0.5, bw * 0.42);
+        CGPathRef p1 = PACBigBlobPath(sc, sd * 0.5, sd * 0.46, sd * 0.5, sd * 0.44);
+        CAShapeLayer *mk = [CAShapeLayer layer];
+        mk.frame = CGRectMake(0, 0, MAX(s3.width, s2.width) + 8.0, MAX(s3.height, s2.height) + 8.0);
+        mk.path = p1;
+        menu.layer.mask = mk;
+        CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
+        ka.values = @[(__bridge id)p4, (__bridge id)p3, (__bridge id)p2, (__bridge id)p1, (__bridge id)p1];
+        ka.keyTimes = @[@0.0, @0.2, @0.38, @0.86, @1.0];
+        ka.duration = 0.4;
+        ka.calculationMode = kCAAnimationCubic;
+        [mk addAnimation:ka forKey:@"pacBlobClose"];
+        CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3); CGPathRelease(p4);
+    }
+    [UIView animateKeyframesWithDuration:0.4 delay:0
+                                 options:UIViewKeyframeAnimationOptionCalculationModeCubic
+                              animations:^{
+        [UIView addKeyframeWithRelativeStartTime:0.0 relativeDuration:0.38 animations:^{
+            menu.frame = pull;
+        }];
+        [UIView addKeyframeWithRelativeStartTime:0.38 relativeDuration:0.48 animations:^{
+            menu.frame = circle;
+        }];
     } completion:nil];
-    [UIView animateWithDuration:0.12 delay:0.03 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
+    [UIView animateWithDuration:0.1 delay:0.3 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
     if (card) {
         card.transform = CGAffineTransformMakeScale(0.6, 0.6);
-        [UIView animateWithDuration:0.12 delay:0.16 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
-        [UIView animateWithDuration:0.6 delay:0.16 usingSpringWithDamping:0.5 initialSpringVelocity:0.0 options:0 animations:^{
+        [UIView animateWithDuration:0.1 delay:0.3 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
+        [UIView animateWithDuration:0.55 delay:0.3 usingSpringWithDamping:0.55 initialSpringVelocity:0.0 options:0 animations:^{
             card.transform = CGAffineTransformIdentity;
         } completion:nil];
         CABasicAnimation *ra = [CABasicAnimation animationWithKeyPath:@"cornerRadius"];
         ra.fromValue = @(MIN(cfr.size.width, cfr.size.height) * 0.5);
         ra.toValue = @(cardRad);
         ra.duration = 0.45;
-        ra.beginTime = CACurrentMediaTime() + 0.16;
+        ra.beginTime = CACurrentMediaTime() + 0.3;
         ra.fillMode = kCAFillModeBackwards;
         ra.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
         [card.layer addAnimation:ra forKey:@"PACCloseRound"];
