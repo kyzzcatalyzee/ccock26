@@ -205,9 +205,6 @@ BOOL gPagerScrubbing = NO;
         child.layer.cornerCurve = kCACornerCurveContinuous;
         child.layer.masksToBounds = YES;
     }
-    UIView *backing = view.subviews.firstObject;
-    NSArray *filters = PACCMediaMaterialFilters(view);
-    if (backing && filters.count) { backing.backgroundColor = UIColor.whiteColor; backing.layer.filters = filters; }
 }
 %end
 
@@ -230,7 +227,6 @@ BOOL gPagerScrubbing = NO;
     UIView *artwork = PACCViewIvar(nowPlaying, "_artworkView");
     UIView *transport = PACCViewIvar(nowPlaying, "_transportControlsView");
 
-    NSArray *filters = PACCMediaMaterialFilters(view);
     CGFloat labelHeight = 34.0;
     CGFloat labelY = (artwork && transport ? (CGRectGetMaxY(artwork.frame) + CGRectGetMinY(transport.frame) - labelHeight) * 0.5 : 64.0);
 
@@ -250,24 +246,7 @@ BOOL gPagerScrubbing = NO;
             routing.layer.cornerRadius = side / 2;
             routing.layer.masksToBounds = YES;
 
-            UIView *material = [routing viewWithTag:PACCTagMediaButtonMaterial];
-            if (!material) {
-                material = [UIView new];
-                material.tag = PACCTagMediaButtonMaterial;
-                material.userInteractionEnabled = NO;
-                [routing insertSubview:material atIndex:0];
-            }
-            material.frame = routing.bounds;
-            if (filters.count) {
-                material.backgroundColor = UIColor.whiteColor;
-                material.layer.filters = filters;
-            } else {
-                material.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.16];
-                material.layer.filters = nil;
-            }
-            material.layer.cornerRadius = side / 2;
-            material.layer.masksToBounds = YES;
-
+            [[routing viewWithTag:PACCTagMediaButtonMaterial] removeFromSuperview];
             PACCResizeMediaRoutingGlyph(routing);
         }
 

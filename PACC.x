@@ -234,7 +234,10 @@ UIView *PACCAncestor(UIView *view, NSString *className) {
     return nil;
 }
 
+static BOOL gPACCMediaTileStyle = YES;
+
 NSString *PACCMediaMode(UIView *view) {
+    if (!gPACCMediaTileStyle) return nil;
     UIView *nowPlaying = PACCAncestor(view, @"MRUNowPlayingView");
     if (!nowPlaying || !PACCAncestor(nowPlaying, @"CCUIContentModuleContentContainerView")) return nil;
     @try {
