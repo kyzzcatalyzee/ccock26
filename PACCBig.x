@@ -971,8 +971,7 @@ static BOOL PACBigVPNActive(void) {
     CGFloat mw = MIN(S.width, MAX(cf.size.width * 1.5, 250.0));
     CGRect mf = [self pacMenuFrameForCount:items.count card:card width:mw];
     CGFloat mh = mf.size.height;
-    CGFloat side = MIN(cf.size.width, cf.size.height) * 0.85;
-    CGRect sf = CGRectMake(CGRectGetMidX(cf) - side * 0.5, CGRectGetMidY(cf) - side * 0.5, side, side);
+    CGRect sf = cf;
     CGFloat endRad = MIN(36.0, mh * 0.3);
 
     _dim = [[UIControl alloc] initWithFrame:self.bounds];
@@ -1020,7 +1019,7 @@ static BOOL PACBigVPNActive(void) {
     [self addSubview:menu];
     _menu = menu;
 
-    [UIView animateWithDuration:0.1 animations:^{ card.alpha = 0; }];
+    [UIView animateWithDuration:0.22 delay:0.05 options:0 animations:^{ card.alpha = 0; } completion:nil];
     CGRect over = mf;
     over.origin.y += 7.0;
     over.size.height += 13.0;
@@ -1043,8 +1042,9 @@ static BOOL PACBigVPNActive(void) {
     {
         CGSize s0 = sf.size, s2 = over.size, s3 = mf.size;
         CGSize s1 = CGSizeMake((s0.width + s2.width) * 0.5, (s0.height + s2.height) * 0.5);
-        CGFloat d0 = MIN(s0.width, s0.height), d1 = MIN(s1.width, s1.height);
-        CGPathRef p0 = PACBigBlobPath(s0, d0 * 0.5, d0 * 0.5, d0 * 0.5, d0 * 0.5);
+        CGFloat d1 = MIN(s1.width, s1.height);
+        CGFloat r0 = MAX(1.0, card.layer.cornerRadius);
+        CGPathRef p0 = PACBigBlobPath(s0, r0, r0, r0, r0);
         CGPathRef p1 = PACBigBlobPath(s1, d1 * 0.62, d1 * 0.38, d1 * 0.55, d1 * 0.30);
         CGPathRef p2 = PACBigBlobPath(s2, endRad * 1.5, endRad * 0.8, endRad * 1.3, endRad * 0.9);
         CGPathRef p3 = PACBigBlobPath(s3, endRad, endRad, endRad, endRad);
