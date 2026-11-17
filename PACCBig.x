@@ -595,6 +595,28 @@ static void PACBigAnimateBlur(UIView *v, CGFloat from, CGFloat to, CFTimeInterva
     }
 }
 
+static CGPathRef PACBigBlobPath(CGSize sz, CGFloat tl, CGFloat tr, CGFloat br, CGFloat bl) {
+    CGFloat w = sz.width, h = sz.height;
+    CGFloat f = 1.0;
+    if (tl + tr > 0.01) f = MIN(f, w / (tl + tr));
+    if (bl + br > 0.01) f = MIN(f, w / (bl + br));
+    if (tl + bl > 0.01) f = MIN(f, h / (tl + bl));
+    if (tr + br > 0.01) f = MIN(f, h / (tr + br));
+    tl *= f; tr *= f; br *= f; bl *= f;
+    UIBezierPath *p = [UIBezierPath bezierPath];
+    [p moveToPoint:CGPointMake(tl, 0)];
+    [p addLineToPoint:CGPointMake(w - tr, 0)];
+    [p addArcWithCenter:CGPointMake(w - tr, tr) radius:tr startAngle:-M_PI_2 endAngle:0 clockwise:YES];
+    [p addLineToPoint:CGPointMake(w, h - br)];
+    [p addArcWithCenter:CGPointMake(w - br, h - br) radius:br startAngle:0 endAngle:M_PI_2 clockwise:YES];
+    [p addLineToPoint:CGPointMake(bl, h)];
+    [p addArcWithCenter:CGPointMake(bl, h - bl) radius:bl startAngle:M_PI_2 endAngle:M_PI clockwise:YES];
+    [p addLineToPoint:CGPointMake(0, tl)];
+    [p addArcWithCenter:CGPointMake(tl, tl) radius:tl startAngle:M_PI endAngle:M_PI * 1.5 clockwise:YES];
+    [p closePath];
+    return CGPathCreateCopy(p.CGPath);
+}
+
 @interface PACBigOutsideTap : UIGestureRecognizer <UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *safeView;
 @property (nonatomic, copy) void (^onTap)(void);
@@ -951,7 +973,6 @@ static BOOL PACBigVPNActive(void) {
     CGFloat mh = mf.size.height;
     CGFloat side = MIN(cf.size.width, cf.size.height) * 0.85;
     CGRect sf = CGRectMake(CGRectGetMidX(cf) - side * 0.5, CGRectGetMidY(cf) - side * 0.5, side, side);
-    CGFloat startRad = side * 0.5;
     CGFloat endRad = MIN(36.0, mh * 0.3);
 
     _dim = [[UIControl alloc] initWithFrame:self.bounds];
@@ -969,7 +990,7 @@ static BOOL PACBigVPNActive(void) {
     UIView *menu = [[UIView alloc] initWithFrame:sf];
     _outsideTap.safeView = menu;
     menu.clipsToBounds = YES;
-    menu.layer.cornerRadius = startRad;
+    menu.layer.cornerRadius = 0.0;
     menu.layer.cornerCurve = kCACornerCurveContinuous;
     UIView *mat = PACCModuleMaterial();
     mat.userInteractionEnabled = NO;
@@ -984,10 +1005,17 @@ static BOOL PACBigVPNActive(void) {
     frost.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     frost.backgroundColor = PACBigDyn([UIColor colorWithWhite:0.0 alpha:0.32], [UIColor colorWithWhite:1.0 alpha:0.38]);
     frost.userInteractionEnabled = NO;
+    frost.alpha = 0;
     [menu addSubview:frost];
 
     UIView *content = [self pacContentForItems:items width:mw];
     content.alpha = 0;
+    {
+        CGFloat k = 1.32;
+        CGSize cs = content.bounds.size;
+        content.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(k, k),
+                                                    CGAffineTransformMakeTranslation(-(k - 1.0) * cs.width * 0.5, -(k - 1.0) * cs.height * 0.5));
+    }
     [menu addSubview:content];
     [self addSubview:menu];
     _menu = menu;
@@ -1003,15 +1031,43 @@ static BOOL PACBigVPNActive(void) {
                               animations:^{
         [UIView addKeyframeWithRelativeStartTime:0.0 relativeDuration:0.5 animations:^{
             menu.frame = over;
-            menu.layer.cornerRadius = endRad;
         }];
         [UIView addKeyframeWithRelativeStartTime:0.5 relativeDuration:0.5 animations:^{
             menu.frame = mf;
         }];
-    } completion:^(BOOL finished) { menu.frame = mf; }];
-    [UIView animateWithDuration:0.22 delay:0.2 options:UIViewAnimationOptionAllowUserInteraction
+    } completion:^(BOOL finished) {
+        menu.frame = mf;
+        menu.layer.mask = nil;
+        menu.layer.cornerRadius = endRad;
+    }];
+    {
+        CGSize s0 = sf.size, s2 = over.size, s3 = mf.size;
+        CGSize s1 = CGSizeMake((s0.width + s2.width) * 0.5, (s0.height + s2.height) * 0.5);
+        CGFloat d0 = MIN(s0.width, s0.height), d1 = MIN(s1.width, s1.height);
+        CGPathRef p0 = PACBigBlobPath(s0, d0 * 0.5, d0 * 0.5, d0 * 0.5, d0 * 0.5);
+        CGPathRef p1 = PACBigBlobPath(s1, d1 * 0.62, d1 * 0.38, d1 * 0.55, d1 * 0.30);
+        CGPathRef p2 = PACBigBlobPath(s2, endRad * 1.5, endRad * 0.8, endRad * 1.3, endRad * 0.9);
+        CGPathRef p3 = PACBigBlobPath(s3, endRad, endRad, endRad, endRad);
+        CAShapeLayer *mk = [CAShapeLayer layer];
+        mk.frame = CGRectMake(0, 0, MAX(s2.width, s3.width) + 8.0, MAX(s2.height, s3.height) + 8.0);
+        mk.path = p3;
+        menu.layer.mask = mk;
+        CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
+        ka.values = @[(__bridge id)p0, (__bridge id)p1, (__bridge id)p2, (__bridge id)p3];
+        ka.keyTimes = @[@0.0, @0.25, @0.5, @1.0];
+        ka.duration = 0.62;
+        ka.calculationMode = kCAAnimationCubic;
+        [mk addAnimation:ka forKey:@"pacBlob"];
+        CGPathRelease(p0); CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3);
+    }
+    [UIView animateWithDuration:0.3 delay:0.0 options:UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ frost.alpha = 1; } completion:nil];
+    [UIView animateWithDuration:0.16 delay:0.04 options:UIViewAnimationOptionAllowUserInteraction
                      animations:^{ content.alpha = 1; } completion:nil];
-    PACBigAnimateBlur(content, 3.0, 0.0, 0.3, 0.2, YES);
+    [UIView animateWithDuration:0.5 delay:0.0 usingSpringWithDamping:0.9 initialSpringVelocity:0.0
+                        options:UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ content.transform = CGAffineTransformIdentity; } completion:nil];
+    PACBigAnimateBlur(content, 7.0, 0.0, 0.42, 0.0, YES);
 }
 - (void)menuRowDown:(UIControl *)row { row.backgroundColor = PACBigDyn([UIColor colorWithWhite:1 alpha:0.14], [UIColor colorWithWhite:0 alpha:0.08]); }
 - (void)menuRowUp:(UIControl *)row { row.backgroundColor = UIColor.clearColor; }
