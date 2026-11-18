@@ -384,7 +384,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
         return;
     }
     if (_tall) {
-        self.layer.cornerRadius = MIN(36.0, h * 0.3);
+        self.layer.cornerRadius = MIN(30.0, h * 0.24);
         CGFloat d = 38.0;
         _icon.frame = CGRectMake(14.0, 14.0, d, d);
         _icon.layer.cornerRadius = d * 0.5;
@@ -1029,7 +1029,7 @@ static BOOL PACBigVPNActive(void) {
     [menu addSubview:mat];
     if (PACCLIQGlassOn()) {
         mat.hidden = PACBigLGGlass(menu, endRad);
-        PACCLIQSetFixedBlur(menu, 4.0);
+        PACCLIQSetFixedBlur(menu, 7.0);
         PACCLIQSpecularFade(menu, YES, 0.0, 0.0);
     }
     UIView *frost = [[UIView alloc] initWithFrame:menu.bounds];
