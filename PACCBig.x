@@ -1157,17 +1157,26 @@ static BOOL PACBigVPNActive(void) {
         CGPathRef p3 = PACBigBlobPathAt(smr, uo, mr, mr, mr, mr);
         CGPathRef p2 = PACBigBlobPathAt(pull, uo, bw * 0.5, bw * 0.47, bw * 0.5, bw * 0.46);
         CGPathRef p1 = PACBigBlobPathAt(circle, uo, sd * 0.5, sd * 0.5, sd * 0.5, sd * 0.5);
+        CGFloat r0 = MAX(1.0, cardRad);
+        CGPathRef p0 = PACBigBlobPathAt(cfr, uo, r0, r0, r0, r0);
         CAShapeLayer *mk = [CAShapeLayer layer];
         mk.frame = CGRectMake(0, 0, U.size.width, U.size.height);
-        mk.path = p1;
+        mk.path = p0;
         menu.layer.mask = mk;
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
-        ka.values = @[(__bridge id)p4, (__bridge id)p3, (__bridge id)p2, (__bridge id)p1, (__bridge id)p1];
+        ka.values = @[(__bridge id)p4, (__bridge id)p3, (__bridge id)p2, (__bridge id)p1, (__bridge id)p0];
         ka.keyTimes = @[@0.0, @0.2, @0.38, @0.86, @1.0];
         ka.duration = 0.38;
         ka.calculationMode = kCAAnimationCubic;
         [mk addAnimation:ka forKey:@"pacBlobClose"];
-        CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3); CGPathRelease(p4);
+        CGPathRelease(p0); CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3); CGPathRelease(p4);
+    }
+    {
+        CGFloat k = 1.25;
+        CGSize cs1 = content.bounds.size;
+        CGAffineTransform grow = CGAffineTransformConcat(CGAffineTransformMakeScale(k, k),
+                                                         CGAffineTransformMakeTranslation(-(k - 1.0) * cs1.width * 0.5, -(k - 1.0) * cs1.height * 0.5));
+        [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{ content.transform = grow; } completion:nil];
     }
     [UIView animateWithDuration:0.1 delay:0.28 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
     if (card) {
@@ -1196,7 +1205,7 @@ static BOOL PACBigVPNActive(void) {
     NSMutableArray *found = [NSMutableArray array];
     PACBigCollect(self.apple, L, 0, found);
 
-    NSArray *order = @[@"air", @"wifi", @"cell", @"bt", @"airdrop", @"hotspot", @"vpn"];
+    NSArray *order = @[@"air", @"wifi", @"airdrop", @"cell", @"bt", @"hotspot", @"vpn"];
     NSMutableDictionary<NSString *, UIView *> *byKey = [NSMutableDictionary dictionary];
     for (UIView *b in found) {
         id t = PACBigKV(b, @"title");
