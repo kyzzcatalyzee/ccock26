@@ -2141,6 +2141,11 @@ static CGRect PACCloneFrame(NSDictionary *d, CGFloat bx, CGFloat by) {
                       (CGFloat)w * kPACStep - kPACgap, (CGFloat)h * kPACStep - kPACgap);
 }
 
+static CGRect PACCloneBigFrame(NSDictionary *d, CGRect f) {
+    if (PACCBigKind(d[@"mid"] ?: @"") == 1 && [d[@"h"] unsignedIntegerValue] >= 6) return CGRectInset(f, 0.0, -kPACConnExtra * 0.5);
+    return f;
+}
+
 void PACCClonesRelayout(UIView *cv) {
     if (!cv || !gPACClones.count || !gPACGridHave || PACIsLandscape()) return;
     for (UIView *cl in cv.subviews) {
@@ -2149,7 +2154,9 @@ void PACCClonesRelayout(UIView *cv) {
         for (NSDictionary *d in gPACClones) {
             if (![d[@"id"] isEqualToString:cid ?: @""]) continue;
             CGRect f = PACCloneFrame(d, gPACGridBX, gPACGridBY);
-            if (!CGRectEqualToRect(cl.frame, f)) cl.frame = f;
+            CGRect fr = PACCloneBigFrame(d, f);
+            if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
+            cl.clipsToBounds = CGRectEqualToRect(fr, f);
             break;
         }
     }
@@ -2245,7 +2252,9 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         }
         cl.hidden = NO;
         CGRect f = PACCloneFrame(d, bx, by);
-        if (!CGRectEqualToRect(cl.frame, f)) cl.frame = f;
+        CGRect fr = PACCloneBigFrame(d, f);
+        if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
+        cl.clipsToBounds = CGRectEqualToRect(fr, f);
         UIView *bg = [cl viewWithTag:kPACCloneBgTag];
         if (bg) { if (!CGRectEqualToRect(bg.frame, cl.bounds)) bg.frame = cl.bounds; [cl sendSubviewToBack:bg]; }
         cl.layer.cornerRadius = kPACCell * 0.5;

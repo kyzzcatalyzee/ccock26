@@ -1097,6 +1097,13 @@ static BOOL PACBigVPNActive(void) {
             content.center = CGPointMake(csz.width * 0.5, csz.height * 0.5);
             menu.clipsToBounds = YES;
             menu.layer.cornerRadius = endRad;
+            [UIView animateWithDuration:0.12 delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction
+                             animations:^{ menu.transform = CGAffineTransformMakeScale(1.03, 1.03); }
+                             completion:^(BOOL f1) {
+                [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.5 initialSpringVelocity:0.0
+                                    options:UIViewAnimationOptionAllowUserInteraction
+                                 animations:^{ menu.transform = CGAffineTransformIdentity; } completion:nil];
+            }];
         }];
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
         ka.values = @[(__bridge id)p0, (__bridge id)p1, (__bridge id)p2, (__bridge id)p3, (__bridge id)p4];
@@ -1145,6 +1152,8 @@ static BOOL PACBigVPNActive(void) {
     PACBigAnimateBlur(content, 0.0, 3.0, 0.1, 0.0, NO);
     PACCLIQSpecularFade(menu, YES, 0.1, 0.0);
     [UIView animateWithDuration:0.08 animations:^{ content.alpha = 0; }];
+    [menu.layer removeAllAnimations];
+    menu.transform = CGAffineTransformIdentity;
     NSValue *nv = objc_getAssociatedObject(menu, kPACMenuMF);
     CGRect mf = nv ? nv.CGRectValue : menu.frame;
     [menu.layer.mask removeAllAnimations];
@@ -1855,7 +1864,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     if (host.subviews.lastObject != bv) [host bringSubviewToFront:bv];
     CGRect wantFrame = host.bounds;
     if (kind == 1 && h >= 6) {
-        wantFrame = CGRectInset(wantFrame, 0.0, -7.5);
+        wantFrame = CGRectInset(wantFrame, 0.0, -kPACConnExtra * 0.5);
         host.clipsToBounds = NO;
     }
     if (!CGRectEqualToRect(bv.frame, wantFrame)) bv.frame = wantFrame;
