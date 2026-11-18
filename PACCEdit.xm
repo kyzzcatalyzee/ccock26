@@ -1124,6 +1124,25 @@ void PACBigFixLGRadius(UIView *g, CGFloat r) {
     }
 }
 
+void PACBigRefreshLG(UIView *root) {
+    if (!root) return;
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:root.subviews];
+    NSUInteger seen = 0;
+    while (q.count && seen++ < 60) {
+        UIView *v = q.firstObject;
+        [q removeObjectAtIndex:0];
+        NSString *cn = NSStringFromClass(v.class);
+        if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"]) {
+            for (NSString *sn in @[@"lgInvalidateFilterContents", @"updateSpecular"])
+                if ([v respondsToSelector:NSSelectorFromString(sn)]) ((void (*)(id, SEL))objc_msgSend)(v, NSSelectorFromString(sn));
+            [v setNeedsLayout];
+            continue;
+        }
+        [q addObjectsFromArray:v.subviews];
+    }
+    [root setNeedsLayout];
+}
+
 static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
     for (UIView *a = g.superview; a; a = a.superview) {

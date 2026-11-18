@@ -1152,7 +1152,7 @@ static BOOL PACBigVPNActive(void) {
     CGFloat dmin = MIN(cfr.size.width, cfr.size.height);
     CGFloat sd = dmin * 0.9;
     CGRect circle = CGRectMake(CGRectGetMidX(cfr) - sd * 0.5, CGRectGetMidY(cfr) - sd * 0.5, sd, sd);
-    CGFloat sk = 0.68;
+    CGFloat sk = 0.9;
     CGRect small = CGRectOffset(CGRectInset(cfr, cfr.size.width * (1.0 - sk) * 0.5, cfr.size.height * (1.0 - sk) * 0.5), 0.0, -28.0);
     CGFloat cardRad = card ? card.layer.cornerRadius : sd * 0.5;
     PACBigAnimateBlur(content, 0.0, 3.0, 0.1, 0.0, NO);
@@ -1186,7 +1186,7 @@ static BOOL PACBigVPNActive(void) {
         CGPathRef p3 = PACBigBlobPathAt(smr, uo, mr, mr, mr, mr);
         CGPathRef p2 = PACBigBlobPathAt(pull, uo, bh * 0.34, bh * 0.5, bh * 0.5, bh * 0.3);
         CGPathRef p1 = PACBigBlobPathAt(circle, uo, sd * 0.44, sd * 0.5, sd * 0.46, sd * 0.5);
-        CGFloat rs = MIN(small.size.width, small.size.height) * 0.4;
+        CGFloat rs = MAX(1.0, cardRad * sk);
         CGPathRef p0 = PACBigBlobPathAt(small, uo, rs, rs, rs, rs);
         CAShapeLayer *mk = [CAShapeLayer layer];
         mk.frame = CGRectMake(0, 0, U.size.width, U.size.height);
@@ -1210,19 +1210,10 @@ static BOOL PACBigVPNActive(void) {
     [UIView animateWithDuration:0.05 delay:0.22 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
     if (card) {
         card.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(sk, sk), CGAffineTransformMakeTranslation(0.0, -28.0));
-        card.layer.cornerRadius = dmin * 0.4;
         [UIView animateWithDuration:0.05 delay:0.22 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
         [UIView animateWithDuration:0.3 delay:0.25 options:UIViewAnimationOptionCurveEaseOut animations:^{
             card.transform = CGAffineTransformIdentity;
-        } completion:nil];
-        CABasicAnimation *ra = [CABasicAnimation animationWithKeyPath:@"cornerRadius"];
-        ra.fromValue = @(dmin * 0.4);
-        ra.toValue = @(cardRad);
-        ra.duration = 0.3;
-        ra.beginTime = CACurrentMediaTime() + 0.25;
-        ra.fillMode = kCAFillModeBackwards;
-        ra.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
-        [card.layer addAnimation:ra forKey:@"PACCloseRound"];
+        } completion:^(BOOL f) { PACBigRefreshLG(card); }];
     }
 }
 - (void)refresh {
