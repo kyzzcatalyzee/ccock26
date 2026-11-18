@@ -367,14 +367,19 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
     if (PACCLIQGlassOn()) _material.hidden = PACBigLGGlass(self, self.layer.cornerRadius);
     else _material.hidden = NO;
     {
-        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:self.subviews];
-        NSUInteger seen = 0;
-        while (q.count && seen++ < 40) {
-            UIView *v = q.firstObject;
-            [q removeObjectAtIndex:0];
-            NSString *cn = NSStringFromClass(v.class);
-            if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"]) { PACBigFixLGRadius(v, self.layer.cornerRadius); continue; }
-            [q addObjectsFromArray:v.subviews];
+        static const char kLGSig = 0;
+        NSString *sig = [NSString stringWithFormat:@"%.1f,%.1f,%.1f", self.bounds.size.width, self.bounds.size.height, self.layer.cornerRadius];
+        if (![sig isEqualToString:objc_getAssociatedObject(self, &kLGSig)]) {
+            objc_setAssociatedObject(self, &kLGSig, sig, OBJC_ASSOCIATION_COPY_NONATOMIC);
+            NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:self.subviews];
+            NSUInteger seen = 0;
+            while (q.count && seen++ < 40) {
+                UIView *v = q.firstObject;
+                [q removeObjectAtIndex:0];
+                NSString *cn = NSStringFromClass(v.class);
+                if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"]) { PACBigFixLGRadius(v, self.layer.cornerRadius); continue; }
+                [q addObjectsFromArray:v.subviews];
+            }
         }
     }
 }
@@ -1153,7 +1158,7 @@ static BOOL PACBigVPNActive(void) {
     CGFloat sd = dmin * 0.9;
     CGRect circle = CGRectMake(CGRectGetMidX(cfr) - sd * 0.5, CGRectGetMidY(cfr) - sd * 0.5, sd, sd);
     CGFloat sk = 0.9;
-    CGRect small = CGRectOffset(CGRectInset(cfr, cfr.size.width * (1.0 - sk) * 0.5, cfr.size.height * (1.0 - sk) * 0.5), 0.0, -28.0);
+    CGRect small = CGRectOffset(CGRectInset(cfr, cfr.size.width * (1.0 - sk) * 0.5, cfr.size.height * (1.0 - sk) * 0.5), 0.0, -12.0);
     CGFloat cardRad = card ? card.layer.cornerRadius : sd * 0.5;
     PACBigAnimateBlur(content, 0.0, 3.0, 0.1, 0.0, NO);
     PACCLIQSpecularFade(menu, YES, 0.1, 0.0);
@@ -1209,7 +1214,7 @@ static BOOL PACBigVPNActive(void) {
     }
     [UIView animateWithDuration:0.05 delay:0.22 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
     if (card) {
-        card.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(sk, sk), CGAffineTransformMakeTranslation(0.0, -28.0));
+        card.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(sk, sk), CGAffineTransformMakeTranslation(0.0, -12.0));
         [UIView animateWithDuration:0.05 delay:0.22 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
         [UIView animateWithDuration:0.3 delay:0.25 options:UIViewAnimationOptionCurveEaseOut animations:^{
             card.transform = CGAffineTransformIdentity;

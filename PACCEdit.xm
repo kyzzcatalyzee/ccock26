@@ -1120,7 +1120,6 @@ void PACBigFixLGRadius(UIView *g, CGFloat r) {
     if (changed) {
         g.layer.cornerCurve = kCACornerCurveContinuous;
         if ([g respondsToSelector:NSSelectorFromString(@"updateSpecular")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"updateSpecular"));
-        if ([g respondsToSelector:NSSelectorFromString(@"applyFilters")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"applyFilters"));
     }
 }
 
@@ -1133,9 +1132,7 @@ void PACBigRefreshLG(UIView *root) {
         [q removeObjectAtIndex:0];
         NSString *cn = NSStringFromClass(v.class);
         if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"]) {
-            for (NSString *sn in @[@"lgInvalidateFilterContents", @"updateSpecular"])
-                if ([v respondsToSelector:NSSelectorFromString(sn)]) ((void (*)(id, SEL))objc_msgSend)(v, NSSelectorFromString(sn));
-            [v setNeedsLayout];
+            if ([v respondsToSelector:NSSelectorFromString(@"updateSpecular")]) ((void (*)(id, SEL))objc_msgSend)(v, NSSelectorFromString(@"updateSpecular"));
             continue;
         }
         [q addObjectsFromArray:v.subviews];
