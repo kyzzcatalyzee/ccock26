@@ -640,11 +640,6 @@ static CGPathRef PACBigBlobPathAt(CGRect r, CGPoint origin, CGFloat tl, CGFloat 
     return moved;
 }
 
-static CGRect PACBigMidRect(CGRect a, CGRect b) {
-    return CGRectMake((a.origin.x + b.origin.x) * 0.5, (a.origin.y + b.origin.y) * 0.5,
-                      (a.size.width + b.size.width) * 0.5, (a.size.height + b.size.height) * 0.5);
-}
-
 @interface PACBigOutsideTap : UIGestureRecognizer <UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *safeView;
 @property (nonatomic, copy) void (^onTap)(void);
@@ -1075,7 +1070,8 @@ static BOOL PACBigVPNActive(void) {
 
     card.alpha = 0;
     {
-        CGRect smr = PACBigMidRect(pull, mf);
+        CGFloat wideW = MAX(mf.size.width * 0.9, bw);
+        CGRect smr = CGRectMake(CGRectGetMidX(mf) - wideW * 0.5, pull.origin.y, wideW, bh * 1.02);
         CGFloat mr = MIN(smr.size.width, smr.size.height) * 0.4;
         CGFloat r0 = MAX(1.0, card.layer.cornerRadius);
         CGPathRef p0 = PACBigBlobPathAt(cf, uo, r0, r0, r0, r0);
@@ -1114,7 +1110,7 @@ static BOOL PACBigVPNActive(void) {
         }];
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
         ka.values = @[(__bridge id)p0, (__bridge id)p1, (__bridge id)p2, (__bridge id)p3, (__bridge id)p4];
-        ka.keyTimes = @[@0.0, @0.14, @0.62, @0.8, @1.0];
+        ka.keyTimes = @[@0.0, @0.1, @0.38, @0.64, @1.0];
         ka.duration = 0.25;
         ka.calculationMode = kCAAnimationCubic;
         [mk addAnimation:ka forKey:@"pacBlob"];
@@ -1180,7 +1176,8 @@ static BOOL PACBigVPNActive(void) {
     menu.frame = U;
     content.center = CGPointMake(mf.origin.x - uo.x + csz.width * 0.5, mf.origin.y - uo.y + csz.height * 0.5);
     {
-        CGRect smr = PACBigMidRect(pull, mf);
+        CGFloat wideW = MAX(mf.size.width * 0.9, bw);
+        CGRect smr = CGRectMake(CGRectGetMidX(mf) - wideW * 0.5, pull.origin.y, wideW, bh * 1.02);
         CGFloat mr = MIN(smr.size.width, smr.size.height) * 0.4;
         CGPathRef p4 = PACBigBlobPathAt(mf, uo, endRad, endRad, endRad, endRad);
         CGPathRef p3 = PACBigBlobPathAt(smr, uo, mr, mr, mr, mr);
@@ -1194,7 +1191,7 @@ static BOOL PACBigVPNActive(void) {
         menu.layer.mask = mk;
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
         ka.values = @[(__bridge id)p4, (__bridge id)p3, (__bridge id)p2, (__bridge id)p1, (__bridge id)p0];
-        ka.keyTimes = @[@0.0, @0.2, @0.38, @0.86, @1.0];
+        ka.keyTimes = @[@0.0, @0.36, @0.62, @0.9, @1.0];
         ka.duration = 0.25;
         ka.calculationMode = kCAAnimationCubic;
         [mk addAnimation:ka forKey:@"pacBlobClose"];
@@ -1209,15 +1206,15 @@ static BOOL PACBigVPNActive(void) {
     }
     [UIView animateWithDuration:0.1 delay:0.18 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
     if (card) {
-        card.transform = CGAffineTransformMakeScale(0.6, 0.6);
+        card.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(0.55, 0.55), CGAffineTransformMakeTranslation(0.0, -14.0));
         [UIView animateWithDuration:0.1 delay:0.18 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
-        [UIView animateWithDuration:0.55 delay:0.18 usingSpringWithDamping:0.55 initialSpringVelocity:0.0 options:0 animations:^{
+        [UIView animateWithDuration:0.3 delay:0.18 options:UIViewAnimationOptionCurveEaseOut animations:^{
             card.transform = CGAffineTransformIdentity;
         } completion:nil];
         CABasicAnimation *ra = [CABasicAnimation animationWithKeyPath:@"cornerRadius"];
         ra.fromValue = @(MIN(cfr.size.width, cfr.size.height) * 0.5);
         ra.toValue = @(cardRad);
-        ra.duration = 0.45;
+        ra.duration = 0.3;
         ra.beginTime = CACurrentMediaTime() + 0.18;
         ra.fillMode = kCAFillModeBackwards;
         ra.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
