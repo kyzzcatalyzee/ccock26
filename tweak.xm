@@ -447,13 +447,18 @@ BOOL gPagerScrubbing = NO;
         if ([me respondsToSelector:es]) exp = ((BOOL (*)(id, SEL))objc_msgSend)(me, es);
         UIView *cv = content.view;
         UIView *wrap = cv.superview;
-        const CGFloat kWant = 526.0;
+        const CGFloat kWant = 600.0;
+        const CGFloat kWantW = 306.0;
         if (gEnabled && exp && wrap && wrap != me.view && CGAffineTransformIsIdentity(wrap.transform) &&
             wrap.bounds.size.height > 300.0 && wrap.bounds.size.height < kWant - 0.5) {
             CGRect f = wrap.frame;
             CGFloat dh = kWant - f.size.height;
             f.origin.y -= dh * 0.5;
             f.size.height = kWant;
+            if (f.size.width > kWantW) {
+                f.origin.x += (f.size.width - kWantW) * 0.5;
+                f.size.width = kWantW;
+            }
             CGFloat maxH = me.view.bounds.size.height;
             if (f.origin.y < 10.0) f.origin.y = 10.0;
             if (CGRectGetMaxY(f) > maxH - 10.0) f.origin.y = maxH - 10.0 - f.size.height;
@@ -475,9 +480,9 @@ BOOL gPagerScrubbing = NO;
     PACCSizeLog([NSString stringWithFormat:@"hook height called: orig %.1f enabled %d", orig, (int)gEnabled]);
     if (!gEnabled) return orig;
     static NSString *lastNote;
-    NSString *note = [NSString stringWithFormat:@"expanded height: orig %.1f -> 526, screen %.1f", orig, [UIScreen mainScreen].bounds.size.height];
+    NSString *note = [NSString stringWithFormat:@"expanded height: orig %.1f -> 600, screen %.1f", orig, [UIScreen mainScreen].bounds.size.height];
     if (![note isEqualToString:lastNote]) { lastNote = note; PACCSizeLog(note); }
-    return 526.0;
+    return 600.0;
 }
 - (BOOL)providesOwnPlatter {
     if (gEnabled) {
