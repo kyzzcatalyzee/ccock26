@@ -1021,8 +1021,8 @@ static BOOL PACBigVPNActive(void) {
     CGFloat cside = MIN(cf.size.width, cf.size.height) * 0.85;
     CGRect cr = CGRectMake(CGRectGetMidX(cf) - cside * 0.5, CGRectGetMidY(cf) - cside * 0.5, cside, cside);
     CGFloat bw = cside * 1.02;
-    CGFloat bh = MIN(over.size.height, cside * 1.25);
-    CGFloat drop = MIN(34.0, MAX(0.0, over.size.height - bh) * 0.4);
+    CGFloat bh = cside * 1.25;
+    CGFloat drop = 34.0;
     CGRect pull = CGRectMake(CGRectGetMidX(cf) - bw * 0.5, over.origin.y + drop, bw, bh);
     CGRect U = CGRectInset(CGRectUnion(CGRectUnion(cf, pull), CGRectUnion(mf, over)), -6.0, -6.0);
     CGPoint uo = U.origin;
@@ -1098,11 +1098,17 @@ static BOOL PACBigVPNActive(void) {
             menu.clipsToBounds = YES;
             menu.layer.cornerRadius = endRad;
             [UIView animateWithDuration:0.12 delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction
-                             animations:^{ menu.transform = CGAffineTransformMakeScale(1.03, 1.03); }
+                             animations:^{
+                                 menu.transform = CGAffineTransformMakeScale(1.03, 1.03);
+                                 content.transform = CGAffineTransformMakeScale(1.0 / 1.03, 1.0 / 1.03);
+                             }
                              completion:^(BOOL f1) {
                 [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.5 initialSpringVelocity:0.0
                                     options:UIViewAnimationOptionAllowUserInteraction
-                                 animations:^{ menu.transform = CGAffineTransformIdentity; } completion:nil];
+                                 animations:^{
+                                     menu.transform = CGAffineTransformIdentity;
+                                     content.transform = CGAffineTransformIdentity;
+                                 } completion:nil];
             }];
         }];
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
@@ -1154,12 +1160,13 @@ static BOOL PACBigVPNActive(void) {
     [UIView animateWithDuration:0.08 animations:^{ content.alpha = 0; }];
     [menu.layer removeAllAnimations];
     menu.transform = CGAffineTransformIdentity;
+    content.transform = CGAffineTransformIdentity;
     NSValue *nv = objc_getAssociatedObject(menu, kPACMenuMF);
     CGRect mf = nv ? nv.CGRectValue : menu.frame;
     [menu.layer.mask removeAllAnimations];
     CGFloat bw = sd * 1.02;
-    CGFloat bh = MIN(mf.size.height, sd * 1.25);
-    CGFloat drop = MIN(34.0, MAX(0.0, mf.size.height - bh) * 0.4);
+    CGFloat bh = sd * 1.25;
+    CGFloat drop = 34.0;
     CGRect pull = CGRectMake(CGRectGetMidX(cfr) - bw * 0.5, mf.origin.y + drop, bw, bh);
     CGFloat endRad = menu.layer.cornerRadius;
     if (endRad < 1.0) endRad = MIN(36.0, mf.size.height * 0.3);
