@@ -1172,7 +1172,8 @@ static BOOL PACBigVPNActive(void) {
     menu.frame = U;
     content.center = CGPointMake(mf.origin.x - uo.x + csz.width * 0.5, mf.origin.y - uo.y + csz.height * 0.5);
     {
-        CGRect smr = PACBigMidRect(mf, blob);
+        CGRect smr = CGRectMake((mf.origin.x + blob.origin.x) * 0.5, (mf.origin.y + blob.origin.y) * 0.5,
+                                (mf.size.width + blob.size.width) * 0.5, (mf.size.height + blob.size.height) * 0.5);
         CGFloat mr = MIN(smr.size.width, smr.size.height) * 0.4;
         CGFloat bs = MIN(blob.size.width, blob.size.height);
         CGFloat r0 = MAX(1.0, cardRad);
