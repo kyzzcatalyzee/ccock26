@@ -208,6 +208,7 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     int _appliedMode;
     BOOL _appliedIOS27;
     CGFloat _appliedOpacity, _appliedFresnel;
+    BOOL _specHidden;
 }
 @property (nonatomic, assign) CGFloat glassCornerRadius;
 @property (nonatomic, assign) CGFloat blurOverride;
@@ -219,6 +220,7 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
 @interface PACCLIQGlassView ()
 - (BOOL)filterIsLive;
 - (void)updateSpecularLayers;
+- (void)setSpecularHidden:(BOOL)hidden fadeDuration:(CFTimeInterval)dur delay:(CFTimeInterval)delay;
 @end
 
 @implementation PACCLIQGlassView
@@ -253,6 +255,55 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     self.layer.cornerRadius = self.glassCornerRadius;
     [self applyGlassFilter];
     [self updateSpecularLayers];
+    [self pacApplySpecOpacity];
+}
+
+- (NSArray<CALayer *> *)pacSpecLayers {
+    NSMutableArray *a = [NSMutableArray array];
+    if (_specLayer) [a addObject:_specLayer];
+    if (_darkLayer) [a addObject:_darkLayer];
+    if (_fresnelLayer) [a addObject:_fresnelLayer];
+    if (_edgeLayer) [a addObject:_edgeLayer];
+    return a;
+}
+
+- (void)pacApplySpecOpacity {
+    float o = _specHidden ? 0.0f : 1.0f;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (CALayer *l in [self pacSpecLayers]) l.opacity = o;
+    [CATransaction commit];
+}
+
+- (void)setSpecularHidden:(BOOL)hidden fadeDuration:(CFTimeInterval)dur delay:(CFTimeInterval)delay {
+    if (dur <= 0.0 && delay <= 0.0) {
+        _specHidden = hidden;
+        [self updateSpecularLayers];
+        [self pacApplySpecOpacity];
+        return;
+    }
+    __weak PACCLIQGlassView *wself = self;
+    void (^go)(void) = ^{
+        PACCLIQGlassView *g = wself;
+        if (!g) return;
+        g->_specHidden = hidden;
+        float from = hidden ? 1.0f : 0.0f;
+        float to = hidden ? 0.0f : 1.0f;
+        for (CALayer *l in [g pacSpecLayers]) {
+            [CATransaction begin];
+            [CATransaction setDisableActions:YES];
+            l.opacity = to;
+            [CATransaction commit];
+            CABasicAnimation *a = [CABasicAnimation animationWithKeyPath:@"opacity"];
+            a.fromValue = @(from);
+            a.toValue = @(to);
+            a.duration = dur;
+            a.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+            [l addAnimation:a forKey:@"pacSpecFade"];
+        }
+    };
+    if (delay > 0.0) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), go);
+    else go();
 }
 
 - (NSString *)wantedType {
@@ -551,6 +602,12 @@ void PACCLIQSetFixedBlur(UIView *host, CGFloat blur) {
     if (fabs(glass.blurOverride - blur) < 0.001) return;
     glass.blurOverride = blur;
     [glass forceReapply];
+}
+
+void PACCLIQSpecularFade(UIView *host, BOOL hidden, CFTimeInterval dur, CFTimeInterval delay) {
+    PACCLIQGlassView *glass = (PACCLIQGlassView *)[host viewWithTag:kPACCLIQGlassTag];
+    if (![glass isKindOfClass:PACCLIQGlassView.class]) return;
+    [glass setSpecularHidden:hidden fadeDuration:dur delay:delay];
 }
 
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius) {
