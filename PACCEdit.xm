@@ -1106,8 +1106,31 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
 
 
 static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
+
+void PACBigFixLGRadius(UIView *g, CGFloat r) {
+    BOOL changed = fabs(g.layer.cornerRadius - r) > 0.5;
+    if (changed) g.layer.cornerRadius = r;
+    @try {
+        CGRect sr = [[g valueForKey:@"lgShapeRect"] CGRectValue];
+        if (!CGRectIsEmpty(sr) && fabs([[g valueForKey:@"lgShapeCornerRadius"] doubleValue] - r) > 0.5) {
+            [g setValue:@(r) forKey:@"lgShapeCornerRadius"];
+            changed = YES;
+        }
+    } @catch (__unused NSException *ex) {}
+    if (changed) {
+        g.layer.cornerCurve = kCACornerCurveContinuous;
+        if ([g respondsToSelector:NSSelectorFromString(@"updateSpecular")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"updateSpecular"));
+        if ([g respondsToSelector:NSSelectorFromString(@"applyFilters")]) ((void (*)(id, SEL))objc_msgSend)(g, NSSelectorFromString(@"applyFilters"));
+    }
+}
+
 static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
+    for (UIView *a = g.superview; a; a = a.superview) {
+        NSString *an = NSStringFromClass(a.class);
+        if ([an isEqualToString:@"PACBigCard"]) { PACBigFixLGRadius(g, a.layer.cornerRadius); return; }
+        if ([an isEqualToString:@"CCUIContentModuleContainerView"]) break;
+    }
     UIView *module = nil;
     NSMutableString *chain = [NSMutableString string];
     for (UIView *a = g.superview; a; a = a.superview) {

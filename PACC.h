@@ -105,6 +105,7 @@ BOOL PACCLIQIsActive(void);
 BOOL PACCLIQGlassOn(void);
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius);
 void PACCLIQSetFixedBlur(UIView *host, CGFloat blur);
+void PACBigFixLGRadius(UIView *g, CGFloat r);
 void PACCLIQSpecularFade(UIView *host, BOOL hidden, CFTimeInterval dur, CFTimeInterval delay);
 BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 BOOL PACCLIQStyleDarkEdge(CAGradientLayer *g);

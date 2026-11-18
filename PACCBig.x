@@ -366,6 +366,17 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
     [self pacLayoutCore];
     if (PACCLIQGlassOn()) _material.hidden = PACBigLGGlass(self, self.layer.cornerRadius);
     else _material.hidden = NO;
+    {
+        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:self.subviews];
+        NSUInteger seen = 0;
+        while (q.count && seen++ < 40) {
+            UIView *v = q.firstObject;
+            [q removeObjectAtIndex:0];
+            NSString *cn = NSStringFromClass(v.class);
+            if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"]) { PACBigFixLGRadius(v, self.layer.cornerRadius); continue; }
+            [q addObjectsFromArray:v.subviews];
+        }
+    }
 }
 - (void)pacLayoutCore {
     [super layoutSubviews];
@@ -1842,7 +1853,12 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     }
     PACBigMask(host, bv, YES);
     if (host.subviews.lastObject != bv) [host bringSubviewToFront:bv];
-    if (!CGRectEqualToRect(bv.frame, host.bounds)) bv.frame = host.bounds;
+    CGRect wantFrame = host.bounds;
+    if (kind == 1 && h >= 6) {
+        wantFrame = CGRectInset(wantFrame, 0.0, -7.5);
+        host.clipsToBounds = NO;
+    }
+    if (!CGRectEqualToRect(bv.frame, wantFrame)) bv.frame = wantFrame;
     bv.userInteractionEnabled = !gEditModeActive;
 
     if (kind == 1) {
