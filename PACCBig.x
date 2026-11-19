@@ -1157,8 +1157,8 @@ static BOOL PACBigVPNActive(void) {
     CGFloat dmin = MIN(cfr.size.width, cfr.size.height);
     CGFloat sd = dmin * 0.9;
     CGRect circle = CGRectMake(CGRectGetMidX(cfr) - sd * 0.5, CGRectGetMidY(cfr) - sd * 0.5, sd, sd);
-    CGFloat sk = 0.9;
-    CGRect small = CGRectOffset(CGRectInset(cfr, cfr.size.width * (1.0 - sk) * 0.5, cfr.size.height * (1.0 - sk) * 0.5), 0.0, -12.0);
+    CGFloat sk = 0.95;
+    CGRect small = CGRectOffset(CGRectInset(cfr, cfr.size.width * (1.0 - sk) * 0.5, cfr.size.height * (1.0 - sk) * 0.5), 0.0, -6.0);
     CGFloat cardRad = card ? card.layer.cornerRadius : sd * 0.5;
     PACBigAnimateBlur(content, 0.0, 3.0, 0.1, 0.0, NO);
     PACCLIQSpecularFade(menu, YES, 0.1, 0.0);
@@ -1199,8 +1199,8 @@ static BOOL PACBigVPNActive(void) {
         menu.layer.mask = mk;
         CAKeyframeAnimation *ka = [CAKeyframeAnimation animationWithKeyPath:@"path"];
         ka.values = @[(__bridge id)p4, (__bridge id)p3, (__bridge id)p2, (__bridge id)p1, (__bridge id)p0];
-        ka.keyTimes = @[@0.0, @0.36, @0.62, @0.82, @1.0];
-        ka.duration = 0.25;
+        ka.keyTimes = @[@0.0, @0.3, @0.5, @0.66, @1.0];
+        ka.duration = 0.32;
         ka.calculationMode = kCAAnimationCubic;
         [mk addAnimation:ka forKey:@"pacBlobClose"];
         CGPathRelease(p0); CGPathRelease(p1); CGPathRelease(p2); CGPathRelease(p3); CGPathRelease(p4);
@@ -1212,13 +1212,17 @@ static BOOL PACBigVPNActive(void) {
                                                          CGAffineTransformMakeTranslation(-(k - 1.0) * cs1.width * 0.5, -(k - 1.0) * cs1.height * 0.5));
         [UIView animateWithDuration:0.2 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{ content.transform = grow; } completion:nil];
     }
-    [UIView animateWithDuration:0.05 delay:0.22 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
+    [UIView animateWithDuration:0.05 delay:0.3 options:0 animations:^{ menu.alpha = 0; } completion:^(BOOL f) { [menu removeFromSuperview]; }];
     if (card) {
-        card.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(sk, sk), CGAffineTransformMakeTranslation(0.0, -12.0));
-        [UIView animateWithDuration:0.05 delay:0.22 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
-        [UIView animateWithDuration:0.3 delay:0.25 options:UIViewAnimationOptionCurveEaseOut animations:^{
-            card.transform = CGAffineTransformIdentity;
-        } completion:^(BOOL f) { PACBigRefreshLG(card); }];
+        card.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(sk, sk), CGAffineTransformMakeTranslation(0.0, -6.0));
+        [UIView animateWithDuration:0.05 delay:0.3 options:0 animations:^{ card.alpha = 1.0; } completion:nil];
+        [UIView animateWithDuration:0.14 delay:0.32 options:UIViewAnimationOptionCurveEaseOut animations:^{
+            card.transform = CGAffineTransformMakeScale(1.035, 1.035);
+        } completion:^(BOOL f1) {
+            [UIView animateWithDuration:0.45 delay:0 usingSpringWithDamping:0.5 initialSpringVelocity:0.0 options:0 animations:^{
+                card.transform = CGAffineTransformIdentity;
+            } completion:^(BOOL f2) { PACBigRefreshLG(card); }];
+        }];
     }
 }
 - (void)refresh {
