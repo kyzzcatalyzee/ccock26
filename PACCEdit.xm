@@ -2538,9 +2538,36 @@ static void PACPositionPageAddButton(UIViewController *ov) {
 static NSTimer *gPACPageWatch = nil;
 static NSInteger gPACLastPage = 0;
 
+static __weak UIView *gPACMaskedCV = nil;
+
 static void PACStopPageWatch(void) {
     [gPACPageWatch invalidate];
     gPACPageWatch = nil;
+    if (gPACMaskedCV) {
+        gPACMaskedCV.layer.mask = nil;
+        gPACMaskedCV = nil;
+    }
+}
+
+static void PACClipEditViewport(UIViewController *ov) {
+    UIViewController *col = ModuleCollection(ov);
+    UIView *cv = col.view;
+    if (!cv || !gPACGridHave || PACIsLandscape() || CGRectIsEmpty(cv.bounds)) return;
+    CGFloat top = gPACGridBY - 34.0;
+    CGRect want = CGRectMake(-2000.0, top, 4000.0 + cv.bounds.size.width, 4000.0);
+    CALayer *mk = cv.layer.mask;
+    if (!mk) {
+        mk = [CALayer layer];
+        mk.backgroundColor = UIColor.blackColor.CGColor;
+        cv.layer.mask = mk;
+    }
+    if (!CGRectEqualToRect(mk.frame, want)) {
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        mk.frame = want;
+        [CATransaction commit];
+    }
+    gPACMaskedCV = cv;
 }
 
 #pragma mark Picker
@@ -3110,6 +3137,7 @@ static void PACAnimateChromeRefresh(UIViewController *ov) {
 
 static void PACSyncChromeToPage(UIViewController *ov) {
     if (!ov || !ov.view || !gEditModeActive || gPACPendingResizeID) return;
+    PACClipEditViewport(ov);
     for (UIViewController *m in ModuleControllers(ov)) {
         NSString *mid = PACMid(m);
         UIView *v = m.view;
