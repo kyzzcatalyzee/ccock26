@@ -455,9 +455,10 @@ BOOL gPagerScrubbing = NO;
             CGFloat dh = kWant - f.size.height;
             f.origin.y -= dh * 0.5;
             f.size.height = kWant;
-            if (f.size.width > kWantW) {
-                f.origin.x += (f.size.width - kWantW) * 0.5;
-                f.size.width = kWantW;
+            {
+                CGFloat nw = MIN(f.size.width, kWantW) - 10.0;
+                f.origin.x += (f.size.width - nw) * 0.5;
+                f.size.width = nw;
             }
             CGFloat maxH = me.view.bounds.size.height;
             if (f.origin.y < 10.0) f.origin.y = 10.0;

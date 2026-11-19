@@ -436,7 +436,7 @@ static CGFloat PACCLIQNumPref(NSString *key, CGFloat fallback) {
     CGFloat fres = MAX(0.0, MIN(1.0, PACCLIQNumPref(@"Renderer.FresnelGlareStrength", 0.5)));
     CGFloat glare = fres * 0.312 * maxAlpha;
     id clear = (id)UIColor.clearColor.CGColor;
-    const CGFloat edgeW = 0.604, specW = 0.575, inset = 0.90;
+    const CGFloat edgeW = 0.604, specW = 0.85, inset = 0.90;
 
     if (!_fresnelLayer) {
         _fresnelLayer = [CAGradientLayer layer];

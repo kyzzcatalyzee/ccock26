@@ -549,9 +549,8 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
             CGFloat proximity = 1.0 - fabs(touchY - centerY) / 78.0;
             if (proximity < 0.0) proximity = 0.0;
             if (proximity > 1.0) proximity = 1.0;
-            CGFloat scale = 1.18 + 1.68 * proximity + (selected ? 0.18 : 0.0);
-            CGFloat rawSize = (index == 0 ? 16.0 : 12.0) * scale;
-            CGFloat pointSize = rawSize < 38.0 ? rawSize : 38.0;
+            CGFloat rawSize = 26.0 + 12.0 * proximity + (selected ? 4.0 : 0.0);
+            CGFloat pointSize = rawSize < 44.0 ? rawSize : 44.0;
             CGFloat slideOut = 24.0 * proximity;
             CGFloat alpha = MIN(1.0, (selected ? 0.86 : 0.42) + 0.36 * proximity);
             CGFloat tintWhite = 1.0;
@@ -713,7 +712,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat entrance = self.interactiveBeganTime > 0.0
         ? MIN(1.0, MAX(0.0, (CACurrentMediaTime() - self.interactiveBeganTime) / 0.26)) : 1.0;
     entrance = entrance * entrance * entrance * (entrance * (entrance * 6.0 - 15.0) + 10.0);
-    self.heldScale = 1.0 - 0.14 * entrance;
+    self.heldScale = 1.0 - 0.30 * entrance;
     self.heldAlphaFactor = 1.0 - 0.30 * entrance;
 
     CGFloat jelloInput = self.filteredVelocity * 0.0030 + pageTension * 0.022;
