@@ -320,6 +320,37 @@ BOOL gPACCRevealAll = NO;
                           statusBar ? NSStringFromCGAffineTransform(statusBar.transform) : @"-"];
         if (![note isEqualToString:lastDump]) { lastDump = note; PACCSizeLog(note); }
     }
+    {
+        static void *kFGBaseKey = &kFGBaseKey;
+        static void *kFGLastKey = &kFGLastKey;
+        BOOL fgLand = PACCLandscapeNow();
+        for (UIWindow *fw in UIApplication.sharedApplication.windows) {
+            if (fw.hidden) continue;
+            NSMutableArray<UIView *> *fq = [NSMutableArray arrayWithObject:fw];
+            NSUInteger fseen = 0;
+            while (fq.count && fseen++ < 800) {
+                UIView *fv = fq.firstObject;
+                [fq removeObjectAtIndex:0];
+                if ([NSStringFromClass(fv.class) isEqualToString:@"_UIStatusBarForegroundView"]) {
+                    NSValue *fb = objc_getAssociatedObject(fv, kFGBaseKey);
+                    NSValue *fl = objc_getAssociatedObject(fv, kFGLastKey);
+                    if (!fb) {
+                        if (fl && CGAffineTransformEqualToTransform(fv.transform, fl.CGAffineTransformValue)) continue;
+                        fb = [NSValue valueWithCGAffineTransform:fv.transform];
+                        objc_setAssociatedObject(fv, kFGBaseKey, fb, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                    }
+                    CGAffineTransform fbase = fb.CGAffineTransformValue;
+                    CGAffineTransform ftarget = fgLand ? CGAffineTransformConcat(fbase, CGAffineTransformMakeTranslation(0, -30.0)) : fbase;
+                    if (!CGAffineTransformEqualToTransform(fv.transform, ftarget)) {
+                        objc_setAssociatedObject(fv, kFGLastKey, [NSValue valueWithCGAffineTransform:ftarget], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                        fv.transform = ftarget;
+                    }
+                    continue;
+                }
+                [fq addObjectsFromArray:fv.subviews];
+            }
+        }
+    }
     if (!statusBar) return;
 
     BOOL land = PACCLandscapeNow();
@@ -338,7 +369,7 @@ BOOL gPACCRevealAll = NO;
     }
     CGAffineTransform base = storedBase.CGAffineTransformValue;
 
-    CGFloat dy = land ? -30.0 : ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0);
+    CGFloat dy = land ? 0.0 : ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0);
     CGAffineTransform target = CGAffineTransformConcat(base, CGAffineTransformMakeTranslation(0, dy));
 
     if (CGAffineTransformEqualToTransform(statusBar.transform, target)) return;
