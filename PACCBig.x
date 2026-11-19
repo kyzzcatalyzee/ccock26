@@ -362,8 +362,32 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
     }
     [self tapped];
 }
+- (void)pacHideLG {
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:self.subviews];
+    NSUInteger seen = 0;
+    while (q.count && seen++ < 40) {
+        UIView *v = q.firstObject;
+        [q removeObjectAtIndex:0];
+        if ([NSStringFromClass(v.class) isEqualToString:@"LGLiveBackdropView"]) {
+            if (!v.hidden) v.hidden = YES;
+            continue;
+        }
+        [q addObjectsFromArray:v.subviews];
+    }
+}
+- (void)didAddSubview:(UIView *)subview {
+    [super didAddSubview:subview];
+    [self pacHideLG];
+}
 - (void)layoutSubviews {
     [self pacLayoutCore];
+    [self pacHideLG];
+    {
+        __weak PACBigCard *wc = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [wc pacHideLG];
+        });
+    }
     if (PACCLIQGlassOn()) _material.hidden = PACBigLGGlass(self, self.layer.cornerRadius);
     else _material.hidden = NO;
     {
