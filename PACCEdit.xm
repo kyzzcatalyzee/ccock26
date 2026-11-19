@@ -2158,7 +2158,8 @@ static CGRect PACCloneFrame(NSDictionary *d, CGFloat bx, CGFloat by) {
 }
 
 static CGRect PACCloneBigFrame(NSDictionary *d, CGRect f) {
-    if (PACCBigKind(d[@"mid"] ?: @"") == 1 && [d[@"h"] unsignedIntegerValue] >= 6) return CGRectInset(f, MAX(0.0, (f.size.width - kPACConnW) * 0.5), -kPACConnExtra * 0.5);
+    int bk = PACCBigKind(d[@"mid"] ?: @"");
+    if ((bk == 1 || bk == 2) && [d[@"h"] unsignedIntegerValue] >= 6) return CGRectInset(f, bk == 1 ? MAX(0.0, (f.size.width - kPACConnW) * 0.5) : 0.0, -kPACConnExtra * 0.5);
     return f;
 }
 
