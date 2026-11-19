@@ -287,22 +287,38 @@ BOOL gPACCRevealAll = NO;
     if (window.hidden || window.alpha < 0.01) return;
 
     UIView *statusBar = nil;
+    UIView *fallback = nil;
+    NSMutableString *dump = [NSMutableString string];
     NSMutableArray<UIWindow *> *wins = [NSMutableArray arrayWithObject:window];
     for (UIWindow *aw in UIApplication.sharedApplication.windows) if (aw != window) [wins addObject:aw];
     for (UIWindow *sw in wins) {
         if (sw.hidden) continue;
         NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:sw];
         NSUInteger seen = 0;
-        while (queue.count && seen++ < 400) {
+        while (queue.count && seen++ < 600) {
             UIView *v = queue.firstObject;
             [queue removeObjectAtIndex:0];
-            if ([NSStringFromClass(v.class) isEqualToString:@"UIStatusBar_Modern"]) {
+            NSString *cn = NSStringFromClass(v.class);
+            if ([cn isEqualToString:@"UIStatusBar_Modern"]) {
                 statusBar = v;
+                [dump appendFormat:@"[%@ %@ win %@] ", cn, NSStringFromCGRect(v.frame), NSStringFromClass(sw.class)];
                 break;
+            }
+            if (!fallback && [cn containsString:@"StatusBar"] && ![cn containsString:@"Window"] &&
+                ![cn containsString:@"Controller"] && ![cn containsString:@"Style"] && v != (UIView *)sw) {
+                fallback = v;
+                [dump appendFormat:@"(%@ %@ win %@) ", cn, NSStringFromCGRect(v.frame), NSStringFromClass(sw.class)];
             }
             [queue addObjectsFromArray:v.subviews];
         }
         if (statusBar) break;
+    }
+    if (!statusBar) statusBar = fallback;
+    if (PACCLandscapeNow()) {
+        static NSString *lastDump;
+        NSString *note = [NSString stringWithFormat:@"landscape statusbar: %@ tf %@", dump.length ? dump : @"none",
+                          statusBar ? NSStringFromCGAffineTransform(statusBar.transform) : @"-"];
+        if (![note isEqualToString:lastDump]) { lastDump = note; PACCSizeLog(note); }
     }
     if (!statusBar) return;
 

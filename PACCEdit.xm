@@ -5501,7 +5501,7 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
             NSArray<NSNumber *> *lsz = gEditSizes[lm];
             if (lsz.count >= 2) {
                 NSUInteger lw = lsz[0].unsignedIntegerValue, lh = lsz[1].unsignedIntegerValue;
-                if (lw >= 1 && lw <= 4 && lh >= 1 && lh <= 2 && !(lw == 1 && lh == 2)) {
+                if (lw >= 1 && lw <= 8 && lh >= 1 && lh <= 4) {
                     CCUILayoutSize ls = { lw, lh };
                     s = ls;
                 }
