@@ -3120,8 +3120,17 @@ static void PACSyncChromeToPage(UIViewController *ov) {
         BOOL onThisPage = (PACCModulePageForIdentifier(mid) == gCurrentPage);
         if (!onThisPage) {
             border.hidden = YES; rm.hidden = YES; rz.hidden = YES;
-            if (!gPageAnimating && !gPagerScrubbing && !gPACCRevealAll && v.alpha > 0.01) v.alpha = 0.0;
+            if (!gPageAnimating && !gPagerScrubbing && !gPACCRevealAll) {
+                UIView *mv = PACModuleMoverView(m, ModuleCollection(ov));
+                if (mv && mv != v && mv.alpha > 0.01) mv.alpha = 0.0;
+                if (v.alpha < 0.99) v.alpha = 1.0;
+            }
             continue;
+        }
+        if (!gPageAnimating && !gPagerScrubbing && !gPACCRevealAll) {
+            UIView *mv2 = PACModuleMoverView(m, ModuleCollection(ov));
+            if (mv2 && mv2.alpha < 0.99) mv2.alpha = 1.0;
+            if (v.alpha < 0.99) v.alpha = 1.0;
         }
         CGRect vis = PACVisibleFrame(m, ov);
         if (CGRectIsEmpty(vis)) continue;
