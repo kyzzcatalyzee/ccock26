@@ -1528,6 +1528,9 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     UIImageView *_volLo, *_volHi;
     UIView *_airBg;
     UIImageView *_airIcon;
+    UIView *_pill;
+    UIImageView *_pillIcon;
+    UILabel *_pillLbl;
     NSTimer *_timer;
     double _elapsedSec, _duration, _rate;
     NSDate *_stamp;
@@ -1593,6 +1596,25 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
         _airIcon.hidden = YES;
         [_airBg addSubview:_airIcon];
 
+        _pill = [UIView new];
+        _pill.backgroundColor = [UIColor colorWithWhite:1 alpha:0.12];
+        _pill.userInteractionEnabled = NO;
+        _pill.hidden = YES;
+        _pill.layer.cornerCurve = kCACornerCurveContinuous;
+        [self addSubview:_pill];
+        _pillIcon = [UIImageView new];
+        _pillIcon.tintColor = [UIColor colorWithWhite:1 alpha:0.75];
+        _pillIcon.contentMode = UIViewContentModeCenter;
+        UIImageSymbolConfiguration *pc = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightMedium];
+        UIImage *pi = [UIImage systemImageNamed:@"airplayaudio" withConfiguration:pc] ?: [UIImage systemImageNamed:@"airplay.audio" withConfiguration:pc];
+        _pillIcon.image = [pi imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        [_pill addSubview:_pillIcon];
+        _pillLbl = [UILabel new];
+        _pillLbl.text = @"AirPlay";
+        _pillLbl.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
+        _pillLbl.textColor = [UIColor colorWithWhite:1 alpha:0.75];
+        [_pill addSubview:_pillLbl];
+
         _vol = [[PACBigBar alloc] initWithFrame:CGRectZero];
         _vol.onChange = ^(CGFloat v, BOOL finished) { PACBigSetVolume((float)v); };
         [self addSubview:_vol];
@@ -1651,6 +1673,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     BOOL full = !self.compact && !tile;
     _seek.hidden = _elapsed.hidden = _remaining.hidden = _vol.hidden = _volLo.hidden = _volHi.hidden = !full;
     _airBg.hidden = _airIcon.hidden = !tile;
+    _pill.hidden = !(full && h >= 400.0);
     _artist.hidden = tile && !_playing;
     if (tile) {
         CGFloat sc = w / 163.0, m = 14.0 * sc, art = round(56.0 * sc), d = round(42.0 * sc);
@@ -1700,12 +1723,44 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
         return;
     }
 
+    if (h >= 400.0) {
+        pad = 24.0;
+        CGFloat a = MIN(w - pad * 2, h - 262.0 - pad);
+        a = MAX(a, 120.0);
+        _art.frame = CGRectMake((w - a) * 0.5, pad, a, a);
+        _art.layer.cornerRadius = 14.0;
+        CGFloat tcy = h - 240.0;
+        _title.frame = CGRectMake(pad, tcy - 11.0, w - pad * 2, 22.0);
+        _artist.frame = CGRectMake(pad, tcy + 11.0, w - pad * 2, 18.0);
+        CGFloat seekY2 = h - 196.0 - 12.0;
+        _seek.frame = CGRectMake(pad, seekY2, w - pad * 2, 24.0);
+        _elapsed.frame = CGRectMake(pad, seekY2 + 22.0, 80.0, 14.0);
+        _remaining.frame = CGRectMake(w - pad - 80.0, seekY2 + 22.0, 80.0, 14.0);
+        CGFloat bw2 = 72.0, bx2 = (w - bw2 * 3) * 0.5, tcy2 = h - 137.0;
+        _prev.frame = CGRectMake(bx2, tcy2 - 28.0, bw2, 56.0);
+        _play.frame = CGRectMake(bx2 + bw2, tcy2 - 28.0, bw2, 56.0);
+        _next.frame = CGRectMake(bx2 + bw2 * 2, tcy2 - 28.0, bw2, 56.0);
+        [self setSymbol:@"backward.fill" size:28 on:_prev];
+        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:36 on:_play];
+        [self setSymbol:@"forward.fill" size:28 on:_next];
+        CGFloat vy2 = h - 80.0 - 12.0;
+        _volLo.frame = CGRectMake(pad, vy2, 22, 24);
+        _volHi.frame = CGRectMake(w - pad - 22, vy2, 22, 24);
+        _vol.frame = CGRectMake(pad + 30, vy2, w - pad * 2 - 60, 24);
+        _vol.value = PACBigGetVolume();
+        CGFloat pw = 104.0, ph = 34.0;
+        _pill.frame = CGRectMake((w - pw) * 0.5, h - 40.0 - ph * 0.5, pw, ph);
+        _pill.layer.cornerRadius = ph * 0.5;
+        _pillIcon.frame = CGRectMake(10.0, 0.0, 22.0, ph);
+        _pillLbl.frame = CGRectMake(36.0, 0.0, pw - 40.0, ph);
+        return;
+    }
     pad = 18.0;
     CGFloat volY = h - pad - 24;
     CGFloat transY = volY - 8 - 56;
     CGFloat seekY = transY - 6 - 34;
     CGFloat top = pad;
-    BOOL big = h >= 400;
+    BOOL big = NO;
     if (big) {
         CGFloat a = MIN(w - pad * 2, seekY - 70 - top);
         a = MAX(a, 120);
@@ -1894,7 +1949,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     if (host.subviews.lastObject != bv) [host bringSubviewToFront:bv];
     CGRect wantFrame = host.bounds;
     if (kind == 1 && h >= 6) {
-        wantFrame = CGRectInset(wantFrame, 0.0, -kPACConnExtra * 0.5);
+        wantFrame = CGRectInset(wantFrame, MAX(0.0, (wantFrame.size.width - kPACConnW) * 0.5), -kPACConnExtra * 0.5);
         host.clipsToBounds = NO;
     }
     if (!CGRectEqualToRect(bv.frame, wantFrame)) bv.frame = wantFrame;

@@ -448,7 +448,7 @@ BOOL gPagerScrubbing = NO;
         UIView *cv = content.view;
         UIView *wrap = cv.superview;
         const CGFloat kWant = 570.0;
-        const CGFloat kWantW = 346.0;
+        const CGFloat kWantW = 325.0;
         if (gEnabled && exp && wrap && wrap != me.view && CGAffineTransformIsIdentity(wrap.transform) &&
             wrap.bounds.size.height > 300.0 && wrap.bounds.size.height < kWant - 0.5) {
             CGRect f = wrap.frame;
@@ -456,7 +456,7 @@ BOOL gPagerScrubbing = NO;
             f.origin.y -= dh * 0.5;
             f.size.height = kWant;
             {
-                CGFloat nw = MIN(f.size.width, kWantW) - 10.0;
+                CGFloat nw = MIN(f.size.width, kWantW);
                 f.origin.x += (f.size.width - nw) * 0.5;
                 f.size.width = nw;
             }
