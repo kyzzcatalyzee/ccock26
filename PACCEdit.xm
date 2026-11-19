@@ -5496,6 +5496,17 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
             lm = ((id (*)(id, SEL))objc_msgSend)(context, @selector(moduleIdentifier));
         }
         if (PACLandscapeIsSlider(lm) && s.height > 2) s.height = 2;
+        if (lm.length && !PACLandscapeIsSlider(lm) && gEditModeEnabled) {
+            PACEnsureStore();
+            NSArray<NSNumber *> *lsz = gEditSizes[lm];
+            if (lsz.count >= 2) {
+                NSUInteger lw = lsz[0].unsignedIntegerValue, lh = lsz[1].unsignedIntegerValue;
+                if (lw >= 1 && lw <= 4 && lh >= 1 && lh <= 2 && !(lw == 1 && lh == 2)) {
+                    CCUILayoutSize ls = { lw, lh };
+                    s = ls;
+                }
+            }
+        }
         return s;
     }
     if (!PACEditAllowed()) return s;

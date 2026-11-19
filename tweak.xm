@@ -186,6 +186,18 @@ BOOL gPagerScrubbing = NO;
                 if (qb.tag == 181001 || qb.tag == 181002) qb.hidden = land;
             }
             (void)kPACCLandShiftKey;
+            if (land) {
+                static BOOL sbPending = NO;
+                if (!sbPending) {
+                    sbPending = YES;
+                    __weak UIViewController *wov = overlay;
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        sbPending = NO;
+                        UIViewController *ov2 = wov;
+                        if (ov2) [PACC.shared adjustStatusBarForOverlay:ov2];
+                    });
+                }
+            }
             UIViewController *lcol = ModuleCollection(overlay);
             UIView *lv = lcol.view;
             if (lv && !gPagerScrubbing) {
