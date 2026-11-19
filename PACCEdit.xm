@@ -2159,7 +2159,7 @@ static CGRect PACCloneFrame(NSDictionary *d, CGFloat bx, CGFloat by) {
 
 static CGRect PACCloneBigFrame(NSDictionary *d, CGRect f) {
     int bk = PACCBigKind(d[@"mid"] ?: @"");
-    if ((bk == 1 || bk == 2) && [d[@"h"] unsignedIntegerValue] >= 6) return CGRectInset(f, bk == 1 ? MAX(0.0, (f.size.width - kPACConnW) * 0.5) : 0.0, -kPACConnExtra * 0.5);
+    if ((bk == 1 || bk == 2) && [d[@"h"] unsignedIntegerValue] >= 6) return PACCBigOutset(bk, f);
     return f;
 }
 
@@ -2308,7 +2308,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         }
 
         if (gEditModeActive && onPage) {
-            CGRect raw = f;
+            CGRect raw = PACCloneBigFrame(d, f);
             raw.origin.x += sub.m41;
             raw.origin.y += sub.m42;
             CGRect vis = [cv convertRect:raw toView:ov.view];
@@ -3120,10 +3120,17 @@ static void PACSyncChromeToPage(UIViewController *ov) {
         BOOL onThisPage = (PACCModulePageForIdentifier(mid) == gCurrentPage);
         if (!onThisPage) {
             border.hidden = YES; rm.hidden = YES; rz.hidden = YES;
+            if (!gPageAnimating && !gPagerScrubbing && !gPACCRevealAll && v.alpha > 0.01) v.alpha = 0.0;
             continue;
         }
         CGRect vis = PACVisibleFrame(m, ov);
         if (CGRectIsEmpty(vis)) continue;
+        {
+            int bk = PACCBigKind(mid);
+            NSUInteger bw = 1, bh = 1;
+            PACEffectiveSize(mid, &bw, &bh);
+            if ((bk == 1 || bk == 2) && bh >= 6) vis = PACCBigOutset(bk, vis);
+        }
         BOOL stale = !border || !rm || rm.hidden || border.hidden || rm.superview != ov.view ||
                      fabs(rm.frame.origin.x - (vis.origin.x - 8.0)) > 2.0 ||
                      fabs(rm.frame.origin.y - (vis.origin.y - 8.0)) > 2.0;
@@ -5207,6 +5214,12 @@ static void PACApplyChrome(UIViewController *m, UIViewController *ov) {
     if (!mid.length) return;
     CGRect vis = PACVisibleFrame(m, ov);
     if (CGRectIsEmpty(vis)) return;
+    {
+        int bk = PACCBigKind(mid);
+        NSUInteger bw = 1, bh = 1;
+        PACEffectiveSize(mid, &bw, &bh);
+        if ((bk == 1 || bk == 2) && bh >= 6) vis = PACCBigOutset(bk, vis);
+    }
 
     PACApplyRadiusToModule(m);
 

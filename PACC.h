@@ -109,6 +109,10 @@ void PACBigFixLGRadius(UIView *g, CGFloat r);
 void PACBigRefreshLG(UIView *root);
 #define kPACConnExtra 45.0
 #define kPACConnW 330.0
+static inline CGRect PACCBigOutset(int kind, CGRect f) {
+    CGFloat dx = (kind == 1) ? MAX(0.0, (f.size.width - kPACConnW) * 0.5) : 5.0;
+    return CGRectInset(f, dx, -kPACConnExtra * 0.5);
+}
 void PACCLIQSpecularFade(UIView *host, BOOL hidden, CFTimeInterval dur, CFTimeInterval delay);
 BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 BOOL PACCLIQStyleDarkEdge(CAGradientLayer *g);

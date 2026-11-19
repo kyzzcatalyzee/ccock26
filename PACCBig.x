@@ -1949,7 +1949,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     if (host.subviews.lastObject != bv) [host bringSubviewToFront:bv];
     CGRect wantFrame = host.bounds;
     if ((kind == 1 || kind == 2) && h >= 6) {
-        wantFrame = CGRectInset(wantFrame, kind == 1 ? MAX(0.0, (wantFrame.size.width - kPACConnW) * 0.5) : 0.0, -kPACConnExtra * 0.5);
+        wantFrame = PACCBigOutset(kind, wantFrame);
         host.clipsToBounds = NO;
     }
     if (!CGRectEqualToRect(bv.frame, wantFrame)) bv.frame = wantFrame;
