@@ -563,7 +563,22 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
             UIButton *b = (UIButton *)button;
             UIImage *image = PACCIndicatorSymbolForPage(index, pointSize);
-            if (image) [b setImage:image forState:UIControlStateNormal];
+            if (image) {
+                CGFloat side = pointSize * 1.15;
+                CGSize isz = image.size;
+                CGFloat m = MAX(isz.width, isz.height);
+                if (m > 0.5) {
+                    CGSize want = CGSizeMake(ceil(isz.width / m * side), ceil(isz.height / m * side));
+                    UIGraphicsImageRenderer *rend = [[UIGraphicsImageRenderer alloc] initWithSize:want];
+                    UIImage *scaled = [rend imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+                        [[UIColor whiteColor] setFill];
+                        [image drawInRect:CGRectMake(0.0, 0.0, want.width, want.height)];
+                    }];
+                    if (scaled) image = [scaled imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+                }
+                b.imageView.transform = CGAffineTransformIdentity;
+                [b setImage:image forState:UIControlStateNormal];
+            }
         } else {
             CGFloat y = (CGFloat)index * step;
             button.frame = CGRectMake(0.0, y, 42.0, step);
@@ -572,6 +587,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
             UIButton *b = (UIButton *)button;
             CGFloat pointSize = (index == 0) ? 16.0 : 12.0;
             UIImage *image = PACCIndicatorSymbolForPage(index, pointSize);
+            b.imageView.transform = CGAffineTransformIdentity;
             if (image) [b setImage:image forState:UIControlStateNormal];
             button.alpha = selected ? 1.0 : 0.42;
             button.tintColor = UIColor.whiteColor;
