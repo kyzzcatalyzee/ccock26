@@ -773,6 +773,7 @@ static BOOL PACModuleSupportsResizing(NSString *mid) {
     NSUInteger h = base[1].unsignedIntegerValue;
     if (w == 1 && h == 1) return YES;
     if (w == 2 && h == 2) return YES;
+    if (w == 2 && h == 1) return YES;
     return NO;
 }
 
@@ -780,9 +781,6 @@ static BOOL PACSizeAllowed(NSUInteger w, NSUInteger h) {
     if (w == 0 || h == 0) return NO;
     if (w > kPACCols || h > kPACRows) return NO;
     if (w > 4 || h > 4) return NO;
-    if (w == 1 && h == 2) return NO;
-    if (h == 1 && w == 3) return NO;
-    if (h == 1 && w == 4) return NO;
     return YES;
 }
 
