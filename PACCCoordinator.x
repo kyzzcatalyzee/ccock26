@@ -310,8 +310,7 @@ BOOL gPACCRevealAll = NO;
     }
     CGAffineTransform base = storedBase.CGAffineTransformValue;
 
-    CGSize ovSize = overlay.view.bounds.size;
-    CGFloat dy = (ovSize.width > ovSize.height) ? -24.0 : ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0);
+    CGFloat dy = PACCLandscapeNow() ? -24.0 : ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0);
     CGAffineTransform target = CGAffineTransformTranslate(base, 0, dy);
 
     if (CGAffineTransformEqualToTransform(statusBar.transform, target)) return;

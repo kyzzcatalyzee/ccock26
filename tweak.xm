@@ -65,7 +65,7 @@ BOOL gPagerScrubbing = NO;
         CGFloat span = PageSpan();
         if (span > 0.0) {
             CATransform3D t = self.layer.sublayerTransform;
-            CGFloat expected = -(CGFloat)gCurrentPage * span;
+            CGFloat expected = -(CGFloat)gCurrentPage * span + (PACCLandscapeNow() ? kPACLandShift : 0.0);
             if (fabs(t.m42 - expected) > 0.5) {
                 t.m41 = 0.0;
                 t.m42 = expected;
@@ -132,7 +132,7 @@ BOOL gPagerScrubbing = NO;
                 if (span > 0.0) {
                     CATransform3D t = collection.view.layer.sublayerTransform;
                     t.m41 = 0.0;
-                    t.m42 = -(CGFloat)gCurrentPage * span;
+                    t.m42 = -(CGFloat)gCurrentPage * span + (PACCLandscapeNow() ? kPACLandShift : 0.0);
                     t.m43 = 0.0;
                     collection.view.layer.sublayerTransform = t;
                 }
@@ -185,16 +185,15 @@ BOOL gPagerScrubbing = NO;
             for (UIView *qb in qh.subviews) {
                 if (qb.tag == 181001 || qb.tag == 181002) qb.hidden = land;
             }
+            (void)kPACCLandShiftKey;
             UIViewController *lcol = ModuleCollection(overlay);
             UIView *lv = lcol.view;
-            if (lv) {
-                BOOL shifted = [objc_getAssociatedObject(lv, kPACCLandShiftKey) boolValue];
-                if (land && !shifted) {
-                    lv.transform = CGAffineTransformMakeTranslation(0.0, -26.0);
-                    objc_setAssociatedObject(lv, kPACCLandShiftKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                } else if (!land && shifted) {
-                    lv.transform = CGAffineTransformIdentity;
-                    objc_setAssociatedObject(lv, kPACCLandShiftKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            if (lv && !gPagerScrubbing) {
+                CGFloat want = -(CGFloat)gCurrentPage * PageSpan() + (PACCLandscapeNow() ? kPACLandShift : 0.0);
+                CATransform3D lt = lv.layer.sublayerTransform;
+                if (fabs(lt.m42 - want) > 0.5) {
+                    lt.m41 = 0.0; lt.m42 = want; lt.m43 = 0.0;
+                    lv.layer.sublayerTransform = lt;
                 }
             }
         }
