@@ -713,7 +713,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat entrance = self.interactiveBeganTime > 0.0
         ? MIN(1.0, MAX(0.0, (CACurrentMediaTime() - self.interactiveBeganTime) / 0.26)) : 1.0;
     entrance = entrance * entrance * entrance * (entrance * (entrance * 6.0 - 15.0) + 10.0);
-    self.heldScale = 1.0 - 0.30 * entrance;
+    self.heldScale = 1.0 - 0.14 * entrance;
     self.heldAlphaFactor = 1.0 - 0.30 * entrance;
 
     CGFloat jelloInput = self.filteredVelocity * 0.0030 + pageTension * 0.022;
