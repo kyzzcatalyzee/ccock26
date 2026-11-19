@@ -380,6 +380,28 @@ BOOL gPACCRevealAll = NO;
     statusBar.layer.transform = CATransform3DMakeAffineTransform(target);
 }
 
+- (void)hideHairlinesForOverlay:(UIViewController *)overlay {
+    if (!overlay.view || !PACCLandscapeNow()) return;
+    CGFloat ow = overlay.view.bounds.size.width;
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:overlay.view];
+    NSUInteger seen = 0;
+    NSMutableString *dump = [NSMutableString string];
+    while (queue.count && seen++ < 700) {
+        UIView *v = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        if (v != overlay.view && v.bounds.size.height > 0.0 && v.bounds.size.height <= 1.6 &&
+            v.bounds.size.width >= ow * 0.8 && v.alpha > 0.01 && !v.hidden) {
+            [dump appendFormat:@"%@ %@ | ", NSStringFromClass(v.class), NSStringFromCGRect(v.frame)];
+            v.alpha = 0.0;
+        }
+        [queue addObjectsFromArray:v.subviews];
+    }
+    if (dump.length) {
+        static NSString *lastHair;
+        if (![dump isEqualToString:lastHair]) { lastHair = [dump copy]; PACCSizeLog([@"landscape hairline hidden: " stringByAppendingString:dump]); }
+    }
+}
+
 - (void)animateElementsInForOverlay:(UIViewController *)overlay {
     UIView *host = [overlay.view viewWithTag:kQuickAccessTag];
     UIView *indicator = [overlay.view viewWithTag:kPageIndicatorTag];

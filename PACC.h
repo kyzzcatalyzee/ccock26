@@ -186,6 +186,7 @@ BOOL PACCLIQStyleRim(CAGradientLayer *g);
 - (void)restoreModuleVisibilityForOverlay:(UIViewController *)overlay;
 - (void)applyHeaderMaterialHidden:(BOOL)hidden forOverlay:(UIViewController *)overlay;
 - (void)adjustStatusBarForOverlay:(UIViewController *)overlay;
+- (void)hideHairlinesForOverlay:(UIViewController *)overlay;
 - (void)animateElementsInForOverlay:(UIViewController *)overlay;
 - (void)animateElementsOutForOverlay:(UIViewController *)overlay;
 - (void)layoutPageIndicatorForOverlay:(UIViewController *)overlay;

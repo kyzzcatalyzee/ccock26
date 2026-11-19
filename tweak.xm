@@ -187,16 +187,21 @@ BOOL gPagerScrubbing = NO;
             }
             (void)kPACCLandShiftKey;
             if (land) {
-                static BOOL sbPending = NO;
-                if (!sbPending) {
-                    sbPending = YES;
+                static NSTimer *landTimer = nil;
+                if (!landTimer) {
                     __weak UIViewController *wov = overlay;
-                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                        sbPending = NO;
+                    landTimer = [NSTimer scheduledTimerWithTimeInterval:0.2 repeats:YES block:^(NSTimer *t) {
                         UIViewController *ov2 = wov;
-                        if (ov2) [PACC.shared adjustStatusBarForOverlay:ov2];
-                    });
+                        if (!ov2 || !ov2.view.window || ov2.view.window.hidden || !PACCLandscapeNow()) {
+                            [t invalidate];
+                            landTimer = nil;
+                            return;
+                        }
+                        [PACC.shared adjustStatusBarForOverlay:ov2];
+                        [PACC.shared hideHairlinesForOverlay:ov2];
+                    }];
                 }
+                [PACC.shared hideHairlinesForOverlay:overlay];
             }
             UIViewController *lcol = ModuleCollection(overlay);
             UIView *lv = lcol.view;
