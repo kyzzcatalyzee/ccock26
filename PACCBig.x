@@ -1305,6 +1305,18 @@ static BOOL PACBigVPNActive(void) {
     }
     yy += cardRows ? cardRows * (ch + gap) : 0;
     for (NSString *bk in bottomKeys) { frames[bk] = [NSValue valueWithCGRect:CGRectMake(0, yy, S.width, ph)]; yy += ph + gap; }
+    if (S.width > S.height * 1.25) {
+        NSArray<NSString *> *lk = @[@"air", @"wifi", @"airdrop", @"cell"];
+        NSArray<NSString *> *rk = @[@"bt", @"hotspot", @"vpn"];
+        CGFloat lph = MIN(76.0, (S.height - gap * 3.0) / 4.0);
+        CGFloat ty = MAX(0.0, (S.height - (lph * 4.0 + gap * 3.0)) * 0.5);
+        [frames removeAllObjects];
+        for (NSUInteger li = 0; li < lk.count; li++)
+            frames[lk[li]] = [NSValue valueWithCGRect:CGRectMake(0, ty + li * (lph + gap), cw, lph)];
+        for (NSUInteger ri = 0; ri < rk.count; ri++)
+            frames[rk[ri]] = [NSValue valueWithCGRect:CGRectMake(cw + gap, ty + ri * (lph + gap), cw, lph)];
+        ch = 0.0;
+    }
 
     for (NSUInteger i = 0; i < keys.count; i++) {
         NSString *k = keys[i];
