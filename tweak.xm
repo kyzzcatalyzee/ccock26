@@ -447,7 +447,7 @@ BOOL gPagerScrubbing = NO;
         if ([me respondsToSelector:es]) exp = ((BOOL (*)(id, SEL))objc_msgSend)(me, es);
         UIView *cv = content.view;
         UIView *wrap = cv.superview;
-        const CGFloat kWant = 560.0;
+        const CGFloat kWant = 570.0;
         const CGFloat kWantW = 346.0;
         if (gEnabled && exp && wrap && wrap != me.view && CGAffineTransformIsIdentity(wrap.transform) &&
             wrap.bounds.size.height > 300.0 && wrap.bounds.size.height < kWant - 0.5) {
@@ -480,9 +480,9 @@ BOOL gPagerScrubbing = NO;
     PACCSizeLog([NSString stringWithFormat:@"hook height called: orig %.1f enabled %d", orig, (int)gEnabled]);
     if (!gEnabled) return orig;
     static NSString *lastNote;
-    NSString *note = [NSString stringWithFormat:@"expanded height: orig %.1f -> 560, screen %.1f", orig, [UIScreen mainScreen].bounds.size.height];
+    NSString *note = [NSString stringWithFormat:@"expanded height: orig %.1f -> 570, screen %.1f", orig, [UIScreen mainScreen].bounds.size.height];
     if (![note isEqualToString:lastNote]) { lastNote = note; PACCSizeLog(note); }
-    return 560.0;
+    return 570.0;
 }
 - (BOOL)providesOwnPlatter {
     if (gEnabled) {

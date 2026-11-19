@@ -366,40 +366,21 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
     [self pacLayoutCore];
     if (PACCLIQGlassOn()) _material.hidden = PACBigLGGlass(self, self.layer.cornerRadius);
     else _material.hidden = NO;
-    [self pacHideLG];
-    static const char kLGPass = 0;
-    if (!objc_getAssociatedObject(self, &kLGPass)) {
-        objc_setAssociatedObject(self, &kLGPass, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        __weak PACBigCard *ws = self;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            PACBigCard *c = ws;
-            if (!c) return;
-            objc_setAssociatedObject(c, &kLGPass, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            [c pacHideLG];
-        });
-    }
-}
-- (void)pacHideLG {
-    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:self.subviews];
-    NSUInteger seen = 0;
-    while (q.count && seen++ < 40) {
-        UIView *v = q.firstObject;
-        [q removeObjectAtIndex:0];
-        NSString *cn = NSStringFromClass(v.class);
-        if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"]) {
-            if (!v.hidden) v.hidden = YES;
-            if (v.alpha > 0.0) v.alpha = 0.0;
-            continue;
+    {
+        static const char kLGSig = 0;
+        NSString *sig = [NSString stringWithFormat:@"%.1f,%.1f,%.1f", self.bounds.size.width, self.bounds.size.height, self.layer.cornerRadius];
+        if (![sig isEqualToString:objc_getAssociatedObject(self, &kLGSig)]) {
+            objc_setAssociatedObject(self, &kLGSig, sig, OBJC_ASSOCIATION_COPY_NONATOMIC);
+            NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:self.subviews];
+            NSUInteger seen = 0;
+            while (q.count && seen++ < 40) {
+                UIView *v = q.firstObject;
+                [q removeObjectAtIndex:0];
+                NSString *cn = NSStringFromClass(v.class);
+                if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"]) { PACBigFixLGRadius(v, self.layer.cornerRadius); continue; }
+                [q addObjectsFromArray:v.subviews];
+            }
         }
-        [q addObjectsFromArray:v.subviews];
-    }
-}
-- (void)didAddSubview:(UIView *)subview {
-    [super didAddSubview:subview];
-    NSString *cn = NSStringFromClass(subview.class);
-    if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"]) {
-        subview.hidden = YES;
-        subview.alpha = 0.0;
     }
 }
 - (void)pacLayoutCore {

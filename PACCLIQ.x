@@ -545,7 +545,20 @@ static void PACCLIQRestoreBlur(UIView *mediaPlayer) {
     } @catch (...) {}
 }
 
+static BOOL PACCLIQHostHasLG(UIView *host) {
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:host.subviews];
+    NSUInteger seen = 0;
+    while (q.count && seen++ < 40) {
+        UIView *v = q.firstObject;
+        [q removeObjectAtIndex:0];
+        if ([NSStringFromClass(v.class) isEqualToString:@"LGLiveBackdropView"] && !v.hidden && v.alpha > 0.01) return YES;
+        [q addObjectsFromArray:v.subviews];
+    }
+    return NO;
+}
+
 static BOOL PACCLIQModuleHasLG(UIView *host) {
+    if (PACCLIQHostHasLG(host)) return YES;
     UIView *module = nil;
     int up = 0;
     for (UIView *p = host.superview; p && up < 16; p = p.superview, up++) {
@@ -593,6 +606,18 @@ static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
     glass.glassCornerRadius = radius;
     if (![glass filterIsLive]) [glass forceReapply];
     [host sendSubviewToBack:glass];
+    {
+        static const char kRetryKey = 0;
+        int tries = [objc_getAssociatedObject(host, &kRetryKey) intValue];
+        if (tries < 3) {
+            objc_setAssociatedObject(host, &kRetryKey, @(tries + 1), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            __weak UIView *wh = host;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                UIView *h = wh;
+                if (h.window) [h setNeedsLayout];
+            });
+        }
+    }
     return glass;
 }
 
