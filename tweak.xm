@@ -177,6 +177,27 @@ BOOL gPagerScrubbing = NO;
         UIViewController *overlay = (UIViewController *)(id)self;
         [PACC.shared layoutPageIndicatorForOverlay:overlay];
         [PACC.shared adjustStatusBarForOverlay:overlay];
+        {
+            static void *kPACCLandShiftKey = &kPACCLandShiftKey;
+            CGSize ovs = overlay.view.bounds.size;
+            BOOL land = ovs.width > ovs.height;
+            UIView *qh = [overlay.view viewWithTag:kQuickAccessTag];
+            for (UIView *qb in qh.subviews) {
+                if (qb.tag == 181001 || qb.tag == 181002) qb.hidden = land;
+            }
+            UIViewController *lcol = ModuleCollection(overlay);
+            UIView *lv = lcol.view;
+            if (lv) {
+                BOOL shifted = [objc_getAssociatedObject(lv, kPACCLandShiftKey) boolValue];
+                if (land && !shifted) {
+                    lv.transform = CGAffineTransformMakeTranslation(0.0, -26.0);
+                    objc_setAssociatedObject(lv, kPACCLandShiftKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                } else if (!land && shifted) {
+                    lv.transform = CGAffineTransformIdentity;
+                    objc_setAssociatedObject(lv, kPACCLandShiftKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                }
+            }
+        }
     }
 
     objc_setAssociatedObject(self, kPACCInOverlayLayoutKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -466,6 +487,17 @@ BOOL gPagerScrubbing = NO;
             if (CGRectGetMaxY(f) > maxH - 10.0) f.origin.y = maxH - 10.0 - f.size.height;
             wrap.frame = f;
             cv.frame = wrap.bounds;
+        }
+        if (gEnabled && exp && wrap && wrap != me.view && CGAffineTransformIsIdentity(wrap.transform) &&
+            me.view.bounds.size.width > me.view.bounds.size.height) {
+            CGFloat wantW = MIN(620.0, me.view.bounds.size.width - 60.0);
+            if (wrap.frame.size.width < wantW - 0.5) {
+                CGRect lf = wrap.frame;
+                lf.origin.x -= (wantW - lf.size.width) * 0.5;
+                lf.size.width = wantW;
+                wrap.frame = lf;
+                cv.frame = wrap.bounds;
+            }
         }
         static NSString *lastNote;
         NSString *note = [NSString stringWithFormat:@"container %@ view %@ content %@ wrap %@ %@ pref %.1f expanded %d",
