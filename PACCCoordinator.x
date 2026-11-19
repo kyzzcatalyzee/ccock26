@@ -287,34 +287,49 @@ BOOL gPACCRevealAll = NO;
     if (window.hidden || window.alpha < 0.01) return;
 
     UIView *statusBar = nil;
-    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:window];
-    while (queue.count) {
-        UIView *v = queue.firstObject;
-        [queue removeObjectAtIndex:0];
-        if ([NSStringFromClass(v.class) isEqualToString:@"UIStatusBar_Modern"]) {
-            statusBar = v;
-            break;
+    NSMutableArray<UIWindow *> *wins = [NSMutableArray arrayWithObject:window];
+    for (UIWindow *aw in UIApplication.sharedApplication.windows) if (aw != window) [wins addObject:aw];
+    for (UIWindow *sw in wins) {
+        if (sw.hidden) continue;
+        NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:sw];
+        NSUInteger seen = 0;
+        while (queue.count && seen++ < 400) {
+            UIView *v = queue.firstObject;
+            [queue removeObjectAtIndex:0];
+            if ([NSStringFromClass(v.class) isEqualToString:@"UIStatusBar_Modern"]) {
+                statusBar = v;
+                break;
+            }
+            [queue addObjectsFromArray:v.subviews];
         }
-        [queue addObjectsFromArray:v.subviews];
+        if (statusBar) break;
     }
     if (!statusBar) return;
 
-    static void *kStatusBarBaseTransformKey = &kStatusBarBaseTransformKey;
-    NSValue *storedBase = objc_getAssociatedObject(statusBar, kStatusBarBaseTransformKey);
+    BOOL land = PACCLandscapeNow();
+    static void *kStatusBarBasePortraitKey = &kStatusBarBasePortraitKey;
+    static void *kStatusBarBaseLandscapeKey = &kStatusBarBaseLandscapeKey;
+    static void *kStatusBarLastTargetKey = &kStatusBarLastTargetKey;
+    const void *baseKey = land ? kStatusBarBaseLandscapeKey : kStatusBarBasePortraitKey;
+    NSValue *storedBase = objc_getAssociatedObject(statusBar, baseKey);
     if (!storedBase) {
-        if (!CGAffineTransformIsIdentity(statusBar.transform)) return;
-        objc_setAssociatedObject(statusBar, kStatusBarBaseTransformKey,
+        NSValue *lastTarget = objc_getAssociatedObject(statusBar, kStatusBarLastTargetKey);
+        if (lastTarget && CGAffineTransformEqualToTransform(statusBar.transform, lastTarget.CGAffineTransformValue)) return;
+        objc_setAssociatedObject(statusBar, baseKey,
                                  [NSValue valueWithCGAffineTransform:statusBar.transform],
                                  OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        storedBase = objc_getAssociatedObject(statusBar, kStatusBarBaseTransformKey);
+        storedBase = objc_getAssociatedObject(statusBar, baseKey);
     }
     CGAffineTransform base = storedBase.CGAffineTransformValue;
 
-    CGFloat dy = PACCLandscapeNow() ? -24.0 : ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0);
-    CGAffineTransform target = CGAffineTransformTranslate(base, 0, dy);
+    CGFloat dy = land ? -30.0 : ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0);
+    CGAffineTransform target = CGAffineTransformConcat(base, CGAffineTransformMakeTranslation(0, dy));
 
     if (CGAffineTransformEqualToTransform(statusBar.transform, target)) return;
 
+    objc_setAssociatedObject(statusBar, kStatusBarLastTargetKey,
+                             [NSValue valueWithCGAffineTransform:target],
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     statusBar.layer.transform = CATransform3DMakeAffineTransform(target);
 }
 
