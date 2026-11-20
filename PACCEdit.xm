@@ -3360,8 +3360,22 @@ static void PACSettleEditLayout(UIViewController *ov) {
     PACSettleEditLayoutEx(ov, YES);
 }
 
+static void PACCPortraitXformRefresh(UIViewController *ov) {
+    if (!ov || PACIsLandscape()) return;
+    UIViewController *c = ModuleCollection(ov);
+    if (!c.view) return;
+    CATransform3D t = c.view.layer.sublayerTransform;
+    CATransform3D w = PACCDesiredTransform(t, c.view, PACCLandShiftNow(), -(CGFloat)gCurrentPage * PageSpan());
+    if (PACCTransformClose(t, w)) return;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    c.view.layer.sublayerTransform = w;
+    [CATransaction commit];
+}
+
 static void PACForceExitEdit(UIViewController *ov) {
     gEditModeActive = NO;
+    PACCPortraitXformRefresh(ov);
     gPACEditEpoch++;
     gPACPendingResizeID = nil;
     gPACPendingResizeSize = (CCUILayoutSize){0, 0};
@@ -3516,6 +3530,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 - (void)enterEditOverlay:(UIViewController *)ov {
     if (gEditModeActive || !ov) return;
     gEditModeActive = YES;
+    PACCPortraitXformRefresh(ov);
     gPACEditEpoch++;
     gEditModeEnteredAt = CACurrentMediaTime();
     gPACPendingResizeID = nil;
@@ -3673,6 +3688,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 - (void)exitEditOn:(UIViewController *)ov {
     if (!gEditModeActive) return;
     gEditModeActive = NO;
+    PACCPortraitXformRefresh(ov);
     gPACEditEpoch++;
     NSUInteger epochAtExit = gPACEditEpoch;
     gPACPendingResizeID = nil;

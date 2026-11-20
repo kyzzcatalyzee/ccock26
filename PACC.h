@@ -213,14 +213,57 @@ static inline CATransform3D PACCLandTransform(UIView *cv, CGFloat shift, CGFloat
     }
     return t;
 }
-static inline CATransform3D PACCDesiredTransform(CATransform3D cur, UIView *cv, CGFloat shift, CGFloat offset) {
-    if (PACCLandscapeNow()) return PACCLandTransform(cv, shift, offset);
+static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop, CGFloat *outRaise) {
+    static CGFloat cSc = 1.0, cMc = 0.0, cTop = 0.0, cRaise = 0.0;
+    static BOOL have = NO;
+    if (!cv || !cv.window) {
+        if (!have) return NO;
+    } else {
+        CGFloat mn = CGFLOAT_MAX, mx = -CGFLOAT_MAX, top = CGFLOAT_MAX;
+        PACCLandCollect(cv, 1, CGPointZero, PageSpan() * 0.9, &mn, &mx, &top);
+        if (mn <= mx) {
+            CGFloat H = cv.window.bounds.size.height;
+            CGPoint o = PACCLandOrigin(cv);
+            CGFloat topWin = o.y + top;
+            CGFloat targetTop = MIN(topWin, 36.0);
+            CGFloat rowsH = 8.0 * PACCGridCell() + 7.0 * PACCGridGap();
+            CGFloat sc = (H - 10.0 - targetTop) / rowsH;
+            cSc = MAX(0.6, MIN(1.0, sc));
+            cMc = (mn + mx) * 0.5;
+            cTop = top;
+            cRaise = targetTop - topWin;
+            have = YES;
+        }
+    }
+    *outSc = cSc; *outMc = cMc; *outTop = cTop; *outRaise = cRaise;
+    return have;
+}
+static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGFloat shift, CGFloat offset) {
     cur.m11 = 1.0;
     cur.m22 = 1.0;
     cur.m41 = 0.0;
     cur.m42 = shift + offset;
     cur.m43 = 0.0;
+    if (gEditModeActive || !cv || !cv.window) return cur;
+    CGFloat sc = 1.0, mc = 0.0, top = 0.0, raise = 0.0;
+    if (!PACCPortMeasure(cv, &sc, &mc, &top, &raise)) return cur;
+    CGRect b = cv.bounds;
+    CGFloat cx = b.origin.x + b.size.width * 0.5;
+    CGFloat cy = b.origin.y + b.size.height * 0.5;
+    cur.m11 = sc;
+    cur.m22 = sc;
+    cur.m41 = (1.0 - sc) * (mc - cx);
+    cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + offset;
     return cur;
+}
+static inline CATransform3D PACCPageTranslate(CATransform3D base, CGFloat off) {
+    if (PACCLandscapeNow()) return CATransform3DTranslate(base, 0.0, off, 0.0);
+    base.m42 += off;
+    return base;
+}
+static inline CATransform3D PACCDesiredTransform(CATransform3D cur, UIView *cv, CGFloat shift, CGFloat offset) {
+    if (PACCLandscapeNow()) return PACCLandTransform(cv, shift, offset);
+    return PACCPortTransform(cur, cv, shift, offset);
 }
 static inline BOOL PACCTransformClose(CATransform3D a, CATransform3D b) {
     return fabs(a.m11 - b.m11) < 0.002 && fabs(a.m22 - b.m22) < 0.002 &&

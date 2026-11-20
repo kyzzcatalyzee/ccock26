@@ -488,7 +488,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CATransform3D current = collection.view.layer.sublayerTransform;
     CGFloat span = PageSpan();
     current.m42 += (CGFloat)gCurrentPage * span * (PACCLandscapeNow() ? current.m11 : 1.0);
-    if (!PACCLandscapeNow()) current.m41 = 0.0;
+    if (!PACCLandscapeNow() && fabs(current.m11 - 1.0) < 0.002) current.m41 = 0.0;
     current.m43 = 0.0;
 
     self.baseCollectionSublayerTransform = current;
@@ -605,7 +605,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat span = PageSpan();
     CGFloat pageOffset = -(CGFloat)self.currentPage * span + self.interactiveTranslation;
 
-    CATransform3D target = CATransform3DTranslate(self.baseCollectionSublayerTransform, 0.0, pageOffset, 0.0);
+    CATransform3D target = PACCPageTranslate(self.baseCollectionSublayerTransform, pageOffset);
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -782,7 +782,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (promo && (NSInteger)target == PACCPromoPageIndex()) [promo refreshFact];
 
     CGFloat span = PageSpan();
-    CATransform3D toSub = CATransform3DTranslate(self.baseCollectionSublayerTransform, 0.0, -(CGFloat)target * span, 0.0);
+    CATransform3D toSub = PACCPageTranslate(self.baseCollectionSublayerTransform, -(CGFloat)target * span);
 
     CALayer *pres = (CALayer *)collection.view.layer.presentationLayer;
     CATransform3D fromSub = pres ? pres.sublayerTransform : collection.view.layer.sublayerTransform;
@@ -1007,7 +1007,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat span = PageSpan();
     PACCAddCascade(collection.view, cascadeFrom, (NSInteger)page);
 
-    CATransform3D toSub = CATransform3DTranslate(self.baseCollectionSublayerTransform, 0.0, -(CGFloat)page * span, 0.0);
+    CATransform3D toSub = PACCPageTranslate(self.baseCollectionSublayerTransform, -(CGFloat)page * span);
     CALayer *pres = (CALayer *)collection.view.layer.presentationLayer;
     CATransform3D fromSub = pres ? pres.sublayerTransform : collection.view.layer.sublayerTransform;
 
