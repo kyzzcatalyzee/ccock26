@@ -2188,7 +2188,32 @@ static CGRect PACCloneBigFrame(NSDictionary *d, CGRect f) {
     return f;
 }
 
+static CGRect PACLandCloneRect(UIView *cv, NSInteger page) {
+    CGSize scr = UIScreen.mainScreen.bounds.size;
+    CGFloat lw = floor(scr.width * 0.735);
+    CGFloat lh = floor(scr.height * 0.78);
+    CGRect want = CGRectMake(floor((scr.width - lw) * 0.5), floor((scr.height - lh) * 0.5) + 8.0, lw, lh);
+    return PACCLandUnmap(cv, want, page);
+}
+
 void PACCClonesRelayout(UIView *cv) {
+    if (cv && gPACClones.count && PACIsLandscape()) {
+        if (!cv.window) return;
+        for (UIView *cl in cv.subviews) {
+            if (cl.tag != kPACCloneTag) continue;
+            NSString *cid = objc_getAssociatedObject(cl, kPACCloneIDKey);
+            for (NSDictionary *d in gPACClones) {
+                if (![d[@"id"] isEqualToString:cid ?: @""]) continue;
+                int kind = PACCBigKind(d[@"mid"] ?: @"");
+                NSInteger pg = (NSInteger)([d[@"a"] unsignedIntegerValue] / PACPageDivisor());
+                if ((kind != 1 && kind != 2) || pg < 1) break;
+                CGRect fr = PACLandCloneRect(cv, pg);
+                if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
+                break;
+            }
+        }
+        return;
+    }
     if (!cv || !gPACClones.count || !gPACGridHave || PACIsLandscape()) return;
     for (UIView *cl in cv.subviews) {
         if (cl.tag != kPACCloneTag) continue;
@@ -2299,12 +2324,15 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         CGRect f = PACCloneFrame(d, bx, by);
         CGRect fr = PACCloneBigFrame(d, f);
         if (land) {
-            CGSize scr = UIScreen.mainScreen.bounds.size;
-            CGFloat lw = floor(scr.width * 0.735);
-            CGFloat lh = floor(scr.height * 0.78);
-            CGRect want = CGRectMake(floor((scr.width - lw) * 0.5), floor((scr.height - lh) * 0.5) + 8.0, lw, lh);
-            f = PACCLandUnmap(cv, want, landPage);
+            f = PACLandCloneRect(cv, landPage);
             fr = f;
+            {
+                static NSMutableSet<NSString *> *loggedC;
+                if (!loggedC) loggedC = [NSMutableSet set];
+                NSString *cl2 = [NSString stringWithFormat:@"landscape clone %@ kind %d page %ld frame %@ cvwin %d cvbounds %@",
+                                 cid, kind, (long)landPage, NSStringFromCGRect(fr), (int)(cv.window != nil), NSStringFromCGRect(cv.bounds)];
+                if (![loggedC containsObject:cl2]) { [loggedC addObject:cl2]; PACCSizeLog(cl2); }
+            }
         }
         if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
         cl.clipsToBounds = CGRectEqualToRect(fr, f);
@@ -5927,6 +5955,7 @@ static void PACEditReload(__unused CFNotificationCenterRef c,
 
 void PACCLandscapeRefresh(UIViewController *ov) {
     if (!ov || !PACIsLandscape()) return;
+    PACCSyncClones(ov, NO);
     static NSMutableSet<NSString *> *loggedP;
     if (!loggedP) loggedP = [NSMutableSet set];
     for (UIViewController *m in ModuleControllers(ov)) {
