@@ -5421,10 +5421,6 @@ static void PACLMark(BOOL occ[12][12], NSUInteger cols, NSUInteger rows, NSUInte
                             (unsigned long)r.origin.x, (unsigned long)r.origin.y, (unsigned long)r.size.width, (unsigned long)r.size.height];
             if (![loggedR containsObject:rn]) { [loggedR addObject:rn]; PACCSizeLog(rn); }
         }
-        if (PACLandscapeIsSlider(myMid)) {
-            if (r.size.height > 2) r.size.height = 2;
-            return r;
-        }
         busy = YES;
         NSMutableArray<NSDictionary *> *others = [NSMutableArray array];
         for (NSString *key in cont) {
@@ -5438,39 +5434,21 @@ static void PACLMark(BOOL occ[12][12], NSUInteger cols, NSUInteger rows, NSUInte
         busy = NO;
 
         if (gEditModeEnabled) PACEnsureStore();
-        NSUInteger cols = 8, rows = 3;
-        NSUInteger sliderMaxX = 0;
-        BOOL haveSlider = NO;
-        for (NSDictionary *o in others) {
-            NSUInteger x = [o[@"x"] unsignedIntegerValue], y = [o[@"y"] unsignedIntegerValue];
-            NSUInteger w = [o[@"w"] unsignedIntegerValue], h = [o[@"h"] unsignedIntegerValue];
-            cols = MAX(cols, x + w);
-            rows = MAX(rows, y + h);
-            if (PACLandscapeIsSlider(o[@"k"])) {
-                haveSlider = YES;
-                sliderMaxX = MAX(sliderMaxX, x + w - 1);
-            }
-        }
-        if (cols > 12) cols = 12;
-        if (rows > 12) rows = 12;
-
+        NSUInteger cols = 8, rows = 4;
         BOOL occ[12][12];
         memset(occ, 0, sizeof(occ));
         NSMutableDictionary<NSString *, NSArray *> *result = [NSMutableDictionary dictionary];
-        NSMutableArray<NSMutableDictionary *> *items = [NSMutableArray array];
+        NSMutableArray<NSMutableDictionary *> *flow = [NSMutableArray array];
 
         for (NSDictionary *o in others) {
             NSString *k = o[@"k"];
             NSUInteger x = [o[@"x"] unsignedIntegerValue], y = [o[@"y"] unsignedIntegerValue];
             NSUInteger w = [o[@"w"] unsignedIntegerValue], h = [o[@"h"] unsignedIntegerValue];
-            if (PACLandscapeIsSlider(k)) {
-                if (h > 2) h = 2;
-                PACLMark(occ, cols, rows, x, y, w, h);
-                result[k] = @[@(x), @(y), @(w), @(h)];
-                continue;
-            }
+            NSString *lk = k.lowercaseString;
+            BOOL isSlider = PACLandscapeIsSlider(k);
+            if (isSlider) { w = 1; h = 2; }
             NSUInteger nw = w, nh = h;
-            if (gEditModeEnabled && nw == 1 && nh == 1) {
+            if (!isSlider && gEditModeEnabled && nw == 1 && nh == 1) {
                 NSArray<NSNumber *> *sv = gEditSizes[k];
                 if (sv.count >= 2) {
                     NSUInteger sw = sv[0].unsignedIntegerValue, sh = sv[1].unsignedIntegerValue;
@@ -5481,20 +5459,21 @@ static void PACLMark(BOOL occ[12][12], NSUInteger cols, NSUInteger rows, NSUInte
                 }
             }
             BOOL modified = (w != nw || h != nh);
-            [items addObject:[@{@"k": k, @"x": @(x), @"y": @(y), @"w": @(w), @"h": @(h), @"mod": @(modified)} mutableCopy]];
-        }
-
-        NSMutableArray<NSMutableDictionary *> *flow = [NSMutableArray array];
-        for (NSMutableDictionary *it in items) {
-            NSUInteger x = [it[@"x"] unsignedIntegerValue], y = [it[@"y"] unsignedIntegerValue];
-            NSUInteger w = [it[@"w"] unsignedIntegerValue], h = [it[@"h"] unsignedIntegerValue];
-            BOOL modified = [it[@"mod"] boolValue];
-            BOOL keeper = !modified && (!haveSlider || x <= sliderMaxX || w != 1 || h != 1);
-            if (keeper && PACLFits(occ, cols, rows, x, y, w, h)) {
-                PACLMark(occ, cols, rows, x, y, w, h);
-                result[it[@"k"]] = @[@(x), @(y), @(w), @(h)];
+            NSInteger ax = -1, ay = -1;
+            if (!modified) {
+                if ([lk containsString:@"connectivitymodule"]) { ax = 0; ay = 0; }
+                else if ([lk containsString:@"nowplaying"]) { ax = 2; ay = 0; }
+                else if ([lk containsString:@"orientationlock"]) { ax = 0; ay = 2; }
+                else if ([lk containsString:@"airplaymirroring"] || [lk containsString:@"screenmirroring"]) { ax = 1; ay = 2; }
+                else if ([lk containsString:@"focus"]) { ax = 0; ay = 3; }
+                else if ([lk containsString:@"displaymodule"]) { ax = 2; ay = 2; }
+                else if ([lk containsString:@"controlcenter.audio"]) { ax = 3; ay = 2; }
+            }
+            if (ax >= 0 && PACLFits(occ, cols, rows, (NSUInteger)ax, (NSUInteger)ay, w, h)) {
+                PACLMark(occ, cols, rows, (NSUInteger)ax, (NSUInteger)ay, w, h);
+                result[k] = @[@(ax), @(ay), @(w), @(h)];
             } else {
-                [flow addObject:it];
+                [flow addObject:[@{@"k": k, @"x": @(x), @"y": @(y), @"w": @(w), @"h": @(h)} mutableCopy]];
             }
         }
         [flow sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
@@ -5505,19 +5484,16 @@ static void PACLMark(BOOL occ[12][12], NSUInteger cols, NSUInteger rows, NSUInte
             return NSOrderedSame;
         }];
         for (NSMutableDictionary *it in flow) {
-            NSUInteger x = [it[@"x"] unsignedIntegerValue], y = [it[@"y"] unsignedIntegerValue];
             NSUInteger w = [it[@"w"] unsignedIntegerValue], h = [it[@"h"] unsignedIntegerValue];
-            BOOL modified = [it[@"mod"] boolValue];
-            BOOL tryNative = modified || !haveSlider || x <= sliderMaxX;
             BOOL placed = NO;
-            NSUInteger px = x, py = y;
-            if (tryNative && PACLFits(occ, cols, rows, x, y, w, h)) {
-                placed = YES;
-            }
-            for (NSUInteger sx = 0; !placed && sx < cols; sx++) {
+            NSUInteger px = 0, py = 0;
+            for (NSUInteger pass = 0; pass < 2 && !placed; pass++) {
+                NSUInteger startX = (pass == 0) ? 4 : 0;
                 for (NSUInteger sy = 0; !placed && sy < rows; sy++) {
-                    if (PACLFits(occ, cols, rows, sx, sy, w, h)) {
-                        px = sx; py = sy; placed = YES;
+                    for (NSUInteger sx = startX; !placed && sx < cols; sx++) {
+                        if (PACLFits(occ, cols, rows, sx, sy, w, h)) {
+                            px = sx; py = sy; placed = YES;
+                        }
                     }
                 }
             }
