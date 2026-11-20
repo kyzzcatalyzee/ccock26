@@ -38,14 +38,14 @@ int PACCBigKind(NSString *mid) {
 
 BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h) {
     int k = PACCBigKind(mid);
-    if (k == 1) return (w == 2 && h == 2) || (w == 4 && (h == 4 || h == 6));
-    if (k == 2) return (w == 2 && h == 2) || (w == 4 && (h == 2 || h == 4 || h == 6));
+    if (k == 1) return (w == 2 && h == 2) || (w == 4 && (h == 4 || h == 6 || h == 8));
+    if (k == 2) return (w == 2 && h == 2) || (w == 4 && (h == 2 || h == 4 || h == 6 || h == 8));
     if (k == 3) return (w == 1 && h == 1) || (w == 2 && h == 1);
     return NO;
 }
 
 void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH) {
-    NSUInteger cands[][2] = { {1, 1}, {2, 1}, {2, 2}, {4, 2}, {4, 4}, {4, 6} };
+    NSUInteger cands[][2] = { {1, 1}, {2, 1}, {2, 2}, {4, 2}, {4, 4}, {4, 6}, {4, 8} };
     NSInteger best = NSIntegerMax;
     NSUInteger bw = 2, bh = 2;
     for (size_t i = 0; i < sizeof(cands) / sizeof(cands[0]); i++) {

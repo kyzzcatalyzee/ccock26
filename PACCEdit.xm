@@ -810,7 +810,7 @@ static CCUILayoutSize PACResizeCandidate(NSString *mid, NSUInteger startW, NSUIn
     NSInteger nw = MAX(1, MIN(4, (NSInteger)startW + dc));
     NSInteger nh = MAX(1, MIN(4, (NSInteger)startH + dr));
     if (PACCBigKind(mid)) {
-        nh = MAX(1, MIN(6, (NSInteger)startH + dr));
+        nh = MAX(1, MIN(8, (NSInteger)startH + dr));
         NSUInteger sw = 2, sh = 2;
         PACCBigSnapSize(mid, nw, nh, &sw, &sh);
         return (CCUILayoutSize){sw, sh};
@@ -2084,6 +2084,14 @@ static void PACEnsureClones(void) {
         }
     }
     if (v) CFRelease(v);
+    if (!PACFlagIsSet(CFSTR("SeedClones48"))) {
+        for (NSMutableDictionary *cd in gPACClones) {
+            NSString *cid = cd[@"id"];
+            if (([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) && [cd[@"h"] unsignedIntegerValue] == 6) cd[@"h"] = @8;
+        }
+        PACSaveClones();
+        PACSetFlag(CFSTR("SeedClones48"));
+    }
     if (!PACIsLandscape() && !PACFlagIsSet(CFSTR("BuiltinPagesGoneClones"))) {
         PACRefreshGridConstants();
         NSUInteger old = PACOldBasePages();
@@ -2268,8 +2276,8 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             PACRefreshGridConstants();
             NSUInteger base = PACBasePageCount();
             [gPACClones removeAllObjects];
-            [gPACClones addObject:[@{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(base * kPACStride),       @"w": @4, @"h": @6} mutableCopy]];
-            [gPACClones addObject:[@{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @((base + 1) * kPACStride), @"w": @4, @"h": @6} mutableCopy]];
+            [gPACClones addObject:[@{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(base * kPACStride),       @"w": @4, @"h": @8} mutableCopy]];
+            [gPACClones addObject:[@{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @((base + 1) * kPACStride), @"w": @4, @"h": @8} mutableCopy]];
             PACSaveClones();
             CFPreferencesSetAppValue(CFSTR("SeedClonesPending"), NULL, CFSTR("pawxed.ccock26.preferences"));
             CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
