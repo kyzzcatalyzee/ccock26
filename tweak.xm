@@ -66,12 +66,8 @@ BOOL gPagerScrubbing = NO;
         if (span > 0.0) {
             CATransform3D t = self.layer.sublayerTransform;
             CGFloat expected = -(CGFloat)gCurrentPage * span + (PACCLandscapeNow() ? kPACLandShift : 0.0);
-            if (fabs(t.m42 - expected) > 0.5) {
-                t.m41 = 0.0;
-                t.m42 = expected;
-                t.m43 = 0.0;
-                self.layer.sublayerTransform = t;
-            }
+            CATransform3D wantT = PACCDesiredTransform(t, (UIView *)(id)self, expected);
+            if (!PACCTransformClose(t, wantT)) self.layer.sublayerTransform = wantT;
         }
     }
 
@@ -131,10 +127,9 @@ BOOL gPagerScrubbing = NO;
                 CGFloat span = PageSpan();
                 if (span > 0.0) {
                     CATransform3D t = collection.view.layer.sublayerTransform;
-                    t.m41 = 0.0;
-                    t.m42 = -(CGFloat)gCurrentPage * span + (PACCLandscapeNow() ? kPACLandShift : 0.0);
-                    t.m43 = 0.0;
-                    collection.view.layer.sublayerTransform = t;
+                    CGFloat baseY2 = -(CGFloat)gCurrentPage * span + (PACCLandscapeNow() ? kPACLandShift : 0.0);
+                    CATransform3D wantT2 = PACCDesiredTransform(t, collection.view, baseY2);
+                    if (!PACCTransformClose(t, wantT2)) collection.view.layer.sublayerTransform = wantT2;
                 }
             }
         }
@@ -210,10 +205,8 @@ BOOL gPagerScrubbing = NO;
             if (lv && !gPagerScrubbing) {
                 CGFloat want = -(CGFloat)gCurrentPage * PageSpan() + (PACCLandscapeNow() ? kPACLandShift : 0.0);
                 CATransform3D lt = lv.layer.sublayerTransform;
-                if (fabs(lt.m42 - want) > 0.5) {
-                    lt.m41 = 0.0; lt.m42 = want; lt.m43 = 0.0;
-                    lv.layer.sublayerTransform = lt;
-                }
+                CATransform3D lwant = PACCDesiredTransform(lt, lv, want);
+                if (!PACCTransformClose(lt, lwant)) lv.layer.sublayerTransform = lwant;
             }
         }
     }
