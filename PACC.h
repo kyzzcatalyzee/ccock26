@@ -114,6 +114,7 @@ static inline BOOL PACCLandscapeNow(void) {
     CGSize sz = UIScreen.mainScreen.bounds.size;
     return sz.width > sz.height;
 }
+
 static inline CGRect PACCBigOutset(int kind, CGRect f) {
     CGFloat dx = (kind == 1) ? MAX(0.0, (f.size.width - kPACConnW) * 0.5) : 5.0;
     return CGRectInset(f, dx, -kPACConnExtra * 0.5);

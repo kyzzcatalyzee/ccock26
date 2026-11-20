@@ -1561,6 +1561,21 @@ static void PACRestoreModuleRadius(UIViewController *m) {
     }];
 }
 
+static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov);
+
+static BOOL PACLandEligible(UIViewController *m) {
+    if (!gEnabled || !gEditModeEnabled || !m || !m.view) return NO;
+    NSString *mid = PACMid(m);
+    if (!mid.length) return NO;
+    NSString *lowMid = mid.lowercaseString;
+    if ([lowMid containsString:@"control-center.displaymodule"] || [lowMid containsString:@"controlcenter.audio"]) return NO;
+    if ([mid hasPrefix:@"zilvyn.ccock26.module."] || PACCBigKind(mid)) return NO;
+    PACEnsureStore();
+    NSArray<NSNumber *> *sv = gEditSizes[mid];
+    if (sv.count < 2) return NO;
+    return PACWasResizedFromOneByOne(mid);
+}
+
 static void PACTearDownModule(UIViewController *m) {
     if (!m || !m.view) return;
     UIView *view = m.view;
@@ -1588,6 +1603,11 @@ static void PACTearDownModule(UIViewController *m) {
 
         [CATransaction commit];
     }];
+
+    if (PACIsLandscape() && PACLandEligible(m)) {
+        UIViewController *lov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+        if (lov) PACRunMaybeWithoutAnimation(^{ PACRefreshPresentationImpl(m, lov); });
+    }
 }
 
 static void PACTearDownAllModules(UIViewController *ov) {
@@ -5235,7 +5255,10 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
 
 static void PACRefreshPresentation(UIViewController *m, UIViewController *ov) {
     if (!m || !m.view) return;
-    if (PACIsLandscape()) return;
+    if (PACIsLandscape()) {
+        if (PACLandEligible(m)) PACRunMaybeWithoutAnimation(^{ PACRefreshPresentationImpl(m, ov); });
+        return;
+    }
     objc_setAssociatedObject(m.view, kPACLandscapeCleanKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     PACRunMaybeWithoutAnimation(^{ PACRefreshPresentationImpl(m, ov); });
 }
