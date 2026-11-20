@@ -5930,3 +5930,25 @@ static void PACEditReload(__unused CFNotificationCenterRef c,
     [b sendActionsForControlEvents:UIControlEventPrimaryActionTriggered];
 }
 @end
+
+void PACCLandscapeRefresh(UIViewController *ov) {
+    if (!ov || !PACIsLandscape()) return;
+    static NSMutableSet<NSString *> *loggedP;
+    if (!loggedP) loggedP = [NSMutableSet set];
+    for (UIViewController *m in ModuleControllers(ov)) {
+        if (!m.view) continue;
+        NSString *mid = PACMid(m);
+        if (!mid.length) continue;
+        NSUInteger cw = 1, ch = 1;
+        PACPresentationSize(mid, &cw, &ch);
+        BOOL el = PACLandEligible(m);
+        if (cw == 1 && ch == 1 && !el) continue;
+        UIView *pres = objc_getAssociatedObject(m.view, kPACPresKey);
+        UIView *bv = PACModuleButtonView(m.view);
+        NSString *ln = [NSString stringWithFormat:@"landscape pres %@ eligible %d pres %d saved %lux%lu bounds %@ enabled %d editEnabled %d",
+                        mid, (int)el, (int)(pres != nil), (unsigned long)cw, (unsigned long)ch,
+                        NSStringFromCGSize(bv.bounds.size), (int)gEnabled, (int)gEditModeEnabled];
+        if (![loggedP containsObject:ln]) { [loggedP addObject:ln]; PACCSizeLog(ln); }
+        if (el) PACRunMaybeWithoutAnimation(^{ PACRefreshPresentationImpl(m, ov); });
+    }
+}

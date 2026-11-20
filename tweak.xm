@@ -199,9 +199,11 @@ BOOL gPagerScrubbing = NO;
                         }
                         [PACC.shared adjustStatusBarForOverlay:ov2];
                         [PACC.shared hideHairlinesForOverlay:ov2];
+                        PACCLandscapeRefresh(ov2);
                     }];
                 }
                 [PACC.shared hideHairlinesForOverlay:overlay];
+                PACCLandscapeRefresh(overlay);
             }
             UIViewController *lcol = ModuleCollection(overlay);
             UIView *lv = lcol.view;

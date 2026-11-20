@@ -99,6 +99,7 @@ void PACCCrumb(const char *label);
 void PACCClonesRelayout(UIView *collectionView);
 void PACCCrashLog(NSString *line);
 void PACCSizeLog(NSString *line);
+void PACCLandscapeRefresh(UIViewController *ov);
 void PACCSyncClones(UIViewController *overlay, BOOL animated);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);
 BOOL PACCLIQIsActive(void);
