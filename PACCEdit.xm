@@ -21,6 +21,7 @@ typedef struct { NSUInteger c, r, w, h; } PACRect;
 static NSUInteger kPACCols = 4;
 static NSUInteger kPACRows = 8;
 static NSUInteger kPACStride = 8;
+static NSUInteger gPACPortraitStride = 0;
 static NSUInteger gPACEditEpoch = 0;
 static CFTimeInterval gEditModeEnteredAt = 0;
 static NSInteger gPACLastPresentationState = 1;
@@ -313,9 +314,15 @@ static void PACRefreshGridConstants(void) {
         CGFloat spanRows = landscape ? 0.0 : PageSpan() / (PACCGridCell() + PACCGridGap());
         kPACStride = MAX(kPACRows, (NSUInteger)llround(spanRows));
     }
+    if (!landscape) gPACPortraitStride = kPACStride;
     kPACCell = PACCGridCell();
     kPACgap  = PACCGridGap();
     kPACStep = kPACCell + kPACgap;
+}
+
+static NSUInteger PACPageDivisor(void) {
+    if (!PACIsLandscape()) return kPACStride;
+    return gPACPortraitStride ? gPACPortraitStride : 8;
 }
 
 static BOOL PACEditAllowed(void) {
@@ -2145,12 +2152,12 @@ extern "C" int PACCPageContentKind(NSUInteger page) {
     for (NSString *key in gEditOrigins) {
         if (![key hasPrefix:@"P|"]) continue;
         NSArray<NSNumber *> *o = gEditOrigins[key];
-        if (o.count < 2 || o[1].unsignedIntegerValue / kPACStride != page) continue;
+        if (o.count < 2 || o[1].unsignedIntegerValue / PACPageDivisor() != page) continue;
         int k = PACCBigKind([key substringFromIndex:2]);
         if (k == 1) conn = YES; else if (k == 2) music = YES;
     }
     for (NSDictionary *d in gPACClones) {
-        if ([d[@"a"] unsignedIntegerValue] / kPACStride != page) continue;
+        if ([d[@"a"] unsignedIntegerValue] / PACPageDivisor() != page) continue;
         int k = PACCBigKind(d[@"mid"]);
         if (k == 1) conn = YES; else if (k == 2) music = YES;
     }
@@ -2259,7 +2266,8 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
     }
 
     CGFloat bx = 0, by = 0;
-    BOOL ok = !PACIsLandscape() && PACRawGridBase(ov, &bx, &by);
+    BOOL land = PACIsLandscape();
+    BOOL ok = land ? (cv.window != nil) : PACRawGridBase(ov, &bx, &by);
     UIView *connHost = nil;
     for (UIViewController *m in ModuleControllers(ov)) {
         NSString *mid = PACMid(m);
@@ -2275,6 +2283,8 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         if (!ok || !kind) { cl.hidden = YES; PACRemoveCloneChrome(cl); continue; }
         NSUInteger c = [d[@"c"] unsignedIntegerValue], a = [d[@"a"] unsignedIntegerValue];
         NSUInteger w = [d[@"w"] unsignedIntegerValue], h = [d[@"h"] unsignedIntegerValue];
+        NSInteger landPage = (NSInteger)(a / PACPageDivisor());
+        if (land && ((kind != 1 && kind != 2) || landPage < 1)) { cl.hidden = YES; PACRemoveCloneChrome(cl); continue; }
 
         if (!cl) {
             cl = PACCBigNewClone(kind);
@@ -2288,6 +2298,14 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         cl.hidden = NO;
         CGRect f = PACCloneFrame(d, bx, by);
         CGRect fr = PACCloneBigFrame(d, f);
+        if (land) {
+            CGSize scr = UIScreen.mainScreen.bounds.size;
+            CGFloat lw = floor(scr.width * 0.735);
+            CGFloat lh = floor(scr.height * 0.78);
+            CGRect want = CGRectMake(floor((scr.width - lw) * 0.5), floor((scr.height - lh) * 0.5) + 8.0, lw, lh);
+            f = PACCLandUnmap(cv, want, landPage);
+            fr = f;
+        }
         if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
         cl.clipsToBounds = CGRectEqualToRect(fr, f);
         UIView *bg = [cl viewWithTag:kPACCloneBgTag];
@@ -2306,7 +2324,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             }
         }
 
-        BOOL onPage = ((NSInteger)(a / kPACStride) == gCurrentPage) || gPACCRevealAll;
+        BOOL onPage = ((NSInteger)(a / PACPageDivisor()) == gCurrentPage) || gPACCRevealAll;
         CGFloat alpha = onPage ? 1.0 : 0.0;
         if (fabs(cl.alpha - alpha) > 0.01) {
             if (animated) [UIView animateWithDuration:0.35 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ cl.alpha = alpha; } completion:nil];

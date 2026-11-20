@@ -1735,6 +1735,43 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
         return;
     }
 
+    if (w > h * 1.25 && h >= 200.0) {
+        CGFloat lp = h * 0.075;
+        CGFloat lart = h - lp * 2.0;
+        CGFloat sc = h / 330.0;
+        _art.frame = CGRectMake(lp, lp, lart, lart);
+        _art.layer.cornerRadius = 14.0;
+        CGFloat rx = lp + lart + lp;
+        CGFloat rw = w - rx - lp;
+        _title.font = [UIFont systemFontOfSize:16.0 * sc weight:UIFontWeightBold];
+        _artist.font = [UIFont systemFontOfSize:14.0 * sc weight:UIFontWeightRegular];
+        _title.frame = CGRectMake(rx, lp, rw, 22.0 * sc);
+        _artist.frame = CGRectMake(rx, lp + 22.0 * sc, rw, 18.0 * sc);
+        CGFloat lseekY = h * 0.26;
+        _seek.frame = CGRectMake(rx, lseekY, rw, 24.0);
+        _elapsed.frame = CGRectMake(rx, lseekY + 22.0, 80.0, 14.0);
+        _remaining.frame = CGRectMake(rx + rw - 80.0, lseekY + 22.0, 80.0, 14.0);
+        CGFloat lbw = 72.0 * sc, lbx = rx + (rw - lbw * 3.0) * 0.5, lcy = h * 0.505;
+        _prev.frame = CGRectMake(lbx, lcy - 28.0 * sc, lbw, 56.0 * sc);
+        _play.frame = CGRectMake(lbx + lbw, lcy - 28.0 * sc, lbw, 56.0 * sc);
+        _next.frame = CGRectMake(lbx + lbw * 2.0, lcy - 28.0 * sc, lbw, 56.0 * sc);
+        [self setSymbol:@"backward.fill" size:28.0 * sc on:_prev];
+        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:36.0 * sc on:_play];
+        [self setSymbol:@"forward.fill" size:28.0 * sc on:_next];
+        CGFloat lvy = h * 0.76 - 12.0;
+        _volLo.frame = CGRectMake(rx, lvy, 22.0, 24.0);
+        _volHi.frame = CGRectMake(rx + rw - 22.0, lvy, 22.0, 24.0);
+        _vol.frame = CGRectMake(rx + 30.0, lvy, rw - 60.0, 24.0);
+        _vol.value = PACBigGetVolume();
+        CGFloat lpw = 104.0, lph = 32.0;
+        _pill.hidden = NO;
+        _pill.frame = CGRectMake(rx + (rw - lpw) * 0.5, h * 0.88 - lph * 0.5, lpw, lph);
+        _pill.layer.cornerRadius = lph * 0.5;
+        _pillIcon.frame = CGRectMake(10.0, 0.0, 22.0, lph);
+        _pillLbl.frame = CGRectMake(36.0, 0.0, lpw - 40.0, lph);
+        return;
+    }
+
     if (h >= 400.0) {
         pad = 24.0;
         CGFloat a = MIN(w - pad * 2, h - 262.0 - pad);

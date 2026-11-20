@@ -562,7 +562,7 @@ BOOL gPACCRevealAll = NO;
         return;
     }
 
-    NSUInteger pageCount = PACCLandscapeNow() ? PACCBasePageCount() : (PACCBasePageCount() + PACCUserPageCount());
+    NSUInteger pageCount = PACCBasePageCount() + PACCUserPageCount();
     if ((NSInteger)gCurrentPage >= (NSInteger)pageCount) {
         [self snapToFirstPageForOverlay:overlay];
     }
@@ -587,7 +587,7 @@ BOOL gPACCRevealAll = NO;
     if (indicator.scrubbing)
 return;
     {
-        NSUInteger wantCount = PACCLandscapeNow() ? PACCBasePageCount() : (PACCBasePageCount() + PACCUserPageCount());
+        NSUInteger wantCount = PACCBasePageCount() + PACCUserPageCount();
         if (indicator.pageCount != wantCount) {
             indicator.pageCount = wantCount;
             if ((NSInteger)gCurrentPage >= (NSInteger)wantCount) {
