@@ -678,7 +678,7 @@ return;
     CGRect targetBounds = CGRectMake(0, 0, cardW, cardH);
     CGPoint targetCenter = CGPointMake(x + cardW * 0.5, frameY + cardH * 0.5);
     if (screenW > screenH && collectionView.window) {
-        CGFloat lw = floor(screenW * 0.735);
+        CGFloat lw = floor(screenW * 0.86);
         CGFloat lh = floor(screenH * 0.78);
         CGRect want = CGRectMake(floor((screenW - lw) * 0.5), floor((screenH - lh) * 0.5) + 8.0, lw, lh);
         CGRect local = PACCLandUnmap(collectionView, want, PACCMediaPageIndex());

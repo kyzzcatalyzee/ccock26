@@ -1057,6 +1057,8 @@ static void PACLayoutModuleIcon(UIViewController *m) {
     UIView *buttonView = PACModuleButtonView(m.view);
     NSArray<UIView *> *glyphs = PACCompactGlyphHosts(buttonView);
     CGPoint targetInButton = CGPointMake(kPACCell * 0.5, kPACCell * 0.5);
+    CGSize pacBs = buttonView.bounds.size;
+    if (pacBs.width > kPACCell * 1.5 && pacBs.height > kPACCell * 1.5) targetInButton = CGPointMake(kPACCell * 0.5, kPACCell * 0.5);
     objc_setAssociatedObject(buttonView, kPACIconPinKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     for (UIView *glyph in glyphs) {
         UIView *host = glyph.superview;
@@ -2190,7 +2192,7 @@ static CGRect PACCloneBigFrame(NSDictionary *d, CGRect f) {
 
 static CGRect PACLandCloneRect(UIView *cv, NSInteger page) {
     CGSize scr = UIScreen.mainScreen.bounds.size;
-    CGFloat lw = floor(scr.width * 0.735);
+    CGFloat lw = floor(scr.width * 0.86);
     CGFloat lh = floor(scr.height * 0.78);
     CGRect want = CGRectMake(floor((scr.width - lw) * 0.5), floor((scr.height - lh) * 0.5) + 8.0, lw, lh);
     return PACCLandUnmap(cv, want, page);
@@ -5058,6 +5060,7 @@ static void PACApplyCC18Glyph(UIView *buttonView, NSString *mid, BOOL expanded) 
     BOOL resized = PACWasResizedFromOneByOne(mid);
     BOOL wideBtn = bs.width > bs.height * 1.25;
     CGPoint c = (resized || wideBtn) ? CGPointMake(MIN(bs.width, bs.height) * 0.5, bs.height * 0.5) : CGPointMake(bs.width * 0.5, bs.height * 0.5);
+    if (resized && bs.width > kPACCell * 1.5 && bs.height > kPACCell * 1.5) c = CGPointMake(kPACCell * 0.5, kPACCell * 0.5);
     CGFloat d = round(kPACCell * 0.52);
     if (img) {
         UIImageView *iv = oldImg;
