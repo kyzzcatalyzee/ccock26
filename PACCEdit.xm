@@ -5376,6 +5376,13 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
             if (cand == subview) { myMid = key; break; }
         }
         if (!myMid.length) return r;
+        {
+            static NSMutableSet<NSString *> *loggedR;
+            if (!loggedR) loggedR = [NSMutableSet set];
+            NSString *rn = [NSString stringWithFormat:@"landscape rect %@ at %lu,%lu size %lux%lu", myMid,
+                            (unsigned long)r.origin.x, (unsigned long)r.origin.y, (unsigned long)r.size.width, (unsigned long)r.size.height];
+            if (![loggedR containsObject:rn]) { [loggedR addObject:rn]; PACCSizeLog(rn); }
+        }
         if (PACLandscapeIsSlider(myMid)) {
             if (r.size.height > 2) r.size.height = 2;
             return r;
@@ -5497,6 +5504,13 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
         if (lm.length && !PACLandscapeIsSlider(lm) && gEditModeEnabled) {
             PACEnsureStore();
             NSArray<NSNumber *> *lsz = gEditSizes[lm];
+            {
+                static NSMutableSet<NSString *> *loggedL;
+                if (!loggedL) loggedL = [NSMutableSet set];
+                NSString *ln = [NSString stringWithFormat:@"landscape size %@ native %lux%lu saved %@ orient %ld", lm,
+                                (unsigned long)s.width, (unsigned long)s.height, lsz ? [lsz componentsJoinedByString:@"x"] : @"-", (long)orientation];
+                if (![loggedL containsObject:ln]) { [loggedL addObject:ln]; PACCSizeLog(ln); }
+            }
             if (lsz.count >= 2) {
                 NSUInteger lw = lsz[0].unsignedIntegerValue, lh = lsz[1].unsignedIntegerValue;
                 if (lw >= 1 && lw <= 8 && lh >= 1 && lh <= 4) {
