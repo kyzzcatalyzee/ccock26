@@ -225,10 +225,18 @@ static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, C
             CGFloat H = cv.window.bounds.size.height;
             CGPoint o = PACCLandOrigin(cv);
             CGFloat topWin = o.y + top;
-            CGFloat targetTop = MIN(topWin, 36.0);
+            CGFloat targetTop = (topWin > 48.0) ? MAX(48.0, topWin - 20.0) : topWin;
             CGFloat rowsH = 8.0 * PACCGridCell() + 7.0 * PACCGridGap();
-            CGFloat sc = (H - 10.0 - targetTop) / rowsH;
+            CGFloat sc = MIN(0.9, (H - 12.0 - targetTop) / rowsH);
             cSc = MAX(0.6, MIN(1.0, sc));
+            {
+                static CGFloat lastLogTop = -999.0, lastLogSc = -1.0;
+                if (fabs(lastLogTop - topWin) > 0.5 || fabs(lastLogSc - cSc) > 0.001) {
+                    lastLogTop = topWin; lastLogSc = cSc;
+                    PACCSizeLog([NSString stringWithFormat:@"portrait fit H %.1f oy %.1f top %.1f topWin %.1f target %.1f rowsH %.1f cvH %.1f scale %.3f",
+                                 H, o.y, top, topWin, targetTop, rowsH, cv.bounds.size.height, cSc]);
+                }
+            }
             cMc = (mn + mx) * 0.5;
             cTop = top;
             cRaise = targetTop - topWin;
