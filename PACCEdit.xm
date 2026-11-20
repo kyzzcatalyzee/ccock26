@@ -5358,6 +5358,21 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
     return [l containsString:@"control-center.displaymodule"] || [l containsString:@"controlcenter.audio"];
 }
 
+static BOOL PACLFits(BOOL occ[12][12], NSUInteger cols, NSUInteger rows, NSUInteger x, NSUInteger y, NSUInteger w, NSUInteger h) {
+    if (w == 0 || h == 0) return NO;
+    if (x + w > cols || y + h > rows) return NO;
+    for (NSUInteger yy = y; yy < y + h; yy++)
+        for (NSUInteger xx = x; xx < x + w; xx++)
+            if (occ[yy][xx]) return NO;
+    return YES;
+}
+
+static void PACLMark(BOOL occ[12][12], NSUInteger cols, NSUInteger rows, NSUInteger x, NSUInteger y, NSUInteger w, NSUInteger h) {
+    for (NSUInteger yy = y; yy < y + h && yy < rows; yy++)
+        for (NSUInteger xx = x; xx < x + w && xx < cols; xx++)
+            occ[yy][xx] = YES;
+}
+
 %hook CCUIModuleCollectionViewController
 
 - (CCUILayoutRect)layoutView:(id)layoutView layoutRectForSubview:(UIView *)subview {
@@ -5387,13 +5402,7 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
             if (r.size.height > 2) r.size.height = 2;
             return r;
         }
-        if (r.size.width != 1 || r.size.height != 1) return r;
-
         busy = YES;
-        NSMutableArray<NSArray *> *freed = [NSMutableArray array];
-        NSMutableArray<NSDictionary *> *cands = [NSMutableArray array];
-        NSUInteger sliderMaxX = 0;
-        BOOL haveSlider = NO, blocked = NO;
         NSMutableArray<NSDictionary *> *others = [NSMutableArray array];
         for (NSString *key in cont) {
             id value = cont[key];
@@ -5403,47 +5412,102 @@ static BOOL PACLandscapeIsSlider(NSString *mid) {
             CCUILayoutRect nr = %orig(layoutView, v);
             [others addObject:@{@"k": key, @"x": @(nr.origin.x), @"y": @(nr.origin.y), @"w": @(nr.size.width), @"h": @(nr.size.height)}];
         }
+        busy = NO;
+
+        if (gEditModeEnabled) PACEnsureStore();
+        NSUInteger cols = 8, rows = 3;
+        NSUInteger sliderMaxX = 0;
+        BOOL haveSlider = NO;
         for (NSDictionary *o in others) {
             NSUInteger x = [o[@"x"] unsignedIntegerValue], y = [o[@"y"] unsignedIntegerValue];
             NSUInteger w = [o[@"w"] unsignedIntegerValue], h = [o[@"h"] unsignedIntegerValue];
+            cols = MAX(cols, x + w);
+            rows = MAX(rows, y + h);
             if (PACLandscapeIsSlider(o[@"k"])) {
                 haveSlider = YES;
                 sliderMaxX = MAX(sliderMaxX, x + w - 1);
-                for (NSUInteger fy = y + 2; fy < y + h; fy++)
-                    for (NSUInteger fx = x; fx < x + w; fx++)
-                        [freed addObject:@[@(fx), @(fy)]];
             }
         }
-        if (haveSlider && freed.count) {
-            for (NSDictionary *o in others) {
-                if (PACLandscapeIsSlider(o[@"k"])) continue;
-                NSUInteger x = [o[@"x"] unsignedIntegerValue];
-                if (x <= sliderMaxX) continue;
-                if ([o[@"w"] unsignedIntegerValue] != 1 || [o[@"h"] unsignedIntegerValue] != 1) { blocked = YES; break; }
-                [cands addObject:o];
-            }
-        }
-        busy = NO;
-        if (!haveSlider || !freed.count || blocked || !cands.count) return r;
+        if (cols > 12) cols = 12;
+        if (rows > 12) rows = 12;
 
-        NSComparator byPos = ^NSComparisonResult(id a, id b) {
-            NSUInteger ax = [a isKindOfClass:NSArray.class] ? [a[0] unsignedIntegerValue] : [a[@"x"] unsignedIntegerValue];
-            NSUInteger bx = [b isKindOfClass:NSArray.class] ? [b[0] unsignedIntegerValue] : [b[@"x"] unsignedIntegerValue];
+        BOOL occ[12][12];
+        memset(occ, 0, sizeof(occ));
+        NSMutableDictionary<NSString *, NSArray *> *result = [NSMutableDictionary dictionary];
+        NSMutableArray<NSMutableDictionary *> *items = [NSMutableArray array];
+
+        for (NSDictionary *o in others) {
+            NSString *k = o[@"k"];
+            NSUInteger x = [o[@"x"] unsignedIntegerValue], y = [o[@"y"] unsignedIntegerValue];
+            NSUInteger w = [o[@"w"] unsignedIntegerValue], h = [o[@"h"] unsignedIntegerValue];
+            if (PACLandscapeIsSlider(k)) {
+                if (h > 2) h = 2;
+                PACLMark(occ, cols, rows, x, y, w, h);
+                result[k] = @[@(x), @(y), @(w), @(h)];
+                continue;
+            }
+            NSUInteger nw = w, nh = h;
+            if (gEditModeEnabled && nw == 1 && nh == 1) {
+                NSArray<NSNumber *> *sv = gEditSizes[k];
+                if (sv.count >= 2) {
+                    NSUInteger sw = sv[0].unsignedIntegerValue, sh = sv[1].unsignedIntegerValue;
+                    if (sw >= 1 && sh >= 1) {
+                        w = MIN(sw, (NSUInteger)4);
+                        h = MIN(sh, rows);
+                    }
+                }
+            }
+            BOOL modified = (w != nw || h != nh);
+            [items addObject:[@{@"k": k, @"x": @(x), @"y": @(y), @"w": @(w), @"h": @(h), @"mod": @(modified)} mutableCopy]];
+        }
+
+        NSMutableArray<NSMutableDictionary *> *flow = [NSMutableArray array];
+        for (NSMutableDictionary *it in items) {
+            NSUInteger x = [it[@"x"] unsignedIntegerValue], y = [it[@"y"] unsignedIntegerValue];
+            NSUInteger w = [it[@"w"] unsignedIntegerValue], h = [it[@"h"] unsignedIntegerValue];
+            BOOL modified = [it[@"mod"] boolValue];
+            BOOL keeper = !modified && (!haveSlider || x <= sliderMaxX || w != 1 || h != 1);
+            if (keeper && PACLFits(occ, cols, rows, x, y, w, h)) {
+                PACLMark(occ, cols, rows, x, y, w, h);
+                result[it[@"k"]] = @[@(x), @(y), @(w), @(h)];
+            } else {
+                [flow addObject:it];
+            }
+        }
+        [flow sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            NSUInteger ax = [a[@"x"] unsignedIntegerValue], bx = [b[@"x"] unsignedIntegerValue];
             if (ax != bx) return ax < bx ? NSOrderedAscending : NSOrderedDescending;
-            NSUInteger ay = [a isKindOfClass:NSArray.class] ? [a[1] unsignedIntegerValue] : [a[@"y"] unsignedIntegerValue];
-            NSUInteger by = [b isKindOfClass:NSArray.class] ? [b[1] unsignedIntegerValue] : [b[@"y"] unsignedIntegerValue];
+            NSUInteger ay = [a[@"y"] unsignedIntegerValue], by = [b[@"y"] unsignedIntegerValue];
             if (ay != by) return ay < by ? NSOrderedAscending : NSOrderedDescending;
             return NSOrderedSame;
-        };
-        [cands sortUsingComparator:byPos];
-        NSMutableArray *slots = [NSMutableArray arrayWithArray:[freed sortedArrayUsingComparator:byPos]];
-        for (NSDictionary *c in cands) [slots addObject:@[c[@"x"], c[@"y"]]];
-        for (NSUInteger i = 0; i < cands.count; i++) {
-            if (![cands[i][@"k"] isEqualToString:myMid]) continue;
-            NSArray *slot = slots[i];
-            CCUILayoutPoint p = { [slot[0] unsignedIntegerValue], [slot[1] unsignedIntegerValue] };
+        }];
+        for (NSMutableDictionary *it in flow) {
+            NSUInteger x = [it[@"x"] unsignedIntegerValue], y = [it[@"y"] unsignedIntegerValue];
+            NSUInteger w = [it[@"w"] unsignedIntegerValue], h = [it[@"h"] unsignedIntegerValue];
+            BOOL modified = [it[@"mod"] boolValue];
+            BOOL tryNative = modified || !haveSlider || x <= sliderMaxX;
+            BOOL placed = NO;
+            NSUInteger px = x, py = y;
+            if (tryNative && PACLFits(occ, cols, rows, x, y, w, h)) {
+                placed = YES;
+            }
+            for (NSUInteger sx = 0; !placed && sx < cols; sx++) {
+                for (NSUInteger sy = 0; !placed && sy < rows; sy++) {
+                    if (PACLFits(occ, cols, rows, sx, sy, w, h)) {
+                        px = sx; py = sy; placed = YES;
+                    }
+                }
+            }
+            if (placed) PACLMark(occ, cols, rows, px, py, w, h);
+            result[it[@"k"]] = @[@(px), @(py), @(w), @(h)];
+        }
+
+        NSArray *mine = result[myMid];
+        if (mine.count >= 4) {
+            CCUILayoutPoint p = { [mine[0] unsignedIntegerValue], [mine[1] unsignedIntegerValue] };
+            CCUILayoutSize s = { [mine[2] unsignedIntegerValue], [mine[3] unsignedIntegerValue] };
             r.origin = p;
-            break;
+            r.size = s;
         }
         return r;
     }
