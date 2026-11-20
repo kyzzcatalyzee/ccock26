@@ -65,8 +65,7 @@ BOOL gPagerScrubbing = NO;
         CGFloat span = PageSpan();
         if (span > 0.0) {
             CATransform3D t = self.layer.sublayerTransform;
-            CGFloat expected = -(CGFloat)gCurrentPage * span + (PACCLandscapeNow() ? kPACLandShift : 0.0);
-            CATransform3D wantT = PACCDesiredTransform(t, (UIView *)(id)self, expected);
+            CATransform3D wantT = PACCDesiredTransform(t, (UIView *)(id)self, PACCLandShiftNow(), -(CGFloat)gCurrentPage * span);
             if (!PACCTransformClose(t, wantT)) self.layer.sublayerTransform = wantT;
         }
     }
@@ -127,8 +126,7 @@ BOOL gPagerScrubbing = NO;
                 CGFloat span = PageSpan();
                 if (span > 0.0) {
                     CATransform3D t = collection.view.layer.sublayerTransform;
-                    CGFloat baseY2 = -(CGFloat)gCurrentPage * span + (PACCLandscapeNow() ? kPACLandShift : 0.0);
-                    CATransform3D wantT2 = PACCDesiredTransform(t, collection.view, baseY2);
+                    CATransform3D wantT2 = PACCDesiredTransform(t, collection.view, PACCLandShiftNow(), -(CGFloat)gCurrentPage * span);
                     if (!PACCTransformClose(t, wantT2)) collection.view.layer.sublayerTransform = wantT2;
                 }
             }
@@ -203,9 +201,8 @@ BOOL gPagerScrubbing = NO;
             UIViewController *lcol = ModuleCollection(overlay);
             UIView *lv = lcol.view;
             if (lv && !gPagerScrubbing) {
-                CGFloat want = -(CGFloat)gCurrentPage * PageSpan() + (PACCLandscapeNow() ? kPACLandShift : 0.0);
                 CATransform3D lt = lv.layer.sublayerTransform;
-                CATransform3D lwant = PACCDesiredTransform(lt, lv, want);
+                CATransform3D lwant = PACCDesiredTransform(lt, lv, PACCLandShiftNow(), -(CGFloat)gCurrentPage * PageSpan());
                 if (!PACCTransformClose(lt, lwant)) lv.layer.sublayerTransform = lwant;
             }
         }

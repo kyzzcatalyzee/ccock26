@@ -549,10 +549,7 @@ BOOL gPACCRevealAll = NO;
     UIViewController *collection = ModuleCollection(overlay);
     if (!collection.view) return;
 
-    CATransform3D t = collection.view.layer.sublayerTransform;
-    t.m41 = 0.0;
-    t.m42 = 0.0;
-    t.m43 = 0.0;
+    CATransform3D t = PACCDesiredTransform(collection.view.layer.sublayerTransform, collection.view, PACCLandShiftNow(), 0.0);
     collection.view.layer.sublayerTransform = t;
 
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
@@ -565,7 +562,7 @@ BOOL gPACCRevealAll = NO;
         return;
     }
 
-    NSUInteger pageCount = PACCBasePageCount() + PACCUserPageCount();
+    NSUInteger pageCount = PACCLandscapeNow() ? PACCBasePageCount() : (PACCBasePageCount() + PACCUserPageCount());
     if ((NSInteger)gCurrentPage >= (NSInteger)pageCount) {
         [self snapToFirstPageForOverlay:overlay];
     }
@@ -589,6 +586,16 @@ BOOL gPACCRevealAll = NO;
     if (!indicator) return;
     if (indicator.scrubbing)
 return;
+    {
+        NSUInteger wantCount = PACCLandscapeNow() ? PACCBasePageCount() : (PACCBasePageCount() + PACCUserPageCount());
+        if (indicator.pageCount != wantCount) {
+            indicator.pageCount = wantCount;
+            if ((NSInteger)gCurrentPage >= (NSInteger)wantCount) {
+                indicator.currentPage = 0;
+                [self snapToFirstPageForOverlay:overlay];
+            }
+        }
+    }
     CGFloat step = 50.0;
     CGFloat width = 42.0;
     CGFloat height = step * MAX((NSUInteger)1, indicator.pageCount);
@@ -670,6 +677,14 @@ return;
 
     CGRect targetBounds = CGRectMake(0, 0, cardW, cardH);
     CGPoint targetCenter = CGPointMake(x + cardW * 0.5, frameY + cardH * 0.5);
+    if (screenW > screenH && collectionView.window) {
+        CGFloat lw = floor(screenW * 0.735);
+        CGFloat lh = floor(screenH * 0.78);
+        CGRect want = CGRectMake(floor((screenW - lw) * 0.5), floor((screenH - lh) * 0.5) + 8.0, lw, lh);
+        CGRect local = PACCLandUnmap(collectionView, want, PACCMediaPageIndex());
+        targetBounds = CGRectMake(0, 0, local.size.width, local.size.height);
+        targetCenter = CGPointMake(CGRectGetMidX(local), CGRectGetMidY(local));
+    }
 
     if (!CGRectEqualToRect(player.bounds, targetBounds)) {
         player.bounds = targetBounds;
@@ -722,6 +737,14 @@ return;
 
     promo.bounds = CGRectMake(0.0, 0.0, promoW, promoH);
     promo.center = CGPointMake(floor(promoW * 0.5), floor(frameY + promoH * 0.5));
+    if (screenW > screenH && collectionView.window) {
+        CGFloat lw = floor(screenW * 0.735);
+        CGFloat lh = MIN(190.0, floor(screenH * 0.46));
+        CGRect want = CGRectMake(floor((screenW - lw) * 0.5), floor((screenH - lh) * 0.5), lw, lh);
+        CGRect local = PACCLandUnmap(collectionView, want, MAX(1, PACCPromoPageIndex()));
+        promo.bounds = CGRectMake(0.0, 0.0, local.size.width, local.size.height);
+        promo.center = CGPointMake(CGRectGetMidX(local), CGRectGetMidY(local));
+    }
 }
 
 @end

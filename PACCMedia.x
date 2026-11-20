@@ -486,6 +486,96 @@ static void PACCPlace(UIView *v, CGRect f) {
     self.backingView.frame = self.bounds;
     self.backingView.layer.cornerRadius = self.layer.cornerRadius;
 
+    if (w > h * 1.25) {
+        CGFloat lpad = h * 0.075;
+        CGFloat art = h - lpad * 2.0;
+        self.artworkContainer.frame = CGRectMake(lpad, lpad, art, art);
+        self.artworkContainer.layer.cornerRadius = art * 0.06;
+        self.artworkView.frame = self.artworkContainer.bounds;
+
+        CGFloat rx = lpad + art + lpad;
+        CGFloat rw = w - rx - lpad;
+        CGFloat lTitleH = h * 0.075;
+        CGFloat lArtistH = h * 0.06;
+        CGFloat textW = rw - h * 0.14;
+        self.titleLabel.frame = CGRectMake(rx, lpad, textW, lTitleH);
+        self.titleLabel.font = [UIFont systemFontOfSize:h * 0.052 weight:UIFontWeightSemibold];
+        self.artistLabel.frame = CGRectMake(rx, lpad + lTitleH, textW, lArtistH);
+        self.artistLabel.font = [UIFont systemFontOfSize:h * 0.042 weight:UIFontWeightRegular];
+
+        CGFloat lTrackH = h * 0.022;
+        CGFloat seekY = h * 0.27;
+        CGRect lSeek = CGRectMake(rx, seekY, rw, lTrackH);
+        PACCPlace(self.progressTrack, lSeek);
+        self.progressTrack.layer.cornerRadius = lTrackH * 0.5;
+        PACCPlace(self.seekHit, CGRectInset(lSeek, -12.0, -18.0));
+        CGFloat lPct = self.progressPct;
+        if (lPct < 0.0) lPct = 0.0;
+        if (lPct > 1.0) lPct = 1.0;
+        self.progressFill.frame = CGRectMake(0, 0, rw * lPct, lTrackH);
+        self.progressFill.layer.cornerRadius = lTrackH * 0.5;
+
+        CGFloat lTimeH = h * 0.05;
+        CGFloat timeY = seekY + lTrackH + h * 0.012;
+        self.elapsedLabel.frame = CGRectMake(rx, timeY, rw * 0.3, lTimeH);
+        self.remainingLabel.frame = CGRectMake(rx + rw - rw * 0.3, timeY, rw * 0.3, lTimeH);
+        self.elapsedLabel.font = [UIFont systemFontOfSize:h * 0.037 weight:UIFontWeightMedium];
+        self.remainingLabel.font = [UIFont systemFontOfSize:h * 0.037 weight:UIFontWeightMedium];
+
+        CGFloat lPlay = h * 0.17;
+        CGFloat lSide = h * 0.12;
+        CGFloat lGap = h * 0.12;
+        CGFloat lTotal = lSide * 2.0 + lPlay + lGap * 2.0;
+        CGFloat lx = rx + (rw - lTotal) * 0.5;
+        CGFloat ly = h * 0.505 - lPlay * 0.5;
+        self.prevButton.frame = CGRectMake(lx, ly + (lPlay - lSide) * 0.5, lSide, lSide);
+        self.playPauseButton.frame = CGRectMake(lx + lSide + lGap, ly, lPlay, lPlay);
+        self.nextButton.frame = CGRectMake(lx + lSide + lGap + lPlay + lGap, ly + (lPlay - lSide) * 0.5, lSide, lSide);
+
+        CGFloat lIcon = h * 0.05;
+        CGFloat volCy = h * 0.76;
+        self.decreaseVolumeIcon.frame = CGRectMake(rx, volCy - lIcon * 0.5, lIcon, lIcon);
+        self.increaseVolumeIcon.frame = CGRectMake(rx + rw - lIcon, volCy - lIcon * 0.5, lIcon, lIcon);
+        CGFloat vTrackX = rx + lIcon + h * 0.03;
+        CGFloat vTrackW = rw - (lIcon + h * 0.03) * 2.0;
+        CGRect lVol = CGRectMake(vTrackX, volCy - lTrackH * 0.5, vTrackW, lTrackH);
+        PACCPlace(self.volumeTrack, lVol);
+        self.volumeTrack.layer.cornerRadius = lTrackH * 0.5;
+        PACCPlace(self.volumeHit, CGRectInset(lVol, -(lIcon + h * 0.03), -18.0));
+        if (!self.volumeDragging) self.volumeValue = PACCGetSystemVolume();
+        float lVolume = self.volumeValue;
+        if (lVolume < 0.0) lVolume = 0.0;
+        if (lVolume > 1.0) lVolume = 1.0;
+        self.volumeFill.frame = CGRectMake(0, 0, vTrackW * lVolume, lTrackH);
+        self.volumeFill.layer.cornerRadius = lTrackH * 0.5;
+        UIImageSymbolConfiguration *lVolCfg = [UIImageSymbolConfiguration configurationWithPointSize:lIcon * 0.85 weight:UIImageSymbolWeightMedium];
+        self.decreaseVolumeIcon.image = [UIImage systemImageNamed:@"speaker.wave.1.fill" withConfiguration:lVolCfg];
+        self.increaseVolumeIcon.image = [UIImage systemImageNamed:@"speaker.wave.3.fill" withConfiguration:lVolCfg];
+
+        CGFloat lPillH = h * 0.095;
+        self.airplayLabel.font = [UIFont systemFontOfSize:h * 0.04 weight:UIFontWeightMedium];
+        CGSize lFit = [self.airplayLabel sizeThatFits:CGSizeMake(rw, lPillH)];
+        CGFloat lPillIcon = lPillH * 0.55;
+        CGFloat lPillGap = h * 0.016;
+        CGFloat lPillPad = lPillH * 0.36;
+        CGFloat lPillW = lPillPad + lPillIcon + lPillGap + lFit.width + lPillPad;
+        if (lPillW > rw) lPillW = rw;
+        self.airplayPill.frame = CGRectMake(rx + (rw - lPillW) * 0.5, h * 0.88 - lPillH * 0.5, lPillW, lPillH);
+        self.airplayPill.layer.cornerRadius = lPillH * 0.5;
+        self.airplayIconView.frame = CGRectMake(lPillPad, (lPillH - lPillIcon) * 0.5, lPillIcon, lPillIcon);
+        self.airplayLabel.frame = CGRectMake(lPillPad + lPillIcon + lPillGap, 0, lFit.width, lPillH);
+        UIImageSymbolConfiguration *lAirCfg = [UIImageSymbolConfiguration configurationWithPointSize:lPillIcon * 0.95 weight:UIImageSymbolWeightSemibold];
+        self.airplayIconView.image = [[UIImage systemImageNamed:@"airplayaudio"] imageByApplyingSymbolConfiguration:lAirCfg];
+
+        UIImageSymbolConfiguration *lSideCfg = [UIImageSymbolConfiguration configurationWithPointSize:h * 0.075 weight:UIImageSymbolWeightSemibold];
+        UIImageSymbolConfiguration *lPlayCfg = [UIImageSymbolConfiguration configurationWithPointSize:h * 0.105 weight:UIImageSymbolWeightSemibold];
+        [self.prevButton setImage:[UIImage systemImageNamed:@"backward.fill" withConfiguration:lSideCfg] forState:UIControlStateNormal];
+        [self.nextButton setImage:[UIImage systemImageNamed:@"forward.fill" withConfiguration:lSideCfg] forState:UIControlStateNormal];
+        NSString *lSymbol = self.isPlaying ? @"pause.fill" : @"play.fill";
+        [self.playPauseButton setImage:[UIImage systemImageNamed:lSymbol withConfiguration:lPlayCfg] forState:UIControlStateNormal];
+        return;
+    }
+
     CGFloat padding = w * 0.055;
     CGFloat contentW = w - padding * 2;
 

@@ -208,7 +208,7 @@ static void PACCAddCascade(UIView *cv, NSInteger fromPage, NSInteger toPage) {
 }
 
 - (void)syncLandscapeState {
-    BOOL landscape = PACCIndicatorIsLandscape();
+    BOOL landscape = NO;
     if (landscape == self.suspendedForLandscape) return;
     self.suspendedForLandscape = landscape;
 
@@ -389,8 +389,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         CGFloat stretch = MIN(0.07, fabs(vy) / 9000.0);
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
-        CATransform3D sub = cv.layer.sublayerTransform;
-        sub.m41 = 0.0; sub.m42 = y; sub.m43 = 0.0;
+        CATransform3D sub = PACCDesiredTransform(cv.layer.sublayerTransform, cv, PACCLandShiftNow(), y);
         cv.layer.sublayerTransform = sub;
         cv.layer.transform = CATransform3DMakeScale(1.0 - stretch * 0.4, 1.0 + stretch, 1.0);
         [CATransaction commit];
@@ -413,8 +412,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat endStretch = MIN(0.045, fabs(vy) / 12000.0);
     CALayer *pres = (CALayer *)cv.layer.presentationLayer;
     CATransform3D fromSub = pres ? pres.sublayerTransform : cv.layer.sublayerTransform;
-    CATransform3D toSub = cv.layer.sublayerTransform;
-    toSub.m41 = 0.0; toSub.m42 = -(CGFloat)target * span; toSub.m43 = 0.0;
+    CATransform3D toSub = PACCDesiredTransform(cv.layer.sublayerTransform, cv, PACCLandShiftNow(), -(CGFloat)target * span);
 
     self.dragging = NO;
     PACCReleaseScrollPans();
@@ -455,7 +453,9 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         UIView *host = self.overlay.view;
         PACCBindOtherPans(self.overlay, gr);
         CGPoint p = [touch locationInView:self.overlay.view];
-        if (p.y < 60.0 || p.y > CGRectGetHeight(self.overlay.view.bounds) - 110.0) return NO;
+        CGFloat topCut = PACCIndicatorIsLandscape() ? 44.0 : 60.0;
+        CGFloat bottomCut = PACCIndicatorIsLandscape() ? 24.0 : 110.0;
+        if (p.y < topCut || p.y > CGRectGetHeight(self.overlay.view.bounds) - bottomCut) return NO;
     }
     return YES;
 }
@@ -487,8 +487,8 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     CATransform3D current = collection.view.layer.sublayerTransform;
     CGFloat span = PageSpan();
-    current.m42 += (CGFloat)gCurrentPage * span;
-    current.m41 = 0.0;
+    current.m42 += (CGFloat)gCurrentPage * span * (PACCLandscapeNow() ? current.m11 : 1.0);
+    if (!PACCLandscapeNow()) current.m41 = 0.0;
     current.m43 = 0.0;
 
     self.baseCollectionSublayerTransform = current;
@@ -971,10 +971,8 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     [PACC.shared syncModuleVisibilityForOverlay:overlay animated:YES];
 
-    CATransform3D target = collection.view.layer.sublayerTransform;
-    target.m41 = 0.0;
-    target.m42 = -(CGFloat)page * span;
-    target.m43 = 0.0;
+    CATransform3D target = PACCDesiredTransform(collection.view.layer.sublayerTransform, collection.view,
+                                                PACCLandShiftNow(), -(CGFloat)page * span);
 
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
     PACCAddSlideSquash(collection.view.layer, 0.10);
@@ -1046,7 +1044,6 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         CGPoint v = host ? [pan velocityInView:host] : CGPointZero;
         const char *why = NULL;
         if (!host || !gPagingEnabled || self.pageCount <= 1 || gEditModeActive || self.transitionActive) why = "state";
-        else if (PACCIndicatorIsLandscape()) why = "landscape";
         else if (fabs(v.y) < fabs(v.x) * 1.4) why = "not vertical";
         else if (v.y < 0.0 && self.currentPage + 1 >= self.pageCount) why = "last page";
         else if (v.y >= 0.0 && self.currentPage == 0) why = "first page (close)";

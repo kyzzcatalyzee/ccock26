@@ -142,64 +142,101 @@ static inline void PACCLandFit(UIView *cv, CGFloat *outS, CGFloat *outTx) {
     *outS = sc; *outTx = tx;
 }
 #define kPACLandMargin 44.0
-static inline void PACCLandCollect(UIView *v, int depth, CGPoint off, CGFloat *mn, CGFloat *mx, CGFloat *top) {
+static inline CGFloat PACCLandShiftNow(void) {
+    return PACCLandscapeNow() ? kPACLandShift : 0.0;
+}
+static inline void PACCLandCollect(UIView *v, int depth, CGPoint off, CGFloat limitY, CGFloat *mn, CGFloat *mx, CGFloat *top) {
     for (UIView *s in v.subviews) {
-        if (s.hidden || s.alpha < 0.01) continue;
         CGRect f = s.frame;
         f.origin.x += off.x;
         f.origin.y += off.y;
         if ([NSStringFromClass(s.class) containsString:@"ContentModuleContainerView"]) {
             if (CGRectGetWidth(f) < 2.0 || CGRectGetWidth(f) > 360.0) continue;
+            if (CGRectGetMinY(f) >= limitY) continue;
             *mn = MIN(*mn, CGRectGetMinX(f));
             *mx = MAX(*mx, CGRectGetMaxX(f));
             *top = MIN(*top, CGRectGetMinY(f));
         } else if (depth > 0) {
-            PACCLandCollect(s, depth - 1, f.origin, mn, mx, top);
+            PACCLandCollect(s, depth - 1, f.origin, limitY, mn, mx, top);
         }
     }
 }
-static inline CATransform3D PACCLandTransform(UIView *cv, CGFloat baseY) {
-    CATransform3D t = CATransform3DIdentity;
-    t.m42 = baseY;
-    if (!PACCLandscapeNow() || !cv || !cv.window) return t;
+static inline BOOL PACCLandMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop) {
+    static CGFloat cSc = 1.0, cMc = 0.0, cTop = 0.0;
+    static BOOL have = NO;
     CGFloat mn = CGFLOAT_MAX, mx = -CGFLOAT_MAX, top = CGFLOAT_MAX;
-    PACCLandCollect(cv, 1, CGPointZero, &mn, &mx, &top);
-    if (mn > mx) return t;
-    CGFloat W = cv.window.bounds.size.width;
-    CGFloat cw = mx - mn;
-    CGFloat avail = W - 2.0 * kPACLandMargin;
-    CGFloat sc = (cw > avail && cw > 1.0) ? avail / cw : 1.0;
+    PACCLandCollect(cv, 1, CGPointZero, PageSpan() * 0.9, &mn, &mx, &top);
+    CGFloat W = cv.window ? cv.window.bounds.size.width : UIScreen.mainScreen.bounds.size.width;
+    if (mn <= mx) {
+        CGFloat cw = mx - mn;
+        CGFloat avail = W - 2.0 * kPACLandMargin;
+        cSc = (cw > avail && cw > 1.0) ? avail / cw : 1.0;
+        cMc = (mn + mx) * 0.5;
+        cTop = top;
+        have = YES;
+    }
+    *outSc = cSc;
+    *outMc = cMc;
+    *outTop = cTop;
+    return have;
+}
+static inline CGPoint PACCLandOrigin(UIView *cv) {
     CGRect b = cv.bounds;
     CGFloat cx = b.origin.x + b.size.width * 0.5;
     CGFloat cy = b.origin.y + b.size.height * 0.5;
-    CGFloat ox = [cv convertPoint:CGPointZero toView:cv.window].x;
-    CGFloat mc = (mn + mx) * 0.5;
+    CGPoint p = CGPointMake(cv.center.x - cx, cv.center.y - cy);
+    if (cv.superview && cv.window) return [cv.superview convertPoint:p toView:cv.window];
+    return p;
+}
+static inline CATransform3D PACCLandTransform(UIView *cv, CGFloat shift, CGFloat offset) {
+    CATransform3D t = CATransform3DIdentity;
+    t.m42 = shift + offset;
+    if (!PACCLandscapeNow() || !cv || !cv.window) return t;
+    CGFloat sc = 1.0, mc = 0.0, top = 0.0;
+    if (!PACCLandMeasure(cv, &sc, &mc, &top)) return t;
+    CGFloat W = cv.window.bounds.size.width;
+    CGRect b = cv.bounds;
+    CGFloat cx = b.origin.x + b.size.width * 0.5;
+    CGFloat cy = b.origin.y + b.size.height * 0.5;
+    CGPoint o = PACCLandOrigin(cv);
     t.m11 = sc;
     t.m22 = sc;
-    t.m41 = W * 0.5 - ox - cx - sc * (mc - cx);
-    t.m42 = baseY + (1.0 - sc) * (top - cy);
+    t.m41 = W * 0.5 - o.x - cx - sc * (mc - cx);
+    t.m42 = shift + (1.0 - sc) * (top - cy) + sc * offset;
     {
-        static CGFloat lastLogS = -1.0, lastLogX = 0.0;
-        if (fabs(lastLogS - sc) > 0.001 || fabs(lastLogX - t.m41) > 0.5) {
-            lastLogS = sc; lastLogX = t.m41;
-            PACCSizeLog([NSString stringWithFormat:@"landscape fit mn %.1f mx %.1f top %.1f W %.1f ox %.1f cx %.1f scale %.3f tx %.1f ty %.1f",
-                         mn, mx, top, W, ox, cx, sc, t.m41, t.m42]);
+        static CGFloat lastLogS = -1.0, lastLogX = 0.0, lastLogY = 0.0;
+        if (fabs(lastLogS - sc) > 0.001 || fabs(lastLogX - t.m41) > 0.5 || fabs(lastLogY - o.y) > 0.5) {
+            lastLogS = sc; lastLogX = t.m41; lastLogY = o.y;
+            PACCSizeLog([NSString stringWithFormat:@"landscape fit mc %.1f top %.1f W %.1f ox %.1f oy %.1f cx %.1f cy %.1f scale %.3f tx %.1f",
+                         mc, top, W, o.x, o.y, cx, cy, sc, t.m41]);
         }
     }
     return t;
+}
+static inline CATransform3D PACCDesiredTransform(CATransform3D cur, UIView *cv, CGFloat shift, CGFloat offset) {
+    if (PACCLandscapeNow()) return PACCLandTransform(cv, shift, offset);
+    cur.m11 = 1.0;
+    cur.m22 = 1.0;
+    cur.m41 = 0.0;
+    cur.m42 = shift + offset;
+    cur.m43 = 0.0;
+    return cur;
 }
 static inline BOOL PACCTransformClose(CATransform3D a, CATransform3D b) {
     return fabs(a.m11 - b.m11) < 0.002 && fabs(a.m22 - b.m22) < 0.002 &&
            fabs(a.m41 - b.m41) < 0.5 && fabs(a.m42 - b.m42) < 0.5;
 }
-static inline CATransform3D PACCDesiredTransform(CATransform3D cur, UIView *cv, CGFloat baseY) {
-    if (PACCLandscapeNow()) return PACCLandTransform(cv, baseY);
-    cur.m11 = 1.0;
-    cur.m22 = 1.0;
-    cur.m41 = 0.0;
-    cur.m42 = baseY;
-    cur.m43 = 0.0;
-    return cur;
+static inline CGRect PACCLandUnmap(UIView *cv, CGRect screenRect, NSInteger page) {
+    CGFloat sc = 1.0, mc = 0.0, top = 0.0;
+    if (!cv || !cv.window || !PACCLandMeasure(cv, &sc, &mc, &top) || sc < 0.1) return screenRect;
+    CATransform3D t = PACCLandTransform(cv, kPACLandShift, -(CGFloat)page * PageSpan());
+    CGRect b = cv.bounds;
+    CGFloat cx = b.origin.x + b.size.width * 0.5;
+    CGFloat cy = b.origin.y + b.size.height * 0.5;
+    CGPoint o = PACCLandOrigin(cv);
+    CGFloat x = cx + (screenRect.origin.x - o.x - cx - t.m41) / sc;
+    CGFloat y = cy + (screenRect.origin.y - o.y - cy - t.m42) / sc;
+    return CGRectMake(x, y, screenRect.size.width / sc, screenRect.size.height / sc);
 }
 static inline CGRect PACCBigOutset(int kind, CGRect f) {
     CGFloat dx = (kind == 1) ? MAX(0.0, (f.size.width - kPACConnW) * 0.5) : 5.0;
