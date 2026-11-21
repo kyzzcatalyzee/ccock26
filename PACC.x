@@ -31,6 +31,7 @@ CGFloat gPACLandSc = 1.0;
 CGFloat gPACLandMc = 0.0;
 CGFloat gPACLandTop = 0.0;
 BOOL gPACLandHave = NO;
+CGFloat gPACLandOy0 = 0.0;
 BOOL gCircularModulesEnabled = YES;
 BOOL gPromoPageEnabled = NO;
 BOOL gMediaPageEnabled = NO;

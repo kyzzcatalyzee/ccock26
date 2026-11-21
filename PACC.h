@@ -40,6 +40,7 @@ extern BOOL gCCAModuleExpanded;
 extern CFTimeInterval gPACCExpandQuietUntil;
 extern CGFloat gPACLandSc, gPACLandMc, gPACLandTop;
 extern BOOL gPACLandHave;
+extern CGFloat gPACLandOy0;
 #define kPACLandFrameScale 1
 void PACCLandBeginPass(UIView *cv);
 void PACCLandEndPass(UIView *cv);
@@ -209,7 +210,10 @@ static inline CATransform3D PACCLandTransform(UIView *cv, CGFloat shift, CGFloat
     CATransform3D t = CATransform3DIdentity;
     t.m42 = shift + offset;
     if (!PACCLandscapeNow() || !cv || !cv.window) return t;
-    if (kPACLandFrameScale) return t;
+    if (kPACLandFrameScale) {
+        t.m42 = offset;
+        return t;
+    }
     CGFloat sc = 1.0, mc = 0.0, top = 0.0;
     if (!PACCLandMeasure(cv, &sc, &mc, &top)) return t;
     CGFloat W = cv.window.bounds.size.width;

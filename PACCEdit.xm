@@ -5585,6 +5585,7 @@ void PACCLandEndPass(UIView *cv) {
     CGFloat top = gPACAccTop;
     BOOL changed = !gPACLandHave || fabs(sc - gPACLandSc) > 0.001 || fabs(mc - gPACLandMc) > 0.5 || fabs(top - gPACLandTop) > 0.5;
     if (!changed) return;
+    if (!gPACLandHave) gPACLandOy0 = PACCLandOrigin(cv).y;
     gPACLandSc = sc;
     gPACLandMc = mc;
     gPACLandTop = top;
@@ -5613,9 +5614,9 @@ void PACCLandEndPass(UIView *cv) {
     CGPoint o = PACCLandOrigin(cv);
     CGFloat sc = gPACLandSc;
     CGFloat tx = W * 0.5 - o.x - cx - sc * (gPACLandMc - cx);
-    CGFloat ty = (1.0 - sc) * (gPACLandTop - cy);
-    return CGRectMake(cx + sc * (f.origin.x - cx) + tx, cy + sc * (f.origin.y - cy) + ty,
-                      f.size.width * sc, f.size.height * sc);
+    CGFloat ny = gPACLandOy0 - o.y + gPACLandTop + sc * (f.origin.y - gPACLandTop) + kPACLandShift;
+    (void)cy;
+    return CGRectMake(cx + sc * (f.origin.x - cx) + tx, ny, f.size.width * sc, f.size.height * sc);
 }
 %end
 
