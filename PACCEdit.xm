@@ -5377,6 +5377,36 @@ static void PACRefreshPresentation(UIViewController *m, UIViewController *ov) {
     PACRunMaybeWithoutAnimation(^{ PACRefreshPresentationImpl(m, ov); });
 }
 
+void PACCLogCloseSamples(id module, UIViewController *ov) {
+    if (!ov) return;
+    UIViewController *mvc = [module isKindOfClass:UIViewController.class] ? (UIViewController *)module : nil;
+    NSString *mid = mvc ? (PACMid(mvc) ?: @"?") : NSStringFromClass([module class]);
+    __weak UIViewController *wm = mvc;
+    __weak UIViewController *wo = ov;
+    for (NSNumber *d in @[@0.02, @0.15, @0.3, @0.5, @0.8, @1.2, @1.8]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIViewController *o = wo;
+            if (!o) return;
+            UIViewController *col = ModuleCollection(o);
+            UIView *cv = col.view;
+            CATransform3D st = cv.layer.sublayerTransform;
+            CALayer *pl = (CALayer *)cv.layer.presentationLayer;
+            CATransform3D sp = pl ? pl.sublayerTransform : st;
+            UIViewController *m = wm;
+            NSString *mi = @"-";
+            if (m && m.view) {
+                CGRect inWin = [m.view convertRect:m.view.bounds toView:nil];
+                CALayer *mp = (CALayer *)m.view.layer.presentationLayer;
+                mi = [NSString stringWithFormat:@"frame %@ win %@ alpha %.2f pframe %@ super %@ tf %.2f",
+                      NSStringFromCGRect(m.view.frame), NSStringFromCGRect(inWin), m.view.alpha,
+                      NSStringFromCGRect(mp ? mp.frame : CGRectZero), NSStringFromClass(m.view.superview.class), m.view.transform.a];
+            }
+            PACCSizeLog([NSString stringWithFormat:@"close %@ t+%.2f expanded %d sub m11 %.3f m41 %.1f m42 %.1f psub m41 %.1f m42 %.1f page %ld | %@",
+                         mid, d.doubleValue, (int)gCCAModuleExpanded, st.m11, st.m41, st.m42, sp.m41, sp.m42, (long)gCurrentPage, mi]);
+        });
+    }
+}
+
 void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov) {
     if (open) {
         NSString *mid = nil;
@@ -6045,8 +6075,41 @@ static void PACEditReload(__unused CFNotificationCenterRef c,
 }
 @end
 
+static void PACCDumpLayoutMethods(UIViewController *ov) {
+    static BOOL done = NO;
+    if (done) return;
+    done = YES;
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithObjects:@"CCUIModuleCollectionViewController", @"CCUILayoutView", @"CCUIModuleCollectionView", @"CCUIContentModuleContainerView", nil];
+    UIViewController *col = ModuleCollection(ov);
+    if (col) {
+        [names addObject:NSStringFromClass(col.class)];
+        [names addObject:NSStringFromClass(col.view.class)];
+        for (UIView *sv in col.view.subviews) [names addObject:NSStringFromClass(sv.class)];
+    }
+    NSMutableSet<NSString *> *seen = [NSMutableSet set];
+    NSArray<NSString *> *keys = @[@"etric", @"ize", @"pacing", @"adding", @"ayout", @"rid", @"ell", @"ap", @"nset", @"cale", @"olumn", @"ow"];
+    for (NSString *cn in names) {
+        if ([seen containsObject:cn]) continue;
+        [seen addObject:cn];
+        Class c = NSClassFromString(cn);
+        if (!c) continue;
+        for (Class k = c; k && k != UIView.class && k != UIViewController.class && k != NSObject.class; k = class_getSuperclass(k)) {
+            unsigned int n = 0;
+            Method *ms = class_copyMethodList(k, &n);
+            NSMutableArray<NSString *> *hits = [NSMutableArray array];
+            for (unsigned int i = 0; i < n; i++) {
+                NSString *sn = NSStringFromSelector(method_getName(ms[i]));
+                for (NSString *key in keys) if ([sn containsString:key]) { [hits addObject:sn]; break; }
+            }
+            free(ms);
+            if (hits.count) PACCSizeLog([NSString stringWithFormat:@"methods %@ (%@): %@", NSStringFromClass(k), cn, [hits componentsJoinedByString:@" "]]);
+        }
+    }
+}
+
 void PACCLandscapeRefresh(UIViewController *ov) {
     if (!ov || !PACIsLandscape()) return;
+    PACCDumpLayoutMethods(ov);
     PACCSyncClones(ov, NO);
     static NSMutableSet<NSString *> *loggedP;
     if (!loggedP) loggedP = [NSMutableSet set];
