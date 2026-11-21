@@ -1238,8 +1238,14 @@ static void PACRememberLayerState(UIView *v, NSMapTable<UIView *, NSDictionary *
               forKey:v];
 }
 
+static NSString *gPACExpandedMid = nil;
+
 static BOOL PACModuleIsExpanded(UIViewController *m) {
-    if (gCCAModuleExpanded) return YES;
+    if (gCCAModuleExpanded) {
+        if (!gPACExpandedMid.length) return YES;
+        NSString *pm = PACMid(m);
+        if (pm.length && [pm isEqualToString:gPACExpandedMid]) return YES;
+    }
     SEL sel = NSSelectorFromString(@"isExpanded");
     if ([m respondsToSelector:sel] && ((BOOL (*)(id, SEL))objc_msgSend)(m, sel)) return YES;
     UIView *root = m.view;
@@ -2264,6 +2270,40 @@ static BOOL PACCloneFits(UIViewController *ov, NSString *cid, NSUInteger c, NSUI
     return YES;
 }
 
+static UIView *PACCPrivateConnHost(UIViewController *ov) {
+    static id sModule = nil;
+    static UIView *sHost = nil;
+    if (!sModule) {
+        NSBundle *bn = [NSBundle bundleWithPath:@"/System/Library/ControlCenter/Bundles/ConnectivityModule.bundle"];
+        if (bn && !bn.loaded) [bn load];
+        Class mc = NSClassFromString(@"CCUIConnectivityModule");
+        if (!mc) return nil;
+        @try { sModule = [[mc alloc] init]; } @catch (__unused NSException *e) { sModule = nil; }
+        if (!sModule) return nil;
+    }
+    UIViewController *vc = nil;
+    @try {
+        if ([sModule respondsToSelector:@selector(contentViewController)])
+            vc = ((id (*)(id, SEL))objc_msgSend)(sModule, @selector(contentViewController));
+    } @catch (__unused NSException *e) { vc = nil; }
+    if (![vc isKindOfClass:UIViewController.class]) return nil;
+    if (!sHost) {
+        sHost = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 160, 160)];
+        sHost.alpha = 0.0;
+        sHost.userInteractionEnabled = NO;
+    }
+    UIView *root = ov.view;
+    if (!root) return nil;
+    if (sHost.superview != root) [root insertSubview:sHost atIndex:0];
+    if (vc.view.superview != sHost) {
+        vc.view.frame = sHost.bounds;
+        [sHost addSubview:vc.view];
+        [vc.view setNeedsLayout];
+        [vc.view layoutIfNeeded];
+    }
+    return vc.view;
+}
+
 void PACCSyncClones(UIViewController *ov, BOOL animated) {
     PACCCrumb("PACCSyncClones");
     static BOOL busy = NO;
@@ -2309,6 +2349,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         NSString *mid = PACMid(m);
         if (mid.length && PACCBigKind(mid) == 1) { connHost = m.view; break; }
     }
+    if (!connHost && gPACClones.count) connHost = PACCPrivateConnHost(ov);
 
     CATransform3D sub = cv.layer.sublayerTransform;
     for (NSDictionary *d in gPACClones) {
@@ -5334,6 +5375,30 @@ static void PACRefreshPresentation(UIViewController *m, UIViewController *ov) {
     }
     objc_setAssociatedObject(m.view, kPACLandscapeCleanKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     PACRunMaybeWithoutAnimation(^{ PACRefreshPresentationImpl(m, ov); });
+}
+
+void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov) {
+    if (open) {
+        NSString *mid = nil;
+        if ([module isKindOfClass:UIViewController.class]) mid = PACMid((UIViewController *)module);
+        else if ([module respondsToSelector:NSSelectorFromString(@"moduleIdentifier")]) {
+            id v = ((id (*)(id, SEL))objc_msgSend)(module, NSSelectorFromString(@"moduleIdentifier"));
+            if ([v isKindOfClass:NSString.class]) mid = v;
+        }
+        gPACExpandedMid = mid.length ? [mid copy] : nil;
+        return;
+    }
+    gPACExpandedMid = nil;
+    if (!ov) return;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        if (!m.view || !PACMid(m).length) continue;
+        [UIView performWithoutAnimation:^{
+            [CATransaction begin];
+            [CATransaction setDisableActions:YES];
+            PACRefreshPresentationImpl(m, ov);
+            [CATransaction commit];
+        }];
+    }
 }
 
 static void PACApplyChrome(UIViewController *m, UIViewController *ov) {

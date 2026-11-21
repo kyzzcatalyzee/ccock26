@@ -76,6 +76,7 @@ BOOL gPagerScrubbing = NO;
 
 %hook CCUIModularControlCenterOverlayViewController
 - (void)moduleCollectionViewController:(id)collection willOpenExpandedModule:(id)module {
+    PACCNoteExpandedModule(module, YES, nil);
     gCCAModuleExpanded = YES;
     UIViewController *overlay = (UIViewController *)(id)self;
     UIView *indicator = [overlay.view viewWithTag:kPageIndicatorTag];
@@ -92,6 +93,7 @@ BOOL gPagerScrubbing = NO;
     %orig;
     gCCAModuleExpanded = NO;
     UIViewController *overlay = (UIViewController *)(id)self;
+    PACCNoteExpandedModule(module, NO, overlay);
     dispatch_async(dispatch_get_main_queue(), ^{
         [PACC.shared layoutPageIndicatorForOverlay:overlay];
         [PACC.shared installPageIndicatorOnOverlay:overlay];

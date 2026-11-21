@@ -102,6 +102,7 @@ void PACCCrashLog(NSString *line);
 void PACCSizeLog(NSString *line);
 void PACCLandscapeRefresh(UIViewController *ov);
 void PACCSyncClones(UIViewController *overlay, BOOL animated);
+void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);
 BOOL PACCLIQIsActive(void);
 BOOL PACCLIQGlassOn(void);
