@@ -96,8 +96,8 @@ static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
     jx.toValue = @1.0;
     for (CASpringAnimation *sp in @[jy, jx]) {
         sp.mass = 1.0;
-        sp.stiffness = 170.0;
-        sp.damping = 26.5;
+        sp.stiffness = 110.0;
+        sp.damping = 21.0;
         sp.initialVelocity = 0.0;
     }
     CAAnimationGroup *jelly = [CAAnimationGroup animation];
@@ -106,11 +106,11 @@ static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
     [layer addAnimation:jelly forKey:@"PAnimJelly"];
 }
 
-static void PACCAddJelly(CALayer *layer, CGFloat endStretch) {
+__attribute__((unused)) static void PACCAddJelly(CALayer *layer, CGFloat endStretch) {
     PACCAddJellyFrom(layer, 1.0 - endStretch * 1.1, 1.0 + endStretch);
 }
 
-static void PACCAddSlideSquash(CALayer *layer, CGFloat amount) {
+__attribute__((unused)) static void PACCAddSlideSquash(CALayer *layer, CGFloat amount) {
     CAKeyframeAnimation *ky = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.y"];
     ky.values = @[@1.0, @(1.0 + amount), @1.0];
     CAKeyframeAnimation *kx = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale.x"];
@@ -122,7 +122,7 @@ static void PACCAddSlideSquash(CALayer *layer, CGFloat amount) {
     }
     CAAnimationGroup *g = [CAAnimationGroup animation];
     g.animations = @[ky, kx];
-    g.duration = 0.6;
+    g.duration = 0.8;
     [layer addAnimation:g forKey:@"PAnimJelly"];
 }
 
@@ -386,7 +386,11 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
                 if (u.contentOffset.y != rest0 && u.contentOffset.y < 0.0) u.contentOffset = CGPointMake(u.contentOffset.x, rest0);
             }
         }
-        CGFloat stretch = MIN(0.07, fabs(vy) / 9000.0);
+        static CFTimeInterval sStretchStart = 0.0;
+        if (g.state == UIGestureRecognizerStateBegan) sStretchStart = CACurrentMediaTime();
+        CGFloat ramp = MIN(1.0, (CACurrentMediaTime() - sStretchStart) / 0.20);
+        ramp = ramp * ramp * (3.0 - 2.0 * ramp);
+        CGFloat stretch = 0.05 * ramp;
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
         CATransform3D sub = PACCDesiredTransform(cv.layer.sublayerTransform, cv, PACCLandShiftNow(), y);
@@ -421,6 +425,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     self.currentPage = (NSUInteger)target;
     gCurrentPage = target;
 
+    CGFloat jellyX = cv.layer.transform.m11, jellyY = cv.layer.transform.m22;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     cv.layer.sublayerTransform = toSub;
@@ -429,7 +434,8 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     PACCAddSmoothSlide(cv.layer, fromSub, toSub, @"PAnimPageSlide");
 
-    PACCAddJelly(cv.layer, endStretch);
+    (void)endStretch;
+    if (fabs(jellyY - 1.0) > 0.002) PACCAddJellyFrom(cv.layer, jellyX, jellyY);
 
     [PACC.shared applyHeaderMaterialHidden:NO forOverlay:self.overlay];
     [PACC.shared adjustStatusBarForOverlay:self.overlay];
@@ -611,7 +617,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     [CATransaction setDisableActions:YES];
     collection.view.layer.sublayerTransform = target;
     if (self.scrubbingActive) {
-        collection.view.layer.transform = CATransform3DMakeScale(self.jelloScaleX, self.jelloScaleY, 1.0);
+        collection.view.layer.transform = CATransform3DIdentity;
         collection.view.alpha = self.heldAlphaFactor;
     } else {
         collection.view.layer.transform = CATransform3DIdentity;
@@ -804,10 +810,8 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
 
-    CGFloat heldX = fromTrans.m11, heldY = fromTrans.m22;
-    if (fabs(heldX - 1.0) < 0.004 && fabs(heldY - 1.0) < 0.004) { heldX = 0.89; heldY = 1.10; }
+    (void)fromTrans;
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
-    PACCAddJellyFrom(collection.view.layer, heldX, heldY);
 
     CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
     fade.fromValue = @(fromAlpha);
@@ -975,7 +979,6 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
                                                 PACCLandShiftNow(), -(CGFloat)page * span);
 
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
-    PACCAddSlideSquash(collection.view.layer, 0.10);
     gPageAnimating = YES;
     [UIView animateWithDuration:0.8 delay:0.0 usingSpringWithDamping:1.0 initialSpringVelocity:0.0
                         options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
@@ -1019,7 +1022,6 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
-    PACCAddSlideSquash(collection.view.layer, 0.10);
 
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[collection.view viewWithTag:kMediaPlayerTag];
     if (player) {
