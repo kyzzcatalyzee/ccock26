@@ -550,8 +550,7 @@ static CGRect PACVisibleFrame(UIViewController *m, UIViewController *overlay) {
     CGRect raw;
     if (col.view && PACRawFrame(m, overlay, &raw)) {
         CATransform3D sub = col.view.layer.sublayerTransform;
-        raw.origin.x += sub.m41;
-        raw.origin.y += sub.m42;
+        raw = PACCSubRect(col.view, sub, raw);
         return [col.view convertRect:raw toView:overlay.view];
     }
     return [m.view convertRect:m.view.bounds toView:overlay.view];
@@ -635,14 +634,14 @@ static CGPoint PACGridBase(UIViewController *overlay) {
         if (lr < 0 || lr > (NSInteger)kPACStride * 2) continue;
         CGRect f = PACVisibleFrame(m, overlay);
         if (CGRectIsEmpty(f)) continue;
-        CGFloat x = CGRectGetMinX(f) - (CGFloat)c * kPACStep;
-        CGFloat y = CGRectGetMinY(f) - (CGFloat)lr * kPACStep;
+        CGFloat x = CGRectGetMinX(f) - (CGFloat)c * kPACStep * PACSS();
+        CGFloat y = CGRectGetMinY(f) - (CGFloat)lr * kPACStep * PACSS();
         if (x < bx) bx = x;
         if (y < by) by = y;
     }
     if (bx == CGFLOAT_MAX) {
         CGFloat w = CGRectGetWidth(overlay.view.bounds);
-        CGFloat gw = kPACCols * kPACCell + (kPACCols - 1) * kPACgap;
+        CGFloat gw = (kPACCols * kPACCell + (kPACCols - 1) * kPACgap) * PACSS();
         bx = (w - gw) * 0.5;
         CGFloat top = CGFLOAT_MAX;
         for (UIViewController *m in ModuleControllers(overlay)) {
@@ -653,7 +652,7 @@ static CGPoint PACGridBase(UIViewController *overlay) {
             CGRect f = PACVisibleFrame(m, overlay);
             if (CGRectIsEmpty(f)) continue;
             NSUInteger lr = o[1].unsignedIntegerValue % kPACStride;
-            CGFloat y = CGRectGetMinY(f) - (CGFloat)lr * kPACStep;
+            CGFloat y = CGRectGetMinY(f) - (CGFloat)lr * kPACStep * PACSS();
             if (y < top) top = y;
         }
         by = (top == CGFLOAT_MAX) ? 157.0 : top;
@@ -669,8 +668,8 @@ static NSUInteger PACVisibleRowCap(UIViewController *ov) {
     if (safeBottom < 1.0) safeBottom = 20.0;
     CGFloat usableBottom = overlayH - safeBottom - 8.0;
     CGFloat usableH = usableBottom - base.y;
-    if (usableH < kPACStep) return 0;
-    NSInteger rows = (NSInteger)floor(usableH / kPACStep);
+    if (usableH < kPACStep * PACSS()) return 0;
+    NSInteger rows = (NSInteger)floor(usableH / (kPACStep * PACSS()));
     if (rows <= 0) rows = 1;
     NSUInteger cap = (NSUInteger)MAX(0, MIN((NSInteger)kPACRows - 1, rows - 1));
     return cap;
@@ -729,8 +728,8 @@ static void PACEnsureBaseSize(UIViewController *m, UIViewController *ov) {
 
     CGRect f = PACVisibleFrame(m, ov);
     if (CGRectIsEmpty(f)) return;
-    NSUInteger w = (NSUInteger)MAX(1, MIN((NSInteger)kPACCols, (NSInteger)llround((CGRectGetWidth(f) + kPACgap) / kPACStep)));
-    NSUInteger h = (NSUInteger)MAX(1, MIN((NSInteger)kPACRows, (NSInteger)llround((CGRectGetHeight(f) + kPACgap) / kPACStep)));
+    NSUInteger w = (NSUInteger)MAX(1, MIN((NSInteger)kPACCols, (NSInteger)llround((CGRectGetWidth(f) / PACSS() + kPACgap) / kPACStep)));
+    NSUInteger h = (NSUInteger)MAX(1, MIN((NSInteger)kPACRows, (NSInteger)llround((CGRectGetHeight(f) / PACSS() + kPACgap) / kPACStep)));
     gEditBaseSizes[mid] = @[@(w), @(h)];
     PACSaveStore();
 }
@@ -805,8 +804,8 @@ static BOOL PACDragSizeAllowedForModule(NSString *mid, NSUInteger w, NSUInteger 
 }
 
 static CCUILayoutSize PACResizeCandidate(NSString *mid, NSUInteger startW, NSUInteger startH, CGPoint translation) {
-    NSInteger dc = (NSInteger)floor(translation.x / kPACStep + 0.5);
-    NSInteger dr = (NSInteger)floor(translation.y / kPACStep + 0.5);
+    NSInteger dc = (NSInteger)floor(translation.x / (kPACStep * PACSS()) + 0.5);
+    NSInteger dr = (NSInteger)floor(translation.y / (kPACStep * PACSS()) + 0.5);
     NSInteger nw = MAX(1, MIN(4, (NSInteger)startW + dc));
     NSInteger nh = MAX(1, MIN(4, (NSInteger)startH + dr));
     if (PACCBigKind(mid)) {
@@ -2084,13 +2083,13 @@ static void PACEnsureClones(void) {
         }
     }
     if (v) CFRelease(v);
-    if (!PACFlagIsSet(CFSTR("SeedClones48"))) {
+    if (!PACFlagIsSet(CFSTR("SeedClones8b"))) {
         for (NSMutableDictionary *cd in gPACClones) {
             NSString *cid = cd[@"id"];
-            if (([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) && [cd[@"h"] unsignedIntegerValue] == 6) cd[@"h"] = @8;
+            if (([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) && [cd[@"h"] unsignedIntegerValue] != 8) cd[@"h"] = @8;
         }
         PACSaveClones();
-        PACSetFlag(CFSTR("SeedClones48"));
+        PACSetFlag(CFSTR("SeedClones8b"));
     }
     if (!PACIsLandscape() && !PACFlagIsSet(CFSTR("BuiltinPagesGoneClones"))) {
         PACRefreshGridConstants();
@@ -2383,8 +2382,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
 
         if (gEditModeActive && onPage) {
             CGRect raw = PACCloneBigFrame(d, f);
-            raw.origin.x += sub.m41;
-            raw.origin.y += sub.m42;
+            raw = PACCSubRect(cv, sub, raw);
             CGRect vis = [cv convertRect:raw toView:ov.view];
             UIView *border = objc_getAssociatedObject(cl, kPACBorderKey);
             if (!border) {
@@ -3099,8 +3097,8 @@ static void PACUpdateSlots(UIViewController *ov) {
                 [ov.view addSubview:slot];
                 have = [have arrayByAddingObject:slot].mutableCopy;
             }
-            slot.frame = CGRectMake(base.x + (CGFloat)c * kPACStep, base.y + (CGFloat)r * kPACStep, kPACCell, kPACCell);
-            slot.layer.cornerRadius = kPACCell * 0.5;
+            slot.frame = CGRectMake(base.x + (CGFloat)c * kPACStep * PACSS(), base.y + (CGFloat)r * kPACStep * PACSS(), kPACCell * PACSS(), kPACCell * PACSS());
+            slot.layer.cornerRadius = kPACCell * PACSS() * 0.5;
             slot.hidden = NO;
         }
     }
@@ -3240,7 +3238,7 @@ static void PACSyncChromeToPage(UIViewController *ov) {
             int bk = PACCBigKind(mid);
             NSUInteger bw = 1, bh = 1;
             PACEffectiveSize(mid, &bw, &bh);
-            if ((bk == 1 || bk == 2) && bh >= 6) vis = PACCBigOutset(bk, vis);
+            if ((bk == 1 || bk == 2) && bh >= 6) vis = PACCBigOutsetS(bk, vis, PACSS());
         }
         BOOL stale = !border || !rm || rm.hidden || border.hidden || rm.superview != ov.view ||
                      fabs(rm.frame.origin.x - (vis.origin.x - 8.0)) > 2.0 ||
@@ -3993,8 +3991,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         f.origin = CGPointMake(pt.x - grab.x, pt.y - grab.y);
         shadow.frame = f;
 
-        NSInteger col = (NSInteger)lround((CGRectGetMinX(f) - base.x) / kPACStep);
-        NSInteger row = (NSInteger)lround((CGRectGetMinY(f) - base.y) / kPACStep);
+        NSInteger col = (NSInteger)lround((CGRectGetMinX(f) - base.x) / (kPACStep * PACSS()));
+        NSInteger row = (NSInteger)lround((CGRectGetMinY(f) - base.y) / (kPACStep * PACSS()));
         col = MAX(0, MIN((NSInteger)kPACCols - (NSInteger)w, col));
         NSUInteger cap = PACVisibleRowCap(ov);
         NSInteger maxRow = MAX(0, (NSInteger)cap - (NSInteger)h + 1);
@@ -4424,8 +4422,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     if (st.count < 2) return;
     if (g.state == UIGestureRecognizerStateChanged) {
         CGPoint t = [g translationInView:ov.view];
-        NSInteger wantW = [st[0] integerValue] + (NSInteger)llround(t.x / kPACStep);
-        NSInteger wantH = [st[1] integerValue] + (NSInteger)llround(t.y / kPACStep);
+        NSInteger wantW = [st[0] integerValue] + (NSInteger)llround(t.x / (kPACStep * PACSS()));
+        NSInteger wantH = [st[1] integerValue] + (NSInteger)llround(t.y / (kPACStep * PACSS()));
         NSUInteger w = 0, h = 0;
         PACCBigSnapSize(cd[@"mid"], wantW, wantH, &w, &h);
         if (!w || !h) return;
@@ -5349,7 +5347,7 @@ static void PACApplyChrome(UIViewController *m, UIViewController *ov) {
         int bk = PACCBigKind(mid);
         NSUInteger bw = 1, bh = 1;
         PACEffectiveSize(mid, &bw, &bh);
-        if ((bk == 1 || bk == 2) && bh >= 6) vis = PACCBigOutset(bk, vis);
+        if ((bk == 1 || bk == 2) && bh >= 6) vis = PACCBigOutsetS(bk, vis, PACSS());
     }
 
     PACApplyRadiusToModule(m);

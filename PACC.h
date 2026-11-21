@@ -41,6 +41,7 @@ extern NSInteger gCurrentPage;
 extern NSString *const kReloadNotification;
 extern BOOL gEditModeEnabled;
 extern BOOL gEditModeActive;
+extern CGFloat gPACCPortScale;
 extern BOOL gCircularModulesEnabled;
 extern BOOL gPromoPageEnabled;
 extern BOOL gPACCRevealAll;
@@ -227,7 +228,7 @@ static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, C
             CGFloat topWin = o.y + top;
             CGFloat targetTop = (topWin > 48.0) ? MAX(48.0, topWin - 20.0) : topWin;
             CGFloat rowsH = 8.0 * PACCGridCell() + 7.0 * PACCGridGap();
-            CGFloat sc = MIN(0.95, (H - 12.0 - targetTop) / rowsH);
+            CGFloat sc = MIN(0.97, (H - 12.0 - targetTop) / rowsH);
             cSc = MAX(0.6, MIN(1.0, sc));
             {
                 static CGFloat lastLogTop = -999.0, lastLogSc = -1.0;
@@ -252,9 +253,11 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     cur.m41 = 0.0;
     cur.m42 = shift + offset;
     cur.m43 = 0.0;
-    if (gEditModeActive || !cv || !cv.window) return cur;
+    gPACCPortScale = 1.0;
+    if (!cv || !cv.window) return cur;
     CGFloat sc = 1.0, mc = 0.0, top = 0.0, raise = 0.0;
     if (!PACCPortMeasure(cv, &sc, &mc, &top, &raise)) return cur;
+    gPACCPortScale = sc;
     CGRect b = cv.bounds;
     CGFloat cx = b.origin.x + b.size.width * 0.5;
     CGFloat cy = b.origin.y + b.size.height * 0.5;
@@ -263,6 +266,14 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     cur.m41 = (1.0 - sc) * (mc - cx);
     cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + offset;
     return cur;
+}
+#define PACSS() (PACCLandscapeNow() ? 1.0 : gPACCPortScale)
+static inline CGRect PACCSubRect(UIView *cv, CATransform3D sub, CGRect r) {
+    CGRect b = cv.bounds;
+    CGFloat cx = b.origin.x + b.size.width * 0.5;
+    CGFloat cy = b.origin.y + b.size.height * 0.5;
+    return CGRectMake(cx + sub.m11 * (r.origin.x - cx) + sub.m41, cy + sub.m22 * (r.origin.y - cy) + sub.m42,
+                      r.size.width * sub.m11, r.size.height * sub.m22);
 }
 static inline CATransform3D PACCPageTranslate(CATransform3D base, CGFloat off) {
     if (PACCLandscapeNow()) return CATransform3DTranslate(base, 0.0, off, 0.0);
@@ -289,9 +300,16 @@ static inline CGRect PACCLandUnmap(UIView *cv, CGRect screenRect, NSInteger page
     CGFloat y = cy + (screenRect.origin.y - o.y - cy - t.m42) / sc;
     return CGRectMake(x, y, screenRect.size.width / sc, screenRect.size.height / sc);
 }
+static inline CGRect PACCBigOutsetS(int kind, CGRect f, CGFloat ss) {
+    CGFloat dx = (kind == 1) ? MAX(0.0, (f.size.width - kPACConnW * ss) * 0.5) : 5.0 * ss;
+    CGFloat gap = PACCGridGap() * ss;
+    CGFloat step = (PACCGridCell() + PACCGridGap()) * ss;
+    CGRect r = f;
+    if (r.size.height > 7.5 * step - gap) r.size.height = 6.0 * step - gap;
+    return CGRectInset(r, dx, -kPACConnExtra * ss * 0.5);
+}
 static inline CGRect PACCBigOutset(int kind, CGRect f) {
-    CGFloat dx = (kind == 1) ? MAX(0.0, (f.size.width - kPACConnW) * 0.5) : 5.0;
-    return CGRectInset(f, dx, -kPACConnExtra * 0.5);
+    return PACCBigOutsetS(kind, f, 1.0);
 }
 void PACCLIQSpecularFade(UIView *host, BOOL hidden, CFTimeInterval dur, CFTimeInterval delay);
 BOOL PACBigLGGlass(UIView *host, CGFloat radius);

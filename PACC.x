@@ -94,6 +94,7 @@ void Haptic(void) {
     [g impactOccurred];
 }
 
+CGFloat gPACCPortScale = 1.0;
 static CGFloat gPACCGridCell = 0.0;
 static CGFloat gPACCGridGap  = 0.0;
 
