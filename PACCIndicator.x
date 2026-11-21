@@ -74,6 +74,11 @@ static UIImage *PACCIndicatorSymbolForPage(NSUInteger index, CGFloat pointSize) 
     return [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
 }
 
+static CATransform3D PACCScrubTarget(UIView *cv, CATransform3D base, CGFloat off) {
+    if (PACCLandscapeNow()) return PACCDesiredTransform(base, cv, PACCLandShiftNow(), off);
+    return PACCPageTranslate(base, off);
+}
+
 static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
     CASpringAnimation *spring = [CASpringAnimation animationWithKeyPath:@"sublayerTransform.translation.y"];
     spring.fromValue = @(from.m42);
@@ -611,7 +616,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat span = PageSpan();
     CGFloat pageOffset = -(CGFloat)self.currentPage * span + self.interactiveTranslation;
 
-    CATransform3D target = PACCPageTranslate(self.baseCollectionSublayerTransform, pageOffset);
+    CATransform3D target = PACCScrubTarget(collection.view, self.baseCollectionSublayerTransform, pageOffset);
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -788,7 +793,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     if (promo && (NSInteger)target == PACCPromoPageIndex()) [promo refreshFact];
 
     CGFloat span = PageSpan();
-    CATransform3D toSub = PACCPageTranslate(self.baseCollectionSublayerTransform, -(CGFloat)target * span);
+    CATransform3D toSub = PACCScrubTarget(collection.view, self.baseCollectionSublayerTransform, -(CGFloat)target * span);
 
     CALayer *pres = (CALayer *)collection.view.layer.presentationLayer;
     CATransform3D fromSub = pres ? pres.sublayerTransform : collection.view.layer.sublayerTransform;
@@ -1013,7 +1018,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CGFloat span = PageSpan();
     PACCAddCascade(collection.view, cascadeFrom, (NSInteger)page);
 
-    CATransform3D toSub = PACCPageTranslate(self.baseCollectionSublayerTransform, -(CGFloat)page * span);
+    CATransform3D toSub = PACCScrubTarget(collection.view, self.baseCollectionSublayerTransform, -(CGFloat)page * span);
     CALayer *pres = (CALayer *)collection.view.layer.presentationLayer;
     CATransform3D fromSub = pres ? pres.sublayerTransform : collection.view.layer.sublayerTransform;
 
