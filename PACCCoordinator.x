@@ -342,6 +342,16 @@ BOOL gPACCRevealAll = NO;
                 UIView *fv = fq.firstObject;
                 [fq removeObjectAtIndex:0];
                 if ([NSStringFromClass(fv.class) isEqualToString:@"_UIStatusBarForegroundView"]) {
+                    if (!fgLand && gCurrentPage != PACCMediaPageIndex()) {
+                        CGRect fsr = [fv convertRect:fv.bounds toCoordinateSpace:UIScreen.mainScreen.coordinateSpace];
+                        CGFloat fdelta = fsr.origin.y - fv.frame.origin.y;
+                        if (fv.layer.animationKeys.count == 0 && fdelta > 1.5 && fdelta < 400.0) {
+                            fv.transform = CGAffineTransformConcat(fv.transform, CGAffineTransformMakeTranslation(0.0, -fdelta));
+                            PACCSizeLog([NSString stringWithFormat:@"portrait statusbar fg corrected by %.1f screen %@ frame %@", fdelta,
+                                         NSStringFromCGRect(fsr), NSStringFromCGRect(fv.frame)]);
+                        }
+                        continue;
+                    }
                     NSValue *fb = objc_getAssociatedObject(fv, kFGBaseKey);
                     NSValue *fl = objc_getAssociatedObject(fv, kFGLastKey);
                     if (!fb) {

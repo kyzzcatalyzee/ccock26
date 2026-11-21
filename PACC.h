@@ -234,7 +234,7 @@ static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, C
             CGFloat targetTop = (topWin > 48.0) ? MAX(48.0, topWin - 20.0) : topWin;
             CGFloat rowsH = 8.0 * PACCGridCell() + 7.0 * PACCGridGap();
             CGFloat sc = MIN(0.97, (H - 12.0 - targetTop) / rowsH);
-            if (MIN(cv.window.bounds.size.width, H) < 422.0) { sc = 63.0 / 73.0; targetTop = 40.0; }
+            if (MIN(cv.window.bounds.size.width, H) < 422.0) { sc = 63.0 / 73.0; targetTop = 70.0; }
             cSc = MAX(0.6, MIN(1.0, sc));
             {
                 static CGFloat lastLogTop = -999.0, lastLogSc = -1.0;

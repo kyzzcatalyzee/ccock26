@@ -2233,6 +2233,8 @@ void PACCClonesRelayout(UIView *cv) {
             CGRect fr = PACCloneBigFrame(d, f);
             if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
             cl.clipsToBounds = CGRectEqualToRect(fr, f);
+            if (!gPACCRevealAll && !gPagerScrubbing && !gPageAnimating && !gEditModeActive &&
+                (NSInteger)([d[@"a"] unsignedIntegerValue] / PACPageDivisor()) != gCurrentPage && cl.alpha > 0.01) cl.alpha = 0.0;
             break;
         }
     }
