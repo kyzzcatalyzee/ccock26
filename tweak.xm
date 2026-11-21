@@ -2,6 +2,8 @@
 
 void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov);
 void PACCLogCloseSamples(id module, UIViewController *ov);
+void PACCLandBeginPass(UIView *cv);
+void PACCLandEndPass(UIView *cv);
 extern CFTimeInterval gPACCExpandQuietUntil;
 
 BOOL gPagerScrubbing = NO;
@@ -48,7 +50,9 @@ BOOL gPagerScrubbing = NO;
 
     objc_setAssociatedObject(self, kPACCInLayoutKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
+    PACCLandBeginPass((UIView *)(id)self);
     %orig;
+    PACCLandEndPass((UIView *)(id)self);
     if (!gEnabled) {
         objc_setAssociatedObject(self, kPACCInLayoutKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         return;

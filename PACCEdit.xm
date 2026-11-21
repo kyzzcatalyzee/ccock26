@@ -5564,6 +5564,61 @@ static void PACLMark(BOOL occ[12][12], NSUInteger cols, NSUInteger rows, NSUInte
             occ[yy][xx] = YES;
 }
 
+static CGFloat gPACAccMn = CGFLOAT_MAX, gPACAccMx = -CGFLOAT_MAX, gPACAccTop = CGFLOAT_MAX;
+
+void PACCLandBeginPass(UIView *cv) {
+    (void)cv;
+    gPACAccMn = CGFLOAT_MAX;
+    gPACAccMx = -CGFLOAT_MAX;
+    gPACAccTop = CGFLOAT_MAX;
+}
+
+void PACCLandEndPass(UIView *cv) {
+    if (!kPACLandFrameScale || !gEnabled || !PACCLandscapeNow() || !cv || !cv.window) return;
+    if (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil) return;
+    if (gPACAccMn > gPACAccMx) return;
+    CGFloat W = cv.window.bounds.size.width;
+    CGFloat cw = gPACAccMx - gPACAccMn;
+    CGFloat avail = W - 2.0 * kPACLandMargin;
+    CGFloat sc = (cw > avail && cw > 1.0) ? avail / cw : 1.0;
+    CGFloat mc = (gPACAccMn + gPACAccMx) * 0.5;
+    CGFloat top = gPACAccTop;
+    BOOL changed = !gPACLandHave || fabs(sc - gPACLandSc) > 0.001 || fabs(mc - gPACLandMc) > 0.5 || fabs(top - gPACLandTop) > 0.5;
+    if (!changed) return;
+    gPACLandSc = sc;
+    gPACLandMc = mc;
+    gPACLandTop = top;
+    gPACLandHave = YES;
+    PACCSizeLog([NSString stringWithFormat:@"landscape frame fit mc %.1f top %.1f W %.1f scale %.3f", mc, top, W, sc]);
+    __weak UIView *wcv = cv;
+    dispatch_async(dispatch_get_main_queue(), ^{ [wcv setNeedsLayout]; });
+}
+
+%hook CCUIModuleCollectionView
+- (CGRect)frameForLayoutRect:(CCUILayoutRect)rect {
+    CGRect f = %orig;
+    if (!kPACLandFrameScale || !gEnabled || !PACCLandscapeNow()) return f;
+    UIView *cv = (UIView *)(id)self;
+    if (!cv.window) return f;
+    if (CGRectGetWidth(f) >= 2.0 && CGRectGetWidth(f) <= 360.0 && CGRectGetMinY(f) < PageSpan() * 0.9) {
+        gPACAccMn = MIN(gPACAccMn, CGRectGetMinX(f));
+        gPACAccMx = MAX(gPACAccMx, CGRectGetMaxX(f));
+        gPACAccTop = MIN(gPACAccTop, CGRectGetMinY(f));
+    }
+    if (!gPACLandHave) return f;
+    CGFloat W = cv.window.bounds.size.width;
+    CGRect b = cv.bounds;
+    CGFloat cx = b.origin.x + b.size.width * 0.5;
+    CGFloat cy = b.origin.y + b.size.height * 0.5;
+    CGPoint o = PACCLandOrigin(cv);
+    CGFloat sc = gPACLandSc;
+    CGFloat tx = W * 0.5 - o.x - cx - sc * (gPACLandMc - cx);
+    CGFloat ty = (1.0 - sc) * (gPACLandTop - cy);
+    return CGRectMake(cx + sc * (f.origin.x - cx) + tx, cy + sc * (f.origin.y - cy) + ty,
+                      f.size.width * sc, f.size.height * sc);
+}
+%end
+
 %hook CCUIModuleCollectionViewController
 
 - (CCUILayoutRect)layoutView:(id)layoutView layoutRectForSubview:(UIView *)subview {

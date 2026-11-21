@@ -38,6 +38,11 @@ extern BOOL gPageAnimating;
 extern BOOL gPagerScrubbing;
 extern BOOL gCCAModuleExpanded;
 extern CFTimeInterval gPACCExpandQuietUntil;
+extern CGFloat gPACLandSc, gPACLandMc, gPACLandTop;
+extern BOOL gPACLandHave;
+#define kPACLandFrameScale 1
+void PACCLandBeginPass(UIView *cv);
+void PACCLandEndPass(UIView *cv);
 extern NSInteger gCurrentPage;
 extern NSString *const kReloadNotification;
 extern BOOL gEditModeEnabled;
@@ -104,6 +109,7 @@ void PACCSizeLog(NSString *line);
 void PACCLandscapeRefresh(UIViewController *ov);
 void PACCSyncClones(UIViewController *overlay, BOOL animated);
 void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov);
+void PACCLogCloseSamples(id module, UIViewController *ov);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);
 BOOL PACCLIQIsActive(void);
 BOOL PACCLIQGlassOn(void);
@@ -165,6 +171,10 @@ static inline void PACCLandCollect(UIView *v, int depth, CGPoint off, CGFloat li
     }
 }
 static inline BOOL PACCLandMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop) {
+    if (kPACLandFrameScale) {
+        *outSc = gPACLandSc; *outMc = gPACLandMc; *outTop = gPACLandTop;
+        return gPACLandHave;
+    }
     static CGFloat cSc = 1.0, cMc = 0.0, cTop = 0.0;
     static BOOL have = NO;
     if (have && (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil)) {
@@ -199,6 +209,7 @@ static inline CATransform3D PACCLandTransform(UIView *cv, CGFloat shift, CGFloat
     CATransform3D t = CATransform3DIdentity;
     t.m42 = shift + offset;
     if (!PACCLandscapeNow() || !cv || !cv.window) return t;
+    if (kPACLandFrameScale) return t;
     CGFloat sc = 1.0, mc = 0.0, top = 0.0;
     if (!PACCLandMeasure(cv, &sc, &mc, &top)) return t;
     CGFloat W = cv.window.bounds.size.width;
@@ -300,6 +311,12 @@ static inline BOOL PACCTransformClose(CATransform3D a, CATransform3D b) {
            fabs(a.m41 - b.m41) < 0.5 && fabs(a.m42 - b.m42) < 0.5;
 }
 static inline CGRect PACCLandUnmap(UIView *cv, CGRect screenRect, NSInteger page) {
+    if (kPACLandFrameScale) {
+        if (!cv || !cv.window) return screenRect;
+        CATransform3D ft = PACCLandTransform(cv, kPACLandShift, -(CGFloat)page * PageSpan());
+        CGPoint fo = PACCLandOrigin(cv);
+        return CGRectMake(screenRect.origin.x - fo.x - ft.m41, screenRect.origin.y - fo.y - ft.m42, screenRect.size.width, screenRect.size.height);
+    }
     CGFloat sc = 1.0, mc = 0.0, top = 0.0;
     if (!cv || !cv.window || !PACCLandMeasure(cv, &sc, &mc, &top) || sc < 0.1) return screenRect;
     CATransform3D t = PACCLandTransform(cv, kPACLandShift, -(CGFloat)page * PageSpan());
