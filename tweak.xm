@@ -1,5 +1,9 @@
 #import "PACC.h"
 
+void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov);
+void PACCLogCloseSamples(id module, UIViewController *ov);
+extern CFTimeInterval gPACCExpandQuietUntil;
+
 BOOL gPagerScrubbing = NO;
 
 %hook CALayer
