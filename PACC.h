@@ -214,6 +214,7 @@ static inline CATransform3D PACCLandTransform(UIView *cv, CGFloat shift, CGFloat
     }
     return t;
 }
+#define kPACPortScaleOn 0
 static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop, CGFloat *outRaise) {
     static CGFloat cSc = 1.0, cMc = 0.0, cTop = 0.0, cRaise = 0.0;
     static BOOL have = NO;
@@ -260,7 +261,7 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     cur.m42 = shift + offset;
     cur.m43 = 0.0;
     gPACCPortScale = 1.0;
-    if (!cv || !cv.window) return cur;
+    if (!cv || !cv.window || !kPACPortScaleOn) return cur;
     CGFloat sc = 1.0, mc = 0.0, top = 0.0, raise = 0.0;
     if (!PACCPortMeasure(cv, &sc, &mc, &top, &raise)) return cur;
     gPACCPortScale = sc;

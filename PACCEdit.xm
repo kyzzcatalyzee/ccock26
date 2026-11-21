@@ -2083,13 +2083,13 @@ static void PACEnsureClones(void) {
         }
     }
     if (v) CFRelease(v);
-    if (!PACFlagIsSet(CFSTR("SeedClones8b"))) {
+    if (!PACFlagIsSet(CFSTR("SeedClones6"))) {
         for (NSMutableDictionary *cd in gPACClones) {
             NSString *cid = cd[@"id"];
-            if (([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) && [cd[@"h"] unsignedIntegerValue] != 8) cd[@"h"] = @8;
+            if (([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) && [cd[@"h"] unsignedIntegerValue] != 6) cd[@"h"] = @6;
         }
         PACSaveClones();
-        PACSetFlag(CFSTR("SeedClones8b"));
+        PACSetFlag(CFSTR("SeedClones6"));
     }
     if (!PACIsLandscape() && !PACFlagIsSet(CFSTR("BuiltinPagesGoneClones"))) {
         PACRefreshGridConstants();
@@ -2277,8 +2277,8 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             PACRefreshGridConstants();
             NSUInteger base = PACBasePageCount();
             [gPACClones removeAllObjects];
-            [gPACClones addObject:[@{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(base * kPACStride),       @"w": @4, @"h": @8} mutableCopy]];
-            [gPACClones addObject:[@{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @((base + 1) * kPACStride), @"w": @4, @"h": @8} mutableCopy]];
+            [gPACClones addObject:[@{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(base * kPACStride),       @"w": @4, @"h": @6} mutableCopy]];
+            [gPACClones addObject:[@{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @((base + 1) * kPACStride), @"w": @4, @"h": @6} mutableCopy]];
             PACSaveClones();
             CFPreferencesSetAppValue(CFSTR("SeedClonesPending"), NULL, CFSTR("pawxed.ccock26.preferences"));
             CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));

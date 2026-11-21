@@ -155,7 +155,6 @@ static NSArray<NSString *> *PACCDogFacts(void) {
 }
 
 - (CGFloat)topInsetForOverlay:(UIViewController *)overlay {
-    if (CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0 && !PACCLandscapeNow()) return 8.0;
     CGFloat safeTop = overlay.view.window.safeAreaInsets.top;
     if (safeTop < 1.0) safeTop = overlay.view.safeAreaInsets.top;
     return MAX(8.0, safeTop - 6.0);
@@ -179,15 +178,6 @@ static NSArray<NSString *> *PACCDogFacts(void) {
     [self syncModuleVisibilityForOverlay:overlay];
     [self applyHeaderMaterialHidden:(gCurrentPage == PACCMediaPageIndex()) forOverlay:overlay];
     [self adjustStatusBarForOverlay:overlay];
-    {
-        __weak UIViewController *wov = overlay;
-        for (NSNumber *d in @[@0.4, @1.0, @2.0]) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)([d doubleValue] * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                UIViewController *o = wov;
-                if (o && o.view.window) [self adjustStatusBarForOverlay:o];
-            });
-        }
-    }
 
     UIViewController *collection = ModuleCollection(overlay);
     if ([collection.view isKindOfClass:UIScrollView.class]) {
@@ -342,23 +332,11 @@ BOOL gPACCRevealAll = NO;
                 UIView *fv = fq.firstObject;
                 [fq removeObjectAtIndex:0];
                 if ([NSStringFromClass(fv.class) isEqualToString:@"_UIStatusBarForegroundView"]) {
-                    if (!fgLand && gCurrentPage != PACCMediaPageIndex()) {
-                        CGRect fsr = [fv convertRect:fv.bounds toCoordinateSpace:UIScreen.mainScreen.coordinateSpace];
-                        CGFloat fdelta = fsr.origin.y - fv.frame.origin.y;
-                        if (fv.layer.animationKeys.count == 0 && fdelta > 1.5 && fdelta < 400.0) {
-                            fv.transform = CGAffineTransformConcat(fv.transform, CGAffineTransformMakeTranslation(0.0, -fdelta));
-                            PACCSizeLog([NSString stringWithFormat:@"portrait statusbar fg corrected by %.1f screen %@ frame %@", fdelta,
-                                         NSStringFromCGRect(fsr), NSStringFromCGRect(fv.frame)]);
-                        }
-                        continue;
-                    }
                     NSValue *fb = objc_getAssociatedObject(fv, kFGBaseKey);
                     NSValue *fl = objc_getAssociatedObject(fv, kFGLastKey);
                     if (!fb) {
                         if (fl && CGAffineTransformEqualToTransform(fv.transform, fl.CGAffineTransformValue)) continue;
-                        CGAffineTransform fcap = fv.transform;
-                        if (fabs(fcap.ty) > 2.0 || fabs(fcap.tx) > 2.0) fcap = CGAffineTransformIdentity;
-                        fb = [NSValue valueWithCGAffineTransform:fcap];
+                        fb = [NSValue valueWithCGAffineTransform:fv.transform];
                         objc_setAssociatedObject(fv, kFGBaseKey, fb, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                     }
                     CGAffineTransform fbase = fb.CGAffineTransformValue;
@@ -375,26 +353,6 @@ BOOL gPACCRevealAll = NO;
     }
     if (!statusBar) return;
 
-    if (!PACCLandscapeNow() && gCurrentPage != PACCMediaPageIndex()) {
-        static void *kSBLastKey = &kSBLastKey;
-        CGRect sr = [statusBar convertRect:statusBar.bounds toCoordinateSpace:UIScreen.mainScreen.coordinateSpace];
-        BOOL anim = (statusBar.layer.animationKeys.count > 0) || (statusBar.window.layer.animationKeys.count > 0) ||
-                    (overlay.view.layer.animationKeys.count > 0);
-        NSString *note = [NSString stringWithFormat:@"portrait statusbar: %@ screen %@ anim %d tf %@",
-                          NSStringFromClass(statusBar.class), NSStringFromCGRect(sr), anim,
-                          NSStringFromCGAffineTransform(statusBar.transform)];
-        NSString *lastNote = objc_getAssociatedObject(statusBar, kSBLastKey);
-        if (![note isEqualToString:lastNote]) {
-            objc_setAssociatedObject(statusBar, kSBLastKey, note, OBJC_ASSOCIATION_COPY_NONATOMIC);
-            PACCSizeLog(note);
-        }
-        if (!anim && sr.origin.y > 1.5 && sr.origin.y < 400.0) {
-            CGAffineTransform nt = CGAffineTransformConcat(statusBar.transform, CGAffineTransformMakeTranslation(0.0, -sr.origin.y));
-            statusBar.layer.transform = CATransform3DMakeAffineTransform(nt);
-        }
-        return;
-    }
-
     BOOL land = PACCLandscapeNow();
     static void *kStatusBarBasePortraitKey = &kStatusBarBasePortraitKey;
     static void *kStatusBarBaseLandscapeKey = &kStatusBarBaseLandscapeKey;
@@ -404,10 +362,8 @@ BOOL gPACCRevealAll = NO;
     if (!storedBase) {
         NSValue *lastTarget = objc_getAssociatedObject(statusBar, kStatusBarLastTargetKey);
         if (lastTarget && CGAffineTransformEqualToTransform(statusBar.transform, lastTarget.CGAffineTransformValue)) return;
-        CGAffineTransform capT = statusBar.transform;
-        if (fabs(capT.ty) > 2.0 || fabs(capT.tx) > 2.0) capT = CGAffineTransformIdentity;
         objc_setAssociatedObject(statusBar, baseKey,
-                                 [NSValue valueWithCGAffineTransform:capT],
+                                 [NSValue valueWithCGAffineTransform:statusBar.transform],
                                  OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         storedBase = objc_getAssociatedObject(statusBar, baseKey);
     }
