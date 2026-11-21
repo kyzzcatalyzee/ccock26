@@ -265,7 +265,7 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     cur.m11 = sc;
     cur.m22 = sc;
     cur.m41 = (1.0 - sc) * (mc - cx);
-    cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + offset;
+    cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + sc * offset;
     return cur;
 }
 #define PACSS() (PACCLandscapeNow() ? 1.0 : gPACCPortScale)
@@ -277,9 +277,7 @@ static inline CGRect PACCSubRect(UIView *cv, CATransform3D sub, CGRect r) {
                       r.size.width * sub.m11, r.size.height * sub.m22);
 }
 static inline CATransform3D PACCPageTranslate(CATransform3D base, CGFloat off) {
-    if (PACCLandscapeNow()) return CATransform3DTranslate(base, 0.0, off, 0.0);
-    base.m42 += off;
-    return base;
+    return CATransform3DTranslate(base, 0.0, off, 0.0);
 }
 static inline CATransform3D PACCDesiredTransform(CATransform3D cur, UIView *cv, CGFloat shift, CGFloat offset) {
     if (PACCLandscapeNow()) return PACCLandTransform(cv, shift, offset);

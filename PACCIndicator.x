@@ -487,7 +487,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
 
     CATransform3D current = collection.view.layer.sublayerTransform;
     CGFloat span = PageSpan();
-    current.m42 += (CGFloat)gCurrentPage * span * (PACCLandscapeNow() ? current.m11 : 1.0);
+    current.m42 += (CGFloat)gCurrentPage * span * current.m11;
     if (!PACCLandscapeNow() && fabs(current.m11 - 1.0) < 0.002) current.m41 = 0.0;
     current.m43 = 0.0;
 

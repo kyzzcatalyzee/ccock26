@@ -3304,7 +3304,7 @@ static void PACPruneEmptyPages(UIViewController *ov) {
     CGFloat span = PageSpan();
     if (col.view) {
         CATransform3D t = col.view.layer.sublayerTransform;
-        t.m42 += (CGFloat)(oldCur - newCur) * span;
+        t.m42 += (CGFloat)(oldCur - newCur) * span * t.m22;
         col.view.layer.sublayerTransform = t;
     }
     gCurrentPage = newCur;

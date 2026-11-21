@@ -155,6 +155,7 @@ static NSArray<NSString *> *PACCDogFacts(void) {
 }
 
 - (CGFloat)topInsetForOverlay:(UIViewController *)overlay {
+    if (CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0 && !PACCLandscapeNow()) return 8.0;
     CGFloat safeTop = overlay.view.window.safeAreaInsets.top;
     if (safeTop < 1.0) safeTop = overlay.view.safeAreaInsets.top;
     return MAX(8.0, safeTop - 6.0);
@@ -336,7 +337,9 @@ BOOL gPACCRevealAll = NO;
                     NSValue *fl = objc_getAssociatedObject(fv, kFGLastKey);
                     if (!fb) {
                         if (fl && CGAffineTransformEqualToTransform(fv.transform, fl.CGAffineTransformValue)) continue;
-                        fb = [NSValue valueWithCGAffineTransform:fv.transform];
+                        CGAffineTransform fcap = fv.transform;
+                        if (fabs(fcap.ty) > 2.0 || fabs(fcap.tx) > 2.0) fcap = CGAffineTransformIdentity;
+                        fb = [NSValue valueWithCGAffineTransform:fcap];
                         objc_setAssociatedObject(fv, kFGBaseKey, fb, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                     }
                     CGAffineTransform fbase = fb.CGAffineTransformValue;
@@ -362,8 +365,10 @@ BOOL gPACCRevealAll = NO;
     if (!storedBase) {
         NSValue *lastTarget = objc_getAssociatedObject(statusBar, kStatusBarLastTargetKey);
         if (lastTarget && CGAffineTransformEqualToTransform(statusBar.transform, lastTarget.CGAffineTransformValue)) return;
+        CGAffineTransform capT = statusBar.transform;
+        if (fabs(capT.ty) > 2.0 || fabs(capT.tx) > 2.0) capT = CGAffineTransformIdentity;
         objc_setAssociatedObject(statusBar, baseKey,
-                                 [NSValue valueWithCGAffineTransform:statusBar.transform],
+                                 [NSValue valueWithCGAffineTransform:capT],
                                  OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         storedBase = objc_getAssociatedObject(statusBar, baseKey);
     }
