@@ -26,6 +26,7 @@ BOOL gHapticsEnabled = YES;
 BOOL gExperimentalPagingEnabled = YES;
 BOOL gPageAnimating = NO;
 BOOL gCCAModuleExpanded = NO;
+CFTimeInterval gPACCExpandQuietUntil = 0.0;
 BOOL gCircularModulesEnabled = YES;
 BOOL gPromoPageEnabled = NO;
 BOOL gMediaPageEnabled = NO;

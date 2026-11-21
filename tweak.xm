@@ -92,6 +92,7 @@ BOOL gPagerScrubbing = NO;
 - (void)moduleCollectionViewController:(id)collection didCloseExpandedModule:(id)module {
     %orig;
     gCCAModuleExpanded = NO;
+    gPACCExpandQuietUntil = CACurrentMediaTime() + 1.5;
     UIViewController *overlay = (UIViewController *)(id)self;
     PACCNoteExpandedModule(module, NO, overlay);
     dispatch_async(dispatch_get_main_queue(), ^{

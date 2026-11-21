@@ -37,6 +37,7 @@ extern BOOL gExperimentalPagingEnabled;
 extern BOOL gPageAnimating;
 extern BOOL gPagerScrubbing;
 extern BOOL gCCAModuleExpanded;
+extern CFTimeInterval gPACCExpandQuietUntil;
 extern NSInteger gCurrentPage;
 extern NSString *const kReloadNotification;
 extern BOOL gEditModeEnabled;
@@ -166,6 +167,10 @@ static inline void PACCLandCollect(UIView *v, int depth, CGPoint off, CGFloat li
 static inline BOOL PACCLandMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop) {
     static CGFloat cSc = 1.0, cMc = 0.0, cTop = 0.0;
     static BOOL have = NO;
+    if (have && (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil)) {
+        *outSc = cSc; *outMc = cMc; *outTop = cTop;
+        return YES;
+    }
     CGFloat mn = CGFLOAT_MAX, mx = -CGFLOAT_MAX, top = CGFLOAT_MAX;
     PACCLandCollect(cv, 1, CGPointZero, PageSpan() * 0.9, &mn, &mx, &top);
     CGFloat W = cv.window ? cv.window.bounds.size.width : UIScreen.mainScreen.bounds.size.width;
