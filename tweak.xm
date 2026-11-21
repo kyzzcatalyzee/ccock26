@@ -466,6 +466,26 @@ BOOL gPagerScrubbing = NO;
 - (void)viewDidLayoutSubviews {
     %orig;
     @try {
+        static __weak UIViewController *sExpandedVC = nil;
+        UIViewController *vc0 = (UIViewController *)self;
+        SEL es0 = NSSelectorFromString(@"isExpanded");
+        BOOL exp0 = [vc0 respondsToSelector:es0] ? ((BOOL (*)(id, SEL))objc_msgSend)(vc0, es0) : NO;
+        if (exp0 && sExpandedVC != vc0) {
+            sExpandedVC = vc0;
+            PACCNoteExpandedModule(vc0, YES, nil);
+            gCCAModuleExpanded = YES;
+            PACCSizeLog(@"expanded module opened (container layout)");
+        } else if (!exp0 && sExpandedVC == vc0) {
+            sExpandedVC = nil;
+            gCCAModuleExpanded = NO;
+            gPACCExpandQuietUntil = CACurrentMediaTime() + 1.5;
+            UIViewController *ovc = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+            PACCNoteExpandedModule(vc0, NO, ovc);
+            PACCLogCloseSamples(vc0, ovc);
+            PACCSizeLog(@"expanded module closed (container layout)");
+        }
+    } @catch (__unused NSException *e) {}
+    @try {
         UIViewController *me = (UIViewController *)self;
         UIViewController *content = nil;
         SEL cs = NSSelectorFromString(@"contentViewController");
