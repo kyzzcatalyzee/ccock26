@@ -466,6 +466,34 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+static void PACCTrackExpansion(UIViewController *vc) {
+    __weak UIViewController *wv = vc;
+    CFTimeInterval t0 = CACurrentMediaTime();
+    NSString *mid = @"?";
+    @try { id v = [vc valueForKey:@"moduleIdentifier"]; if ([v isKindOfClass:NSString.class]) mid = v; } @catch (__unused NSException *e) {}
+    NSString *midCopy = [mid copy];
+    __block NSString *lastLine = @"";
+    for (int i = 1; i <= 90; i++) {
+        double d = i * 0.05;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIViewController *m = wv;
+            if (!m || !m.view) return;
+            SEL es = NSSelectorFromString(@"isExpanded");
+            BOOL ex = [m respondsToSelector:es] ? ((BOOL (*)(id, SEL))objc_msgSend)(m, es) : NO;
+            CALayer *pl = (CALayer *)m.view.layer.presentationLayer;
+            CGRect inWin = [m.view convertRect:m.view.bounds toView:nil];
+            CGRect pw = pl ? [pl convertRect:pl.bounds toLayer:nil] : CGRectZero;
+            NSString *line = [NSString stringWithFormat:@"%@ ex %d super %@ win %@ pwin %@ alpha %.2f",
+                              midCopy, (int)ex, NSStringFromClass(m.view.superview.class),
+                              NSStringFromCGRect(CGRectIntegral(inWin)), NSStringFromCGRect(CGRectIntegral(pw)), m.view.alpha];
+            if (![line isEqualToString:lastLine]) {
+                lastLine = line;
+                PACCSizeLog([NSString stringWithFormat:@"track t+%.2f %@", CACurrentMediaTime() - t0, line]);
+            }
+        });
+    }
+}
+
 %hook CCUIContentModuleContainerViewController
 - (void)viewDidLayoutSubviews {
     %orig;
@@ -479,13 +507,13 @@ BOOL gPagerScrubbing = NO;
             PACCNoteExpandedModule(vc0, YES, nil);
             gCCAModuleExpanded = YES;
             PACCSizeLog(@"expanded module opened (container layout)");
+            PACCTrackExpansion(vc0);
         } else if (!exp0 && sExpandedVC == vc0) {
             sExpandedVC = nil;
             gCCAModuleExpanded = NO;
             gPACCExpandQuietUntil = CACurrentMediaTime() + 1.5;
             UIViewController *ovc = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
             PACCNoteExpandedModule(vc0, NO, ovc);
-            PACCLogCloseSamples(vc0, ovc);
             PACCSizeLog(@"expanded module closed (container layout)");
         }
     } @catch (__unused NSException *e) {}
