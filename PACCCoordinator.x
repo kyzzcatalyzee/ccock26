@@ -179,6 +179,15 @@ static NSArray<NSString *> *PACCDogFacts(void) {
     [self syncModuleVisibilityForOverlay:overlay];
     [self applyHeaderMaterialHidden:(gCurrentPage == PACCMediaPageIndex()) forOverlay:overlay];
     [self adjustStatusBarForOverlay:overlay];
+    {
+        __weak UIViewController *wov = overlay;
+        for (NSNumber *d in @[@0.4, @1.0, @2.0]) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)([d doubleValue] * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                UIViewController *o = wov;
+                if (o && o.view.window) [self adjustStatusBarForOverlay:o];
+            });
+        }
+    }
 
     UIViewController *collection = ModuleCollection(overlay);
     if ([collection.view isKindOfClass:UIScrollView.class]) {
@@ -355,6 +364,26 @@ BOOL gPACCRevealAll = NO;
         }
     }
     if (!statusBar) return;
+
+    if (!PACCLandscapeNow() && gCurrentPage != PACCMediaPageIndex()) {
+        static void *kSBLastKey = &kSBLastKey;
+        CGRect sr = [statusBar convertRect:statusBar.bounds toCoordinateSpace:UIScreen.mainScreen.coordinateSpace];
+        BOOL anim = (statusBar.layer.animationKeys.count > 0) || (statusBar.window.layer.animationKeys.count > 0) ||
+                    (overlay.view.layer.animationKeys.count > 0);
+        NSString *note = [NSString stringWithFormat:@"portrait statusbar: %@ screen %@ anim %d tf %@",
+                          NSStringFromClass(statusBar.class), NSStringFromCGRect(sr), anim,
+                          NSStringFromCGAffineTransform(statusBar.transform)];
+        NSString *lastNote = objc_getAssociatedObject(statusBar, kSBLastKey);
+        if (![note isEqualToString:lastNote]) {
+            objc_setAssociatedObject(statusBar, kSBLastKey, note, OBJC_ASSOCIATION_COPY_NONATOMIC);
+            PACCSizeLog(note);
+        }
+        if (!anim && sr.origin.y > 1.5 && sr.origin.y < 400.0) {
+            CGAffineTransform nt = CGAffineTransformConcat(statusBar.transform, CGAffineTransformMakeTranslation(0.0, -sr.origin.y));
+            statusBar.layer.transform = CATransform3DMakeAffineTransform(nt);
+        }
+        return;
+    }
 
     BOOL land = PACCLandscapeNow();
     static void *kStatusBarBasePortraitKey = &kStatusBarBasePortraitKey;

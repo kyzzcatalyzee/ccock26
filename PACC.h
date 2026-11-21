@@ -223,6 +223,11 @@ static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, C
         CGFloat mn = CGFLOAT_MAX, mx = -CGFLOAT_MAX, top = CGFLOAT_MAX;
         PACCLandCollect(cv, 1, CGPointZero, PageSpan() * 0.9, &mn, &mx, &top);
         if (mn <= mx) {
+            {
+                static CGFloat bestTop = CGFLOAT_MAX;
+                if (top >= 0.0 && top < 150.0 && top < bestTop) bestTop = top;
+                if (bestTop != CGFLOAT_MAX) top = bestTop;
+            }
             CGFloat H = cv.window.bounds.size.height;
             CGPoint o = PACCLandOrigin(cv);
             CGFloat topWin = o.y + top;
