@@ -96,8 +96,8 @@ static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
     jx.toValue = @1.0;
     for (CASpringAnimation *sp in @[jy, jx]) {
         sp.mass = 1.0;
-        sp.stiffness = 110.0;
-        sp.damping = 21.0;
+        sp.stiffness = 55.0;
+        sp.damping = 14.8;
         sp.initialVelocity = 0.0;
     }
     CAAnimationGroup *jelly = [CAAnimationGroup animation];
@@ -140,7 +140,7 @@ static void PACCAddBounceSlide(CALayer *layer, CATransform3D from, CATransform3D
 }
 
 static void PACCAddCascade(UIView *cv, NSInteger fromPage, NSInteger toPage) {
-    if (!gPageCascade || !cv || fromPage == toPage) return;
+    if (!gPageCascade || !cv || fromPage == toPage || toPage < fromPage) return;
     CGFloat span = PageSpan();
     if (span < 1.0) return;
     BOOL movingUp = toPage > fromPage;
@@ -386,7 +386,11 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
                 if (u.contentOffset.y != rest0 && u.contentOffset.y < 0.0) u.contentOffset = CGPointMake(u.contentOffset.x, rest0);
             }
         }
-        CGFloat stretch = 0.15;
+        static CFTimeInterval sStretchStart = 0.0;
+        if (g.state == UIGestureRecognizerStateBegan) sStretchStart = CACurrentMediaTime();
+        CGFloat ramp = MIN(1.0, (CACurrentMediaTime() - sStretchStart) / 0.30);
+        ramp = 1.0 - (1.0 - ramp) * (1.0 - ramp);
+        CGFloat stretch = 0.15 * ramp;
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
         CATransform3D sub = PACCDesiredTransform(cv.layer.sublayerTransform, cv, PACCLandShiftNow(), y);
