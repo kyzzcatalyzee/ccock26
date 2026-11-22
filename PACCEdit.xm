@@ -2148,6 +2148,8 @@ static BOOL PACCloneHidesOriginal(NSString *mid) {
     PACEnsureClones();
     int want = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"] ? 1 : 2;
     for (NSDictionary *d in gPACClones) {
+        NSString *cid = d[@"id"] ?: @"";
+        if ([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) continue;
         if (PACCBigKind(d[@"mid"] ?: @"") == want) return YES;
     }
     return NO;
