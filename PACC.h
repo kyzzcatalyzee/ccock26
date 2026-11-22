@@ -235,13 +235,14 @@ static inline CATransform3D PACCLandTransform(UIView *cv, CGFloat shift, CGFloat
     }
     return t;
 }
-#define kPACPortScaleOn 0
+#define kPACPortScaleOn 1
 static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop, CGFloat *outRaise) {
     static CGFloat cSc = 1.0, cMc = 0.0, cTop = 0.0, cRaise = 0.0;
     static BOOL have = NO;
     if (!cv || !cv.window) {
         if (!have) return NO;
     } else {
+        if (MIN(cv.window.bounds.size.width, cv.window.bounds.size.height) >= 422.0) return NO;
         CGFloat mn = CGFLOAT_MAX, mx = -CGFLOAT_MAX, top = CGFLOAT_MAX;
         PACCLandCollect(cv, 1, CGPointZero, PageSpan() * 0.9, &mn, &mx, &top);
         if (mn <= mx) {
@@ -256,7 +257,7 @@ static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, C
             CGFloat targetTop = (topWin > 48.0) ? MAX(48.0, topWin - 20.0) : topWin;
             CGFloat rowsH = 8.0 * PACCGridCell() + 7.0 * PACCGridGap();
             CGFloat sc = MIN(0.97, (H - 12.0 - targetTop) / rowsH);
-            if (MIN(cv.window.bounds.size.width, H) < 422.0) { sc = 63.0 / 73.0; targetTop = 70.0; }
+            if (MIN(cv.window.bounds.size.width, H) < 422.0) { sc = 0.91; targetTop = 88.0; }
             cSc = MAX(0.6, MIN(1.0, sc));
             {
                 static CGFloat lastLogTop = -999.0, lastLogSc = -1.0;

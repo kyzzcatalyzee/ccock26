@@ -369,7 +369,7 @@ BOOL gPACCRevealAll = NO;
     }
     CGAffineTransform base = storedBase.CGAffineTransformValue;
 
-    CGFloat dy = land ? 0.0 : ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0);
+    CGFloat dy = land ? 0.0 : (-43.0 + ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0));
     CGAffineTransform target = CGAffineTransformConcat(base, CGAffineTransformMakeTranslation(0, dy));
 
     if (CGAffineTransformEqualToTransform(statusBar.transform, target)) return;
@@ -449,6 +449,7 @@ BOOL gPACCRevealAll = NO;
         [overlay.view addSubview:host];
     }
     CGFloat top = [self topInsetForOverlay:overlay];
+    if (!PACCLandscapeNow() && CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0) top = MAX(0.0, top - 34.0);
     host.frame = CGRectMake(0, top, CGRectGetWidth(overlay.view.bounds), 44);
     host.hidden = !gQuickAccessButtonsEnabled;
 
