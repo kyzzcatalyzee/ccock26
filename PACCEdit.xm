@@ -4641,7 +4641,10 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             }
             if (rmc && sf.size.width > 1 && sf.size.height > 1) {
                 CGFloat minSide = kPACCell * PACSS() * 0.85;
-                CGFloat maxW = MAX(sf.size.width, rmc.view.superview.bounds.size.width - sf.origin.x);
+                NSArray<NSNumber *> *so = PACGetOrigin(mid);
+                NSUInteger startCol = so.count >= 2 ? so[0].unsignedIntegerValue : 0;
+                NSUInteger colsLeft = (kPACCols > startCol) ? (kPACCols - startCol) : 1;
+                CGFloat maxW = MAX(sf.size.width, colsLeft * kPACCell * PACSS() + (colsLeft - 1) * kPACgap * PACSS());
                 CGFloat maxH = kPACStep * PACSS() * 8.0;
                 CGFloat fw = MAX(minSide, MIN(maxW, sf.size.width + t.x));
                 CGFloat fh = MAX(minSide, MIN(maxH, sf.size.height + t.y));
