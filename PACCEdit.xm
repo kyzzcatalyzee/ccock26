@@ -185,30 +185,30 @@ static void PACSetFlag(CFStringRef key) {
     CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
-static int sPACConnHidden = -1;
+static int sPACHiddenFlag[2] = {-1, -1};
 
-static BOOL PACCloneHidesOriginal(NSString *mid);
-
-static BOOL PACConnExplicitHidden(NSString *mid) {
-    if (![mid isEqualToString:@"com.apple.control-center.ConnectivityModule"]) return NO;
-    if (sPACConnHidden < 0) sPACConnHidden = PACFlagIsSet(CFSTR("ConnHidden")) ? 1 : 0;
-    return sPACConnHidden == 1;
+static int PACHiddenSlot(NSString *mid) {
+    if ([mid isEqualToString:@"com.apple.control-center.ConnectivityModule"]) return 0;
+    if ([mid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"]) return 1;
+    return -1;
 }
 
 static BOOL PACConnHiddenFor(NSString *mid) {
-    BOOL isConn = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"];
-    BOOL isMusic = [mid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"];
-    if (!isConn && !isMusic) return NO;
-    if (isConn) {
-        if (sPACConnHidden < 0) sPACConnHidden = PACFlagIsSet(CFSTR("ConnHidden")) ? 1 : 0;
-        if (sPACConnHidden == 1) return YES;
-    }
-    return PACCloneHidesOriginal(mid);
+    int slot = PACHiddenSlot(mid);
+    if (slot < 0) return NO;
+    if (sPACHiddenFlag[slot] < 0) sPACHiddenFlag[slot] = PACFlagIsSet(slot == 0 ? CFSTR("ConnHidden") : CFSTR("MusicHidden")) ? 1 : 0;
+    return sPACHiddenFlag[slot] == 1;
 }
 
-static void PACSetConnHidden(BOOL on) {
-    sPACConnHidden = on ? 1 : 0;
-    CFPreferencesSetAppValue(CFSTR("ConnHidden"), on ? kCFBooleanTrue : NULL, CFSTR("pawxed.ccock26.preferences"));
+static BOOL PACConnExplicitHidden(NSString *mid) {
+    return PACConnHiddenFor(mid);
+}
+
+static void PACSetHiddenFor(NSString *mid, BOOL on) {
+    int slot = PACHiddenSlot(mid);
+    if (slot < 0) return;
+    sPACHiddenFlag[slot] = on ? 1 : 0;
+    CFPreferencesSetAppValue(slot == 0 ? CFSTR("ConnHidden") : CFSTR("MusicHidden"), on ? kCFBooleanTrue : NULL, CFSTR("pawxed.ccock26.preferences"));
     CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
@@ -2143,17 +2143,6 @@ static void PACEnsureClones(void) {
     }
 }
 
-static BOOL PACCloneHidesOriginal(NSString *mid) {
-    if (PACIsLandscape()) return NO;
-    PACEnsureClones();
-    int want = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"] ? 1 : 2;
-    for (NSDictionary *d in gPACClones) {
-        NSString *cid = d[@"id"] ?: @"";
-        if ([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) continue;
-        if (PACCBigKind(d[@"mid"] ?: @"") == want) return YES;
-    }
-    return NO;
-}
 
 static void PACSaveClones(void) {
     PACEnsureClones();
@@ -2382,22 +2371,6 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
     static BOOL busy = NO;
     if (busy || !ov || !ov.view) return;
     PACEnsureClones();
-    {
-        static int sLastHide = -1;
-        int curHide = (PACCloneHidesOriginal(@"com.apple.control-center.ConnectivityModule") ? 1 : 0) |
-                      (PACCloneHidesOriginal(@"com.apple.mediaremote.controlcenter.nowplaying") ? 2 : 0);
-        if (sLastHide != curHide) {
-            BOOL firstPass = (sLastHide < 0);
-            sLastHide = curHide;
-            if (!firstPass) {
-                __weak UIViewController *wov = ov;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    UIViewController *o = wov;
-                    if (o) PACSpringRelayout(o, nil);
-                });
-            }
-        }
-    }
     UIView *cv = ModuleCollection(ov).view;
     if (!cv) return;
     if (PACFlagIsSet(CFSTR("SeedClonesPending")) && !PACIsLandscape()) {
@@ -3565,9 +3538,9 @@ static void PACForceExitEdit(UIViewController *ov) {
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov;
 @end
 
-static void PACAddCloneSized(NSString *mid, UIViewController *ov, NSUInteger reqW, NSUInteger reqH, NSString *ignoreMid) {
+static BOOL PACAddCloneSized(NSString *mid, UIViewController *ov, NSUInteger reqW, NSUInteger reqH, NSString *ignoreMid) {
     int kind = PACCBigKind(mid);
-    if (!kind) return;
+    if (!kind) return NO;
     NSUInteger w = 4, h = (kind == 1) ? 4 : 2;
     if (kind == 3) { w = 1; h = 1; }
     if (reqW && reqH) { w = reqW; h = reqH; }
@@ -3583,7 +3556,7 @@ static void PACAddCloneSized(NSString *mid, UIViewController *ov, NSUInteger req
             placed = PACFindSlot(@"", w, h, ov, &oc, &oa, &page);
         }
     }
-    if (!placed) { PACShowToast(ov, @"No room left for another control"); return; }
+    if (!placed) { PACShowToast(ov, @"No room left for another control"); return NO; }
     PACEnsureClones();
     NSString *cid = [NSString stringWithFormat:@"%llx", (unsigned long long)(CACurrentMediaTime() * 1000.0)];
     [gPACClones addObject:[@{@"id": cid, @"mid": mid, @"c": @(oc), @"a": @(oa), @"w": @(w), @"h": @(h)} mutableCopy]];
@@ -3622,6 +3595,7 @@ static void PACAddCloneSized(NSString *mid, UIViewController *ov, NSUInteger req
         PACShowToast(ov, [NSString stringWithFormat:@"%@ added to page %lu", PACNameForIdentifier(mid), (unsigned long)(page + 1)]);
     }
     PACCSyncClones(ov, YES);
+    return YES;
 }
 
 static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
@@ -4448,7 +4422,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     SEL get = NSSelectorFromString(@"orderedUserEnabledModuleIdentifiers");
     SEL set = NSSelectorFromString(@"setAndSaveOrderedUserEnabledModuleIdentifiers:");
     BOOL restoringConn = PACConnExplicitHidden(mid);
-    if (restoringConn) PACSetConnHidden(NO);
+    if (restoringConn) PACSetHiddenFor(mid, NO);
     if (PACCBigKind(mid) == 3) { PACAddCloneOf(mid, ov); return; }
     if (PACCBigKind(mid) && !restoringConn) {
         BOOL onGrid = NO;
@@ -4578,6 +4552,32 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled ||
                g.state == UIGestureRecognizerStateFailed) {
         PACSaveClones();
+        NSString *cmid = cd[@"mid"] ?: @"";
+        int ck = PACCBigKind(cmid);
+        if (g.state == UIGestureRecognizerStateEnded && (ck == 1 || ck == 2) &&
+            [cd[@"w"] unsignedIntegerValue] == 2 && [cd[@"h"] unsignedIntegerValue] == 2 && PACConnHiddenFor(cmid)) {
+            NSUInteger cc = [cd[@"c"] unsignedIntegerValue], ca = [cd[@"a"] unsignedIntegerValue];
+            [gPACClones removeObject:cd];
+            PACSaveClones();
+            PACEnsureStore();
+            [gEditSizes removeObjectForKey:cmid];
+            PACSetOrigin(cmid, @[@(cc), @(ca)]);
+            PACInvalidateOtherOrientationOriginForModule(cmid);
+            PACSaveStore();
+            PACSetHiddenFor(cmid, NO);
+            PACCSyncClones(ov, NO);
+            [self relayout:ov];
+            PACSettleEditLayout(ov);
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if (!gEditModeActive) return;
+                for (UIViewController *m in ModuleControllers(ov)) {
+                    PACApplyRadiusToModule(m);
+                    PACApplyChrome(m, ov);
+                    PACRefreshPresentation(m, ov);
+                }
+                PACBringChromeToFront(ov);
+            });
+        }
     }
 }
 
@@ -4644,7 +4644,14 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             BOOL bigNow = (bk == 1 && p.width >= 4 && p.height >= 4) ||
                           (bk == 2 && p.width >= 2 && p.height >= 2 && !(p.width == 2 && p.height == 2));
             if (bigNow && !PACIsLandscape()) {
-                PACAddCloneSized(mid, ov, p.width, p.height, mid);
+                if (PACAddCloneSized(mid, ov, p.width, p.height, mid)) {
+                    PACEnsureStore();
+                    PACSetOrigin(mid, nil);
+                    [gEditSizes removeObjectForKey:mid];
+                    PACInvalidateOtherOrientationOriginForModule(mid);
+                    PACSaveStore();
+                    PACSetHiddenFor(mid, YES);
+                }
             } else {
                 [self commitResize:mid w:p.width h:p.height overlay:ov];
             }
@@ -4879,7 +4886,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         NSDictionary<NSString *, NSValue *> *oldFrames = slide ? PACCaptureModuleFrames(ov, mid) : nil;
 
         if ([mid isEqualToString:@"com.apple.control-center.ConnectivityModule"]) {
-            PACSetConnHidden(YES);
+            PACSetHiddenFor(mid, YES);
         } else if ([prov respondsToSelector:get] && [prov respondsToSelector:set]) {
             NSArray *ids = ((id (*)(id, SEL))objc_msgSend)(prov, get);
             NSMutableArray *mut = [ids mutableCopy];
