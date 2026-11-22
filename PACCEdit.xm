@@ -66,6 +66,15 @@ static const void *kPACPresKey     = &kPACPresKey;
 static const void *kPACCandKey     = &kPACCandKey;
 static const void *kPACStartFrameKey = &kPACStartFrameKey;
 static const void *kPACFreeSizeKey = &kPACFreeSizeKey;
+static __weak UIView *gPACFreeView = nil;
+static CGRect gPACFreeFrame;
+static BOOL gPACFreeActive = NO;
+
+void PACCFreeResizeApplyFrame(void) {
+    UIView *v = gPACFreeView;
+    if (!gPACFreeActive || !v) return;
+    if (!CGRectEqualToRect(v.frame, gPACFreeFrame)) v.frame = gPACFreeFrame;
+}
 static const void *kPACMidKey      = &kPACMidKey;
 static const void *kPACStartSzKey  = &kPACStartSzKey;
 static const void *kPACCloneSigKey = &kPACCloneSigKey;
@@ -4637,12 +4646,12 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                 CGFloat fw = MAX(minSide, MIN(maxW, sf.size.width + t.x));
                 CGFloat fh = MAX(minSide, MIN(maxH, sf.size.height + t.y));
                 objc_setAssociatedObject(g, kPACFreeSizeKey, @[@(fw), @(fh)], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                CGAffineTransform tf = CGAffineTransformMake(fw / sf.size.width, 0, 0, fh / sf.size.height,
-                                                             (fw - sf.size.width) * 0.5, (fh - sf.size.height) * 0.5);
-                rmc.view.transform = tf;
-                UIView *bd = objc_getAssociatedObject(rmc.view, kPACBorderKey);
-                if (bd) bd.transform = tf;
-                btn.transform = CGAffineTransformMakeTranslation(fw - sf.size.width, fh - sf.size.height);
+                gPACFreeView = rmc.view;
+                gPACFreeFrame = CGRectMake(sf.origin.x, sf.origin.y, fw, fh);
+                gPACFreeActive = YES;
+                rmc.view.frame = gPACFreeFrame;
+                [rmc.view layoutIfNeeded];
+                PACApplyChrome(rmc, ov);
             }
         }
 
@@ -4660,9 +4669,14 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             if ([PACMid(c) isEqualToString:mid]) { snapM = c; break; }
         }
         UIView *snapBorder = snapM ? objc_getAssociatedObject(snapM.view, kPACBorderKey) : nil;
-        if (snapM) snapM.view.transform = CGAffineTransformIdentity;
-        snapBorder.transform = CGAffineTransformIdentity;
-        btn.transform = CGAffineTransformIdentity;
+        CGRect freeFrameEnd = CGRectZero;
+        if (snapM && freeEnd.count >= 2 && startFrameEnd) {
+            CGRect sf0 = startFrameEnd.CGRectValue;
+            freeFrameEnd = CGRectMake(sf0.origin.x, sf0.origin.y, freeEnd[0].doubleValue, freeEnd[1].doubleValue);
+        }
+        gPACFreeActive = NO;
+        gPACFreeView = nil;
+        (void)snapBorder;
         if (g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
             PACSizeAllowedFor(mid, p.width, p.height)) {
             int bk = PACCBigKind(mid);
@@ -4710,20 +4724,15 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         objc_setAssociatedObject(g, kPACStartFrameKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self relayout:ov];
         PACSettleEditLayout(ov);
-        if (snapM && freeEnd.count >= 2 && startFrameEnd) {
-            CGRect sf = startFrameEnd.CGRectValue;
+        if (snapM && !CGRectIsEmpty(freeFrameEnd)) {
             [ModuleCollection(ov).view layoutIfNeeded];
             [snapM.view.layer removeAllAnimations];
             CGRect nf = snapM.view.frame;
-            CGFloat fw = freeEnd[0].doubleValue, fh = freeEnd[1].doubleValue;
-            if (nf.size.width > 1 && nf.size.height > 1 && fw > 1 && fh > 1) {
-                CGAffineTransform from = CGAffineTransformMake(fw / nf.size.width, 0, 0, fh / nf.size.height,
-                                                               (fw - nf.size.width) * 0.5 + (sf.origin.x - nf.origin.x),
-                                                               (fh - nf.size.height) * 0.5 + (sf.origin.y - nf.origin.y));
-                snapM.view.transform = from;
-                [UIView animateWithDuration:0.55 delay:0 usingSpringWithDamping:0.78 initialSpringVelocity:0.3
-                                    options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
-                                 animations:^{ snapM.view.transform = CGAffineTransformIdentity; } completion:nil];
+            if (!CGRectEqualToRect(nf, freeFrameEnd)) {
+                snapM.view.frame = freeFrameEnd;
+                [UIView animateWithDuration:0.55 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.3
+                                    options:UIViewAnimationOptionAllowUserInteraction
+                                 animations:^{ snapM.view.frame = nf; } completion:nil];
             }
         }
         NSUInteger epochAtResizeEnd = gPACEditEpoch;
