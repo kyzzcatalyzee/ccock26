@@ -2270,38 +2270,65 @@ static BOOL PACCloneFits(UIViewController *ov, NSString *cid, NSUInteger c, NSUI
     return YES;
 }
 
+static NSUInteger PACCCountRoundButtons(UIView *v, int depth) {
+    NSUInteger n = [NSStringFromClass(v.class) containsString:@"RoundButton"] ? 1 : 0;
+    if (depth <= 0) return n;
+    for (UIView *s in v.subviews) n += PACCCountRoundButtons(s, depth - 1);
+    return n;
+}
+
 static UIView *PACCPrivateConnHost(UIViewController *ov) {
     static id sModule = nil;
+    static UIViewController *sVC = nil;
     static UIView *sHost = nil;
-    if (!sModule) {
+    static BOOL sLoggedFail = NO;
+    if (!sVC) {
         NSBundle *bn = [NSBundle bundleWithPath:@"/System/Library/ControlCenter/Bundles/ConnectivityModule.bundle"];
         if (bn && !bn.loaded) [bn load];
         Class mc = NSClassFromString(@"CCUIConnectivityModule");
-        if (!mc) return nil;
+        if (!mc && bn) mc = bn.principalClass;
+        if (!mc) {
+            if (!sLoggedFail) { sLoggedFail = YES; PACCSizeLog([NSString stringWithFormat:@"private conn: no module class (bundle %d)", (int)(bn != nil)]); }
+            return nil;
+        }
         @try { sModule = [[mc alloc] init]; } @catch (__unused NSException *e) { sModule = nil; }
-        if (!sModule) return nil;
-    }
-    UIViewController *vc = nil;
-    @try {
-        if ([sModule respondsToSelector:@selector(contentViewController)])
-            vc = ((id (*)(id, SEL))objc_msgSend)(sModule, @selector(contentViewController));
-    } @catch (__unused NSException *e) { vc = nil; }
-    if (![vc isKindOfClass:UIViewController.class]) return nil;
-    if (!sHost) {
-        sHost = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 160, 160)];
-        sHost.alpha = 0.0;
-        sHost.userInteractionEnabled = NO;
+        if (!sModule) {
+            if (!sLoggedFail) { sLoggedFail = YES; PACCSizeLog(@"private conn: init failed"); }
+            return nil;
+        }
+        id vc = nil;
+        @try {
+            SEL cs = NSSelectorFromString(@"contentViewController");
+            if ([sModule respondsToSelector:cs]) vc = ((id (*)(id, SEL))objc_msgSend)(sModule, cs);
+        } @catch (__unused NSException *e) { vc = nil; }
+        if (![vc isKindOfClass:UIViewController.class]) {
+            if (!sLoggedFail) { sLoggedFail = YES; PACCSizeLog([NSString stringWithFormat:@"private conn: no content VC (%@)", NSStringFromClass([sModule class])]); }
+            sModule = nil;
+            return nil;
+        }
+        sVC = vc;
+        PACCSizeLog([NSString stringWithFormat:@"private conn: module %@ vc %@", NSStringFromClass([sModule class]), NSStringFromClass(sVC.class)]);
     }
     UIView *root = ov.view;
     if (!root) return nil;
-    if (sHost.superview != root) [root insertSubview:sHost atIndex:0];
-    if (vc.view.superview != sHost) {
-        vc.view.frame = sHost.bounds;
-        [sHost addSubview:vc.view];
-        [vc.view setNeedsLayout];
-        [vc.view layoutIfNeeded];
+    if (!sHost) {
+        sHost = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 166, 166)];
+        sHost.alpha = 0.0;
+        sHost.userInteractionEnabled = NO;
     }
-    return vc.view;
+    if (sHost.superview != root) [root insertSubview:sHost atIndex:0];
+    if (sVC.view.superview != sHost) {
+        sVC.view.frame = sHost.bounds;
+        [sHost addSubview:sVC.view];
+        @try {
+            if ([sVC respondsToSelector:@selector(viewWillAppear:)]) [sVC viewWillAppear:NO];
+            if ([sVC respondsToSelector:@selector(viewDidAppear:)]) [sVC viewDidAppear:NO];
+        } @catch (__unused NSException *e) {}
+        [sVC.view setNeedsLayout];
+        [sVC.view layoutIfNeeded];
+        PACCSizeLog([NSString stringWithFormat:@"private conn: attached, round buttons %lu", (unsigned long)PACCCountRoundButtons(sVC.view, 8)]);
+    }
+    return sVC.view;
 }
 
 void PACCSyncClones(UIViewController *ov, BOOL animated) {

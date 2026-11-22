@@ -79,6 +79,24 @@ static CATransform3D PACCScrubTarget(UIView *cv, CATransform3D base, CGFloat off
     return PACCPageTranslate(base, off);
 }
 
+static void PACCLogSlide(UIView *cv, NSString *tag, CATransform3D fromSub, CATransform3D toSub) {
+    if (!cv) return;
+    PACCSizeLog([NSString stringWithFormat:@"slide %@ land %d from m11 %.3f m41 %.1f m42 %.1f to m11 %.3f m41 %.1f m42 %.1f",
+                 tag, (int)PACCLandscapeNow(), fromSub.m11, fromSub.m41, fromSub.m42, toSub.m11, toSub.m41, toSub.m42]);
+    __weak UIView *wcv = cv;
+    for (NSNumber *d in @[@0.15, @0.4, @0.7, @1.0, @1.4]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *v = wcv;
+            if (!v) return;
+            CALayer *pl = (CALayer *)v.layer.presentationLayer;
+            CATransform3D m = v.layer.sublayerTransform;
+            CATransform3D pr = pl ? pl.sublayerTransform : m;
+            PACCSizeLog([NSString stringWithFormat:@"slide %@ t+%.2f model m11 %.3f m41 %.1f m42 %.1f pres m11 %.3f m41 %.1f m42 %.1f page %ld",
+                         tag, d.doubleValue, m.m11, m.m41, m.m42, pr.m11, pr.m41, pr.m42, (long)gCurrentPage]);
+        });
+    }
+}
+
 static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D to, NSString *key) {
     CASpringAnimation *spring = [CASpringAnimation animationWithKeyPath:@"sublayerTransform.translation.y"];
     spring.fromValue = @(from.m42);
@@ -92,7 +110,12 @@ static void PACCAddSmoothSlide(CALayer *layer, CATransform3D from, CATransform3D
     [layer addAnimation:spring forKey:key];
 }
 
-static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
+static CGFloat sSwipeStretch = 0.0;
+static CGFloat sSwipeSpeedNorm = 0.0;
+
+static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY, CGFloat speedNorm) {
+    CGFloat stiff = 28.0 + 120.0 * MAX(0.0, MIN(1.0, speedNorm));
+    CGFloat damp = 2.0 * sqrt(stiff) * 1.0;
     CASpringAnimation *jy = [CASpringAnimation animationWithKeyPath:@"transform.scale.y"];
     jy.fromValue = @(startY);
     jy.toValue = @1.0;
@@ -101,8 +124,8 @@ static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
     jx.toValue = @1.0;
     for (CASpringAnimation *sp in @[jy, jx]) {
         sp.mass = 1.0;
-        sp.stiffness = 55.0;
-        sp.damping = 14.8;
+        sp.stiffness = stiff;
+        sp.damping = damp;
         sp.initialVelocity = 0.0;
     }
     CAAnimationGroup *jelly = [CAAnimationGroup animation];
@@ -112,7 +135,7 @@ static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY) {
 }
 
 __attribute__((unused)) static void PACCAddJelly(CALayer *layer, CGFloat endStretch) {
-    PACCAddJellyFrom(layer, 1.0 - endStretch * 1.1, 1.0 + endStretch);
+    PACCAddJellyFrom(layer, 1.0 - endStretch * 1.1, 1.0 + endStretch, 0.2);
 }
 
 __attribute__((unused)) static void PACCAddSlideSquash(CALayer *layer, CGFloat amount) {
@@ -391,11 +414,16 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
                 if (u.contentOffset.y != rest0 && u.contentOffset.y < 0.0) u.contentOffset = CGPointMake(u.contentOffset.x, rest0);
             }
         }
-        static CFTimeInterval sStretchStart = 0.0;
-        if (g.state == UIGestureRecognizerStateBegan) sStretchStart = CACurrentMediaTime();
-        CGFloat ramp = MIN(1.0, (CACurrentMediaTime() - sStretchStart) / 0.30);
-        ramp = 1.0 - (1.0 - ramp) * (1.0 - ramp);
-        CGFloat stretch = 0.15 * ramp;
+        static CFTimeInterval sStretchLast = 0.0;
+        CFTimeInterval nowT = CACurrentMediaTime();
+        if (g.state == UIGestureRecognizerStateBegan) { sStretchLast = nowT; sSwipeStretch = 0.0; sSwipeSpeedNorm = 0.0; }
+        CGFloat dtS = MIN(0.05, MAX(0.0, nowT - sStretchLast));
+        sStretchLast = nowT;
+        CGFloat normNow = MIN(1.0, fabs(vy) / 1800.0);
+        sSwipeSpeedNorm += (normNow - sSwipeSpeedNorm) * MIN(1.0, dtS * 10.0);
+        CGFloat durS = 0.85 - 0.70 * sSwipeSpeedNorm;
+        sSwipeStretch = MIN(0.15, sSwipeStretch + 0.15 * dtS / durS);
+        CGFloat stretch = sSwipeStretch;
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
         CATransform3D sub = PACCDesiredTransform(cv.layer.sublayerTransform, cv, PACCLandShiftNow(), y);
@@ -438,9 +466,10 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     [CATransaction commit];
 
     PACCAddSmoothSlide(cv.layer, fromSub, toSub, @"PAnimPageSlide");
+    PACCLogSlide(cv, @"swipe", fromSub, toSub);
 
     (void)endStretch;
-    if (fabs(jellyY - 1.0) > 0.002) PACCAddJellyFrom(cv.layer, jellyX, jellyY);
+    if (fabs(jellyY - 1.0) > 0.002) PACCAddJellyFrom(cv.layer, jellyX, jellyY, sSwipeSpeedNorm);
 
     [PACC.shared applyHeaderMaterialHidden:NO forOverlay:self.overlay];
     [PACC.shared adjustStatusBarForOverlay:self.overlay];
@@ -814,11 +843,12 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     CAMediaTimingFunction *curve = [CAMediaTimingFunction functionWithControlPoints:0.18 :0.88 :0.20 :1.0];
 
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
+    PACCLogSlide(collection.view, @"scrub", fromSub, toSub);
 
     CGFloat heldX = fromTrans.m11, heldY = fromTrans.m22;
     if (fabs(heldX - 1.0) < 0.004 && fabs(heldY - 1.0) < 0.004) { heldX = 0.89; heldY = 1.10; }
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
-    PACCAddJellyFrom(collection.view.layer, heldX, heldY);
+    PACCAddJellyFrom(collection.view.layer, heldX, heldY, 0.2);
 
     CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
     fade.fromValue = @(fromAlpha);
@@ -1029,6 +1059,7 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
     [CATransaction commit];
 
     PACCAddBounceSlide(collection.view.layer, fromSub, toSub, @"PAnimPageSlide");
+    PACCLogSlide(collection.view, @"page", fromSub, toSub);
     [collection.view.layer removeAnimationForKey:@"PAnimJelly"];
     PACCAddSlideSquash(collection.view.layer, 0.10);
 
