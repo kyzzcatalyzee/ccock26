@@ -187,10 +187,23 @@ static void PACSetFlag(CFStringRef key) {
 
 static int sPACConnHidden = -1;
 
-static BOOL PACConnHiddenFor(NSString *mid) {
+static BOOL PACCloneHidesOriginal(NSString *mid);
+
+static BOOL PACConnExplicitHidden(NSString *mid) {
     if (![mid isEqualToString:@"com.apple.control-center.ConnectivityModule"]) return NO;
     if (sPACConnHidden < 0) sPACConnHidden = PACFlagIsSet(CFSTR("ConnHidden")) ? 1 : 0;
     return sPACConnHidden == 1;
+}
+
+static BOOL PACConnHiddenFor(NSString *mid) {
+    BOOL isConn = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"];
+    BOOL isMusic = [mid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"];
+    if (!isConn && !isMusic) return NO;
+    if (isConn) {
+        if (sPACConnHidden < 0) sPACConnHidden = PACFlagIsSet(CFSTR("ConnHidden")) ? 1 : 0;
+        if (sPACConnHidden == 1) return YES;
+    }
+    return PACCloneHidesOriginal(mid);
 }
 
 static void PACSetConnHidden(BOOL on) {
@@ -2130,6 +2143,16 @@ static void PACEnsureClones(void) {
     }
 }
 
+static BOOL PACCloneHidesOriginal(NSString *mid) {
+    if (PACIsLandscape()) return NO;
+    PACEnsureClones();
+    int want = [mid isEqualToString:@"com.apple.control-center.ConnectivityModule"] ? 1 : 2;
+    for (NSDictionary *d in gPACClones) {
+        if (PACCBigKind(d[@"mid"] ?: @"") == want) return YES;
+    }
+    return NO;
+}
+
 static void PACSaveClones(void) {
     PACEnsureClones();
     CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)[gPACClones copy], CFSTR("pawxed.ccock26.preferences"));
@@ -2357,6 +2380,22 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
     static BOOL busy = NO;
     if (busy || !ov || !ov.view) return;
     PACEnsureClones();
+    {
+        static int sLastHide = -1;
+        int curHide = (PACCloneHidesOriginal(@"com.apple.control-center.ConnectivityModule") ? 1 : 0) |
+                      (PACCloneHidesOriginal(@"com.apple.mediaremote.controlcenter.nowplaying") ? 2 : 0);
+        if (sLastHide != curHide) {
+            BOOL firstPass = (sLastHide < 0);
+            sLastHide = curHide;
+            if (!firstPass) {
+                __weak UIViewController *wov = ov;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    UIViewController *o = wov;
+                    if (o) PACSpringRelayout(o, nil);
+                });
+            }
+        }
+    }
     UIView *cv = ModuleCollection(ov).view;
     if (!cv) return;
     if (PACFlagIsSet(CFSTR("SeedClonesPending")) && !PACIsLandscape()) {
@@ -4400,7 +4439,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     id prov = PACSettingsProvider();
     SEL get = NSSelectorFromString(@"orderedUserEnabledModuleIdentifiers");
     SEL set = NSSelectorFromString(@"setAndSaveOrderedUserEnabledModuleIdentifiers:");
-    BOOL restoringConn = PACConnHiddenFor(mid);
+    BOOL restoringConn = PACConnExplicitHidden(mid);
     if (restoringConn) PACSetConnHidden(NO);
     if (PACCBigKind(mid) == 3) { PACAddCloneOf(mid, ov); return; }
     if (PACCBigKind(mid) && !restoringConn) {
