@@ -63,9 +63,6 @@ static const void *kPACBorderKey   = &kPACBorderKey;
 static const void *kPACRemoveKey   = &kPACRemoveKey;
 static const void *kPACResizeKey   = &kPACResizeKey;
 static const void *kPACPresKey     = &kPACPresKey;
-static const void *kPACCandKey     = &kPACCandKey;
-static const void *kPACStartFrameKey = &kPACStartFrameKey;
-static const void *kPACFreeSizeKey = &kPACFreeSizeKey;
 static __weak UIView *gPACFreeView = nil;
 static CGRect gPACFreeFrame;
 static BOOL gPACFreeActive = NO;
@@ -4708,15 +4705,6 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         objc_setAssociatedObject(g, kPACStartSzKey, @[@(sw), @(sh)], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         gPACPendingResizeID = [mid copy];
         gPACPendingResizeSize = (CCUILayoutSize){sw, sh};
-        objc_setAssociatedObject(g, kPACCandKey, @[@(sw), @(sh)], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        objc_setAssociatedObject(g, kPACFreeSizeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        for (UIViewController *rmc in ModuleControllers(ov)) {
-            if ([PACMid(rmc) isEqualToString:mid]) {
-                rmc.view.transform = CGAffineTransformIdentity;
-                objc_setAssociatedObject(g, kPACStartFrameKey, [NSValue valueWithCGRect:rmc.view.frame], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                break;
-            }
-        }
         if (gHapticsEnabled) Haptic();
 
     } else if (g.state == UIGestureRecognizerStateChanged) {
@@ -4726,82 +4714,37 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         CGPoint t = [g translationInView:ov.view];
         CCUILayoutSize next = PACResizeCandidate(mid, sw, sh, t);
         if (!PACSizeAllowedFor(mid, next.width, next.height)) {
-            NSArray<NSNumber *> *lc = objc_getAssociatedObject(g, kPACCandKey);
-            next = (lc.count >= 2) ? (CCUILayoutSize){lc[0].unsignedIntegerValue, lc[1].unsignedIntegerValue} : (CCUILayoutSize){sw, sh};
+            next = gPACPendingResizeSize;
         }
-        NSArray<NSNumber *> *prevCand = objc_getAssociatedObject(g, kPACCandKey);
-        BOOL candChanged = !(prevCand.count >= 2 && prevCand[0].unsignedIntegerValue == next.width && prevCand[1].unsignedIntegerValue == next.height);
-        objc_setAssociatedObject(g, kPACCandKey, @[@(next.width), @(next.height)], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        gPACPendingResizeSize = next;
-        NSValue *sfv = objc_getAssociatedObject(g, kPACStartFrameKey);
-        if (sfv) {
-            CGRect sf = sfv.CGRectValue;
-            UIViewController *rmc = nil;
-            for (UIViewController *c in ModuleControllers(ov)) {
-                if ([PACMid(c) isEqualToString:mid]) { rmc = c; break; }
+        if (next.width != gPACPendingResizeSize.width ||
+            next.height != gPACPendingResizeSize.height) {
+            gPACPendingResizeSize = next;
+
+            NSArray<NSNumber *> *cur = PACGetOrigin(mid);
+            if (cur.count >= 2) {
+                NSUInteger cCol = cur[0].unsignedIntegerValue;
+                NSUInteger cAbs = cur[1].unsignedIntegerValue;
+                NSUInteger cRow = cAbs % kPACStride;
+                [self computeArrangementForMid:mid
+                                           col:cCol
+                                           row:cRow
+                                             w:next.width
+                                             h:next.height
+                                       overlay:ov];
             }
-            if (rmc && sf.size.width > 1 && sf.size.height > 1) {
-                CGFloat minSide = kPACCell * PACSS() * 0.85;
-                NSArray<NSNumber *> *so = PACGetOrigin(mid);
-                NSUInteger startCol = so.count >= 2 ? so[0].unsignedIntegerValue : 0;
-                NSUInteger colsLeft = (kPACCols > startCol) ? (kPACCols - startCol) : 1;
-                CGFloat maxW = MAX(sf.size.width, colsLeft * kPACCell * PACSS() + (colsLeft - 1) * kPACgap * PACSS());
-                CGFloat maxH = kPACStep * PACSS() * 8.0;
-                CGFloat fw = MAX(minSide, MIN(maxW, sf.size.width + t.x));
-                CGFloat fh = MAX(minSide, MIN(maxH, sf.size.height + t.y));
-                objc_setAssociatedObject(g, kPACFreeSizeKey, @[@(fw), @(fh)], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                gPACFreeView = rmc.view;
-                gPACFreeFrame = CGRectMake(sf.origin.x, sf.origin.y, fw, fh);
-                gPACFreeActive = YES;
-                gPACFreeVC = rmc;
-                gPACFreeMid = mid;
-                gPACFreeCandW = next.width;
-                gPACFreeCandH = next.height;
-                rmc.view.frame = gPACFreeFrame;
-                (void)candChanged;
-                if (PACCBigKind(mid)) PACCFreeResizeApplyFrame();
-                [rmc.view layoutIfNeeded];
-                PACApplyChrome(rmc, ov);
-            }
+
+                    PACHoldAllGlass(ov, 1.0);
+            if (PACCLIQIsActive()) PACSpringRelayout(ov, ^{ [self relayout:ov]; });
+            else [self relayout:ov];
+            PACSettleEditLayout(ov);
         }
 
     } else if (g.state == UIGestureRecognizerStateEnded ||
                g.state == UIGestureRecognizerStateCancelled ||
                g.state == UIGestureRecognizerStateFailed) {
-        NSArray<NSNumber *> *candEnd = objc_getAssociatedObject(g, kPACCandKey);
-        NSArray<NSNumber *> *freeEnd = objc_getAssociatedObject(g, kPACFreeSizeKey);
-        NSValue *startFrameEnd = objc_getAssociatedObject(g, kPACStartFrameKey);
-        CCUILayoutSize p = (candEnd.count >= 2) ? (CCUILayoutSize){candEnd[0].unsignedIntegerValue, candEnd[1].unsignedIntegerValue} : gPACPendingResizeSize;
+        CCUILayoutSize p = gPACPendingResizeSize;
         gPACPendingResizeID = nil;
         gPACPendingResizeSize = (CCUILayoutSize){0, 0};
-        UIViewController *snapM = nil;
-        for (UIViewController *c in ModuleControllers(ov)) {
-            if ([PACMid(c) isEqualToString:mid]) { snapM = c; break; }
-        }
-        UIView *snapBorder = snapM ? objc_getAssociatedObject(snapM.view, kPACBorderKey) : nil;
-        CGRect freeFrameEnd = CGRectZero;
-        if (snapM && freeEnd.count >= 2 && startFrameEnd) {
-            CGRect sf0 = startFrameEnd.CGRectValue;
-            freeFrameEnd = CGRectMake(sf0.origin.x, sf0.origin.y, freeEnd[0].doubleValue, freeEnd[1].doubleValue);
-        }
-        gPACFreeActive = NO;
-        gPACFreeView = nil;
-        gPACFreeVC = nil;
-        gPACFreeMid = nil;
-        (void)snapBorder;
-        UIView *ghostEnd = gPACGhost;
-        BOOL keepGhost = ghostEnd && g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
-                         PACSizeAllowedFor(mid, p.width, p.height) && PACGhostBigSize(PACCBigKind(mid), p.width, p.height);
-        if (ghostEnd && !keepGhost) PACGhostDrop();
-        if (keepGhost) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.85 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                UIView *gg = gPACGhost;
-                if (gg != ghostEnd) return;
-                [UIView animateWithDuration:0.2 animations:^{ gg.alpha = 0.0; } completion:^(BOOL f) {
-                    if (gPACGhost == gg) PACGhostDrop();
-                }];
-            });
-        }
         if (g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
             PACSizeAllowedFor(mid, p.width, p.height)) {
             int bk = PACCBigKind(mid);
@@ -4811,7 +4754,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             if (bigNow && !PACIsLandscape()) {
                 NSUInteger wantW = p.width, wantH = p.height;
                 NSUInteger epochAtCommit = gPACEditEpoch;
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.75 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                dispatch_async(dispatch_get_main_queue(), ^{
                     if (epochAtCommit != gPACEditEpoch || !gEditModeActive || PACIsLandscape()) return;
                     if (PACConnHiddenFor(mid)) return;
                     NSUInteger ew = 1, eh = 1;
@@ -4833,10 +4776,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                     for (UIView *sv in ModuleCollection(ov).view.subviews) {
                         if (sv.tag == kPACCloneTag && [objc_getAssociatedObject(sv, kPACCloneIDKey) isEqualToString:cid]) { cl = sv; break; }
                     }
-                    if (cl) {
-                        cl.alpha = 0.0;
-                        [UIView animateWithDuration:0.22 animations:^{ cl.alpha = 1.0; }];
-                    }
+                    if (cl) cl.alpha = 1.0;
                     [self relayout:ov];
                     PACSettleEditLayout(ov);
                     PACCSyncClones(ov, NO);
@@ -4844,28 +4784,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             }
         }
         objc_setAssociatedObject(g, kPACStartSzKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        objc_setAssociatedObject(g, kPACCandKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        objc_setAssociatedObject(g, kPACFreeSizeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        objc_setAssociatedObject(g, kPACStartFrameKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self relayout:ov];
         PACSettleEditLayout(ov);
-        if (snapM && !CGRectIsEmpty(freeFrameEnd)) {
-            [ModuleCollection(ov).view layoutIfNeeded];
-            [snapM.view.layer removeAllAnimations];
-            CGRect nf = snapM.view.frame;
-            if (keepGhost) {
-                ghostEnd.frame = freeFrameEnd;
-                [UIView animateWithDuration:0.55 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.3
-                                    options:UIViewAnimationOptionAllowUserInteraction
-                                 animations:^{ ghostEnd.frame = nf; } completion:nil];
-            }
-            if (!CGRectEqualToRect(nf, freeFrameEnd)) {
-                snapM.view.frame = freeFrameEnd;
-                [UIView animateWithDuration:0.55 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.3
-                                    options:UIViewAnimationOptionAllowUserInteraction
-                                 animations:^{ snapM.view.frame = nf; } completion:nil];
-            }
-        }
         NSUInteger epochAtResizeEnd = gPACEditEpoch;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.30 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
