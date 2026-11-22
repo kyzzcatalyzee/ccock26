@@ -84,10 +84,19 @@ void PACCFreeResizeApplyFrame(void) {
         PACCBigStyle(vc, gPACFreeMid, gPACFreeCandW, gPACFreeCandH, NO);
         UIView *bc = [v viewWithTag:182100];
         if (bc) {
-            CGRect want = v.bounds;
+            CGRect want = CGRectMake(0, 0, gPACFreeFrame.size.width, gPACFreeFrame.size.height);
             if (!CGRectEqualToRect(bc.frame, want) && gPACFreeCandH < 6) bc.frame = want;
+            v.clipsToBounds = NO;
             [bc setNeedsLayout];
             [bc layoutIfNeeded];
+        }
+        {
+            NSString *fl = [NSString stringWithFormat:@"free apply host f %@ b %@ big %@ super %@ cand %lux%lu",
+                            NSStringFromCGRect(v.frame), NSStringFromCGRect(v.bounds),
+                            bc ? NSStringFromCGRect(bc.frame) : @"none", NSStringFromClass(v.superview.class),
+                            (unsigned long)gPACFreeCandW, (unsigned long)gPACFreeCandH];
+            static NSString *lastFl;
+            if (![fl isEqualToString:lastFl]) { lastFl = fl; PACCSizeLog(fl); }
         }
     }
 }
@@ -2182,6 +2191,19 @@ static BOOL PACLandPageZeroCloneExists(NSString *mid) {
     for (NSDictionary *d in gPACClones) {
         if (PACCBigKind(d[@"mid"] ?: @"") != want) continue;
         if ([d[@"a"] unsignedIntegerValue] / PACPageDivisor() < 1) return YES;
+    }
+    return NO;
+}
+
+static BOOL PACLandCloneSize(NSString *mid, NSUInteger *ow, NSUInteger *oh) {
+    int want = PACCBigKind(mid);
+    if (!want) return NO;
+    for (NSDictionary *d in gPACClones) {
+        if (PACCBigKind(d[@"mid"] ?: @"") != want) continue;
+        if ([d[@"a"] unsignedIntegerValue] / PACPageDivisor() >= 1) continue;
+        *ow = [d[@"w"] unsignedIntegerValue];
+        *oh = [d[@"h"] unsignedIntegerValue];
+        return (*ow >= 1 && *oh >= 1);
     }
     return NO;
 }
@@ -5939,9 +5961,14 @@ void PACCLandEndPass(UIView *cv) {
                     }
                 }
             }
+            BOOL forceAnchor = NO;
+            if (!isSlider && PACConnHiddenFor(k)) {
+                NSUInteger cw2 = 0, ch2 = 0;
+                if (PACLandCloneSize(k, &cw2, &ch2)) { w = MIN(cw2, (NSUInteger)4); h = MIN(ch2, rows); forceAnchor = YES; }
+            }
             BOOL modified = (w != nw || h != nh);
             NSInteger ax = -1, ay = -1;
-            if (!modified) {
+            if (!modified || forceAnchor) {
                 if ([lk containsString:@"connectivitymodule"]) { ax = 0; ay = 0; }
                 else if ([lk containsString:@"nowplaying"]) { ax = 2; ay = 0; }
                 else if ([lk containsString:@"orientationlock"]) { ax = 0; ay = 2; }

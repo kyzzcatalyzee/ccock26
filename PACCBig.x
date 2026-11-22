@@ -1691,8 +1691,10 @@ BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
     CGFloat pad = 14.0;
     BOOL tile = (w < 260.0 && h >= 120.0);
     BOOL full = !self.compact && !tile;
-    _seek.hidden = _elapsed.hidden = _remaining.hidden = _vol.hidden = _volLo.hidden = _volHi.hidden = !full;
-    _airBg.hidden = _airIcon.hidden = !tile;
+    BOOL wideC = (!full && !tile && w > h * 1.3);
+    _seek.hidden = _elapsed.hidden = _remaining.hidden = !(full || wideC);
+    _vol.hidden = _volLo.hidden = _volHi.hidden = !full;
+    _airBg.hidden = _airIcon.hidden = !(tile || wideC);
     _pill.hidden = !(full && h >= 400.0);
     _artist.hidden = tile && !_playing;
     if (tile) {
@@ -1724,6 +1726,43 @@ BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
     _title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
     _artist.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
     _prev.alpha = _next.alpha = 1.0;
+
+    if (wideC) {
+        CGFloat sc = MAX(1.0, MIN(h / 165.0, 2.0));
+        CGFloat wp = 14.0 * sc;
+        CGFloat a = h - wp * 2.0;
+        _art.frame = CGRectMake(wp, wp, a, a);
+        _art.layer.cornerRadius = 14.0 * sc;
+        CGFloat x = wp + a + wp, tw = w - x - wp;
+        CGFloat d = round(38.0 * sc);
+        _airBg.frame = CGRectMake(w - wp - d, wp, d, d);
+        _airBg.layer.cornerRadius = d * 0.5;
+        UIImageSymbolConfiguration *ac = [UIImageSymbolConfiguration configurationWithPointSize:d * 0.4 weight:UIImageSymbolWeightMedium];
+        UIImage *ai = [UIImage systemImageNamed:@"airplayaudio" withConfiguration:ac] ?: [UIImage systemImageNamed:@"airplay.audio" withConfiguration:ac];
+        _airIcon.image = [ai imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        _airIcon.frame = _airBg.bounds;
+        _title.font = [UIFont systemFontOfSize:16.0 * sc weight:UIFontWeightBold];
+        _artist.font = [UIFont systemFontOfSize:14.0 * sc weight:UIFontWeightRegular];
+        _artist.hidden = NO;
+        CGFloat textW = tw - d - 6.0 * sc;
+        _title.frame = CGRectMake(x, wp + 2.0 * sc, textW, 20.0 * sc);
+        _artist.frame = CGRectMake(x, wp + 22.0 * sc, textW, 18.0 * sc);
+        CGFloat seekY = h - wp - 36.0 * sc;
+        _seek.frame = CGRectMake(x, seekY, tw, 24.0);
+        _elapsed.frame = CGRectMake(x, seekY + 22.0, 80.0, 14.0);
+        _remaining.frame = CGRectMake(x + tw - 80.0, seekY + 22.0, 80.0, 14.0);
+        CGFloat bw = 46.0 * sc;
+        CGFloat cy = (wp + 42.0 * sc + seekY) * 0.5 + 2.0 * sc;
+        CGFloat bx = x + (tw - bw * 3.0) * 0.5;
+        _prev.frame = CGRectMake(bx, cy - bw * 0.5, bw, bw);
+        _play.frame = CGRectMake(bx + bw, cy - bw * 0.5, bw, bw);
+        _next.frame = CGRectMake(bx + bw * 2.0, cy - bw * 0.5, bw, bw);
+        [self setSymbol:@"backward.fill" size:24.0 * sc on:_prev];
+        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:30.0 * sc on:_play];
+        [self setSymbol:@"forward.fill" size:24.0 * sc on:_next];
+        _pill.hidden = YES;
+        return;
+    }
 
     if (!full) {
         CGFloat a = h - pad * 2;
