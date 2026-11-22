@@ -70,10 +70,26 @@ static __weak UIView *gPACFreeView = nil;
 static CGRect gPACFreeFrame;
 static BOOL gPACFreeActive = NO;
 
+static __weak UIViewController *gPACFreeVC = nil;
+static NSString *gPACFreeMid = nil;
+static NSUInteger gPACFreeCandW = 0, gPACFreeCandH = 0;
+
 void PACCFreeResizeApplyFrame(void) {
     UIView *v = gPACFreeView;
     if (!gPACFreeActive || !v) return;
     if (!CGRectEqualToRect(v.frame, gPACFreeFrame)) v.frame = gPACFreeFrame;
+    UIViewController *vc = gPACFreeVC;
+    if (vc && gPACFreeMid.length) {
+        [v layoutIfNeeded];
+        PACCBigStyle(vc, gPACFreeMid, gPACFreeCandW, gPACFreeCandH, NO);
+        UIView *bc = [v viewWithTag:182100];
+        if (bc) {
+            CGRect want = v.bounds;
+            if (!CGRectEqualToRect(bc.frame, want) && gPACFreeCandH < 6) bc.frame = want;
+            [bc setNeedsLayout];
+            [bc layoutIfNeeded];
+        }
+    }
 }
 static const void *kPACMidKey      = &kPACMidKey;
 static const void *kPACStartSzKey  = &kPACStartSzKey;
@@ -198,7 +214,6 @@ static void PACSetFlag(CFStringRef key) {
 }
 
 static int sPACHiddenFlag[2] = {-1, -1};
-static BOOL PACNonSeedCloneExists(NSString *mid);
 
 static int PACHiddenSlot(NSString *mid) {
     if ([mid isEqualToString:@"com.apple.control-center.ConnectivityModule"]) return 0;
@@ -211,7 +226,6 @@ static BOOL PACConnHiddenFor(NSString *mid) {
     if (slot < 0) return NO;
     if (sPACHiddenFlag[slot] < 0) sPACHiddenFlag[slot] = PACFlagIsSet(slot == 0 ? CFSTR("ConnHidden") : CFSTR("MusicHidden")) ? 1 : 0;
     if (sPACHiddenFlag[slot] != 1) return NO;
-    if (PACIsLandscape() && PACNonSeedCloneExists(mid)) return NO;
     return YES;
 }
 
@@ -2158,18 +2172,28 @@ static void PACEnsureClones(void) {
     }
 }
 
-static BOOL PACNonSeedCloneExists(NSString *mid) {
+static CCUILayoutRect sPACLandSlot[2];
+static BOOL sPACLandSlotOk[2] = {NO, NO};
+
+static BOOL PACLandPageZeroCloneExists(NSString *mid) {
     PACEnsureClones();
     int want = PACCBigKind(mid);
     if (!want) return NO;
     for (NSDictionary *d in gPACClones) {
-        NSString *cid = d[@"id"] ?: @"";
-        if ([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) continue;
-        if (PACCBigKind(d[@"mid"] ?: @"") == want) return YES;
+        if (PACCBigKind(d[@"mid"] ?: @"") != want) continue;
+        if ([d[@"a"] unsignedIntegerValue] / PACPageDivisor() < 1) return YES;
     }
     return NO;
 }
 
+static BOOL PACLandSlotFrame(UIView *cv, int kind, CGRect *out) {
+    int slot = (kind == 1) ? 0 : (kind == 2 ? 1 : -1);
+    if (slot < 0 || !sPACLandSlotOk[slot] || !cv) return NO;
+    CGRect f = ((CGRect (*)(id, SEL, CCUILayoutRect))objc_msgSend)(cv, @selector(frameForLayoutRect:), sPACLandSlot[slot]);
+    if (f.size.width < 2 || f.size.height < 2) return NO;
+    *out = f;
+    return YES;
+}
 
 static void PACSaveClones(void) {
     PACEnsureClones();
@@ -2283,8 +2307,10 @@ void PACCClonesRelayout(UIView *cv) {
                 if (![d[@"id"] isEqualToString:cid ?: @""]) continue;
                 int kind = PACCBigKind(d[@"mid"] ?: @"");
                 NSInteger pg = (NSInteger)([d[@"a"] unsignedIntegerValue] / PACPageDivisor());
-                if ((kind != 1 && kind != 2) || pg < 1) break;
-                CGRect fr = PACLandCloneRect(cv, pg);
+                CGRect fr = CGRectZero;
+                if (kind != 1 && kind != 2) break;
+                if (pg < 1) { if (!PACLandSlotFrame(cv, kind, &fr)) break; }
+                else fr = PACLandCloneRect(cv, pg);
                 if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
                 break;
             }
@@ -2450,7 +2476,10 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         NSUInteger c = [d[@"c"] unsignedIntegerValue], a = [d[@"a"] unsignedIntegerValue];
         NSUInteger w = [d[@"w"] unsignedIntegerValue], h = [d[@"h"] unsignedIntegerValue];
         NSInteger landPage = (NSInteger)(a / PACPageDivisor());
-        if (land && ((kind != 1 && kind != 2) || landPage < 1)) { cl.hidden = YES; PACRemoveCloneChrome(cl); continue; }
+        CGRect landSlotF = CGRectZero;
+        BOOL landSlot = NO;
+        if (land && (kind == 1 || kind == 2) && landPage < 1) landSlot = PACLandSlotFrame(cv, kind, &landSlotF);
+        if (land && ((kind != 1 && kind != 2) || (landPage < 1 && !landSlot))) { cl.hidden = YES; PACRemoveCloneChrome(cl); continue; }
 
         if (!cl) {
             cl = PACCBigNewClone(kind);
@@ -2465,7 +2494,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         CGRect f = PACCloneFrame(d, bx, by);
         CGRect fr = PACCloneBigFrame(d, f);
         if (land) {
-            f = PACLandCloneRect(cv, landPage);
+            f = landSlot ? landSlotF : PACLandCloneRect(cv, landPage);
             fr = f;
             {
                 static NSMutableSet<NSString *> *loggedC;
@@ -4670,14 +4699,13 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                 gPACFreeView = rmc.view;
                 gPACFreeFrame = CGRectMake(sf.origin.x, sf.origin.y, fw, fh);
                 gPACFreeActive = YES;
+                gPACFreeVC = rmc;
+                gPACFreeMid = mid;
+                gPACFreeCandW = next.width;
+                gPACFreeCandH = next.height;
                 rmc.view.frame = gPACFreeFrame;
-                if (candChanged && PACCBigKind(mid)) PACCBigStyle(rmc, mid, next.width, next.height, NO);
-                UIView *bigCard = [rmc.view viewWithTag:182100];
-                if (bigCard && !CGRectEqualToRect(bigCard.frame, rmc.view.bounds)) {
-                    bigCard.frame = rmc.view.bounds;
-                    [bigCard setNeedsLayout];
-                    [bigCard layoutIfNeeded];
-                }
+                (void)candChanged;
+                if (PACCBigKind(mid)) PACCFreeResizeApplyFrame();
                 [rmc.view layoutIfNeeded];
                 PACApplyChrome(rmc, ov);
             }
@@ -4704,6 +4732,8 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         }
         gPACFreeActive = NO;
         gPACFreeView = nil;
+        gPACFreeVC = nil;
+        gPACFreeMid = nil;
         (void)snapBorder;
         if (g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
             PACSizeAllowedFor(mid, p.width, p.height)) {
@@ -5857,7 +5887,13 @@ void PACCLandEndPass(UIView *cv) {
             if (cand == subview) { myMid = key; break; }
         }
         if (!myMid.length) return r;
-        if (PACConnHiddenFor(myMid)) return PACHiddenLayoutRect(r);
+        BOOL landHidden = PACConnHiddenFor(myMid);
+        BOOL landKeepSlot = landHidden && PACLandPageZeroCloneExists(myMid);
+        if (landHidden && !landKeepSlot) {
+            int hs = PACHiddenSlot(myMid);
+            if (hs >= 0) sPACLandSlotOk[hs] = NO;
+            return PACHiddenLayoutRect(r);
+        }
         {
             static NSMutableSet<NSString *> *loggedR;
             if (!loggedR) loggedR = [NSMutableSet set];
@@ -5872,7 +5908,7 @@ void PACCLandEndPass(UIView *cv) {
             UIView *v = [value isKindOfClass:UIView.class] ? value
                       : ([value respondsToSelector:@selector(view)] ? [value view] : nil);
             if (!v) continue;
-            if (PACConnHiddenFor(key)) continue;
+            if (PACConnHiddenFor(key) && !PACLandPageZeroCloneExists(key)) continue;
             CCUILayoutRect nr = %orig(layoutView, v);
             [others addObject:@{@"k": key, @"x": @(nr.origin.x), @"y": @(nr.origin.y), @"w": @(nr.size.width), @"h": @(nr.size.height)}];
         }
@@ -5952,6 +5988,11 @@ void PACCLandEndPass(UIView *cv) {
             CCUILayoutSize s = { [mine[2] unsignedIntegerValue], [mine[3] unsignedIntegerValue] };
             r.origin = p;
             r.size = s;
+        }
+        if (landKeepSlot) {
+            int hs = PACHiddenSlot(myMid);
+            if (hs >= 0) { sPACLandSlot[hs] = r; sPACLandSlotOk[hs] = YES; }
+            return PACHiddenLayoutRect(r);
         }
         return r;
     }
