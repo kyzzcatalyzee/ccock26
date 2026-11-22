@@ -2586,6 +2586,7 @@ static BOOL PACFindSlot(NSString *mid, NSUInteger w, NSUInteger h, UIViewControl
     for (UIViewController *m in ModuleControllers(ov)) {
         NSString *other = PACMid(m);
         if (!other.length || [other isEqualToString:mid]) continue;
+        if (PACConnHiddenFor(other)) continue;
         PACEnsureBaseSize(m, ov);
         NSArray<NSNumber *> *o = PACGetOrigin(other);
         if (o.count < 2) continue;
@@ -3564,13 +3565,14 @@ static void PACForceExitEdit(UIViewController *ov) {
 - (void)commitResize:(NSString *)mid w:(NSUInteger)w h:(NSUInteger)h overlay:(UIViewController *)ov;
 @end
 
-static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
+static void PACAddCloneSized(NSString *mid, UIViewController *ov, NSUInteger reqW, NSUInteger reqH, NSString *ignoreMid) {
     int kind = PACCBigKind(mid);
     if (!kind) return;
     NSUInteger w = 4, h = (kind == 1) ? 4 : 2;
     if (kind == 3) { w = 1; h = 1; }
+    if (reqW && reqH) { w = reqW; h = reqH; }
     NSUInteger oc = 0, oa = 0, page = 0;
-    BOOL placed = PACFindSlot(@"", w, h, ov, &oc, &oa, &page);
+    BOOL placed = PACFindSlot(ignoreMid ?: @"", w, h, ov, &oc, &oa, &page);
     if (!placed) {
         PACEnsureUserPages();
         if (PACBasePageCount() + gPACUserPages < kPACMaxPages) {
@@ -3620,6 +3622,10 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         PACShowToast(ov, [NSString stringWithFormat:@"%@ added to page %lu", PACNameForIdentifier(mid), (unsigned long)(page + 1)]);
     }
     PACCSyncClones(ov, YES);
+}
+
+static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
+    PACAddCloneSized(mid, ov, 0, 0, nil);
 }
 
 @implementation PACEditProxy
@@ -4634,7 +4640,14 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         gPACPendingResizeSize = (CCUILayoutSize){0, 0};
         if (g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
             PACSizeAllowedFor(mid, p.width, p.height)) {
-            [self commitResize:mid w:p.width h:p.height overlay:ov];
+            int bk = PACCBigKind(mid);
+            BOOL bigNow = (bk == 1 && p.width >= 4 && p.height >= 4) ||
+                          (bk == 2 && p.width >= 2 && p.height >= 2 && !(p.width == 2 && p.height == 2));
+            if (bigNow && !PACIsLandscape()) {
+                PACAddCloneSized(mid, ov, p.width, p.height, mid);
+            } else {
+                [self commitResize:mid w:p.width h:p.height overlay:ov];
+            }
         }
         objc_setAssociatedObject(g, kPACStartSzKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self relayout:ov];
