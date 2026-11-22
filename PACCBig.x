@@ -1751,15 +1751,15 @@ BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
         _seek.frame = CGRectMake(x, seekY, tw, 24.0);
         _elapsed.frame = CGRectMake(x, seekY + 22.0, 80.0, 14.0);
         _remaining.frame = CGRectMake(x + tw - 80.0, seekY + 22.0, 80.0, 14.0);
-        CGFloat bw = 46.0 * sc;
+        CGFloat bw = 38.0 * sc;
         CGFloat cy = (wp + 42.0 * sc + seekY) * 0.5 + 2.0 * sc;
         CGFloat bx = x + (tw - bw * 3.0) * 0.5;
         _prev.frame = CGRectMake(bx, cy - bw * 0.5, bw, bw);
         _play.frame = CGRectMake(bx + bw, cy - bw * 0.5, bw, bw);
         _next.frame = CGRectMake(bx + bw * 2.0, cy - bw * 0.5, bw, bw);
-        [self setSymbol:@"backward.fill" size:24.0 * sc on:_prev];
-        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:30.0 * sc on:_play];
-        [self setSymbol:@"forward.fill" size:24.0 * sc on:_next];
+        [self setSymbol:@"backward.fill" size:17.0 * sc on:_prev];
+        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:22.0 * sc on:_play];
+        [self setSymbol:@"forward.fill" size:17.0 * sc on:_next];
         _pill.hidden = YES;
         return;
     }

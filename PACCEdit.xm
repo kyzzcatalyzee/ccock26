@@ -74,30 +74,62 @@ static __weak UIViewController *gPACFreeVC = nil;
 static NSString *gPACFreeMid = nil;
 static NSUInteger gPACFreeCandW = 0, gPACFreeCandH = 0;
 
+static __weak UIView *gPACGhost = nil;
+static NSMutableArray<UIView *> *gPACGhostHidden = nil;
+
+static BOOL PACGhostBigSize(int kind, NSUInteger w, NSUInteger h) {
+    if (kind == 1) return (w >= 4 && h >= 4);
+    if (kind == 2) return (w >= 2 && h >= 2 && !(w == 2 && h == 2));
+    return NO;
+}
+
+static void PACGhostRestoreNative(void) {
+    for (UIView *sv in gPACGhostHidden) sv.alpha = 1.0;
+    gPACGhostHidden = nil;
+}
+
+static void PACGhostDrop(void) {
+    UIView *g = gPACGhost;
+    if (g) { [g.layer removeAllAnimations]; [g removeFromSuperview]; }
+    gPACGhost = nil;
+    PACGhostRestoreNative();
+}
+
 void PACCFreeResizeApplyFrame(void) {
     UIView *v = gPACFreeView;
     if (!gPACFreeActive || !v) return;
     if (!CGRectEqualToRect(v.frame, gPACFreeFrame)) v.frame = gPACFreeFrame;
     UIViewController *vc = gPACFreeVC;
-    if (vc && gPACFreeMid.length) {
-        [v layoutIfNeeded];
+    if (!vc || !gPACFreeMid.length) return;
+    int kind = PACCBigKind(gPACFreeMid);
+    UIView *cv = v.superview;
+    if (kind && cv && PACGhostBigSize(kind, gPACFreeCandW, gPACFreeCandH)) {
+        UIView *g = gPACGhost;
+        if (!g || g.superview != cv) {
+            PACGhostDrop();
+            [[v viewWithTag:182100] removeFromSuperview];
+            g = PACCBigNewClone(kind);
+            g.tag = 182101;
+            g.clipsToBounds = YES;
+            g.userInteractionEnabled = NO;
+            g.alpha = 0.0;
+            [cv addSubview:g];
+            gPACGhost = g;
+            gPACGhostHidden = [NSMutableArray array];
+            for (UIView *sv in v.subviews) {
+                if (sv.alpha > 0.01) { [gPACGhostHidden addObject:sv]; sv.alpha = 0.0; }
+            }
+            [UIView animateWithDuration:0.22 animations:^{ g.alpha = 1.0; }];
+        }
+        if (!CGRectEqualToRect(g.frame, gPACFreeFrame)) g.frame = gPACFreeFrame;
+        g.layer.cornerRadius = MIN(40.0, MIN(gPACFreeFrame.size.width, gPACFreeFrame.size.height) * 0.22);
+        g.layer.cornerCurve = kCACornerCurveContinuous;
+        [cv bringSubviewToFront:g];
+        PACCBigConfigureClone(g, kind, gPACFreeCandW, gPACFreeCandH, v);
+        [g layoutIfNeeded];
+    } else {
+        if (gPACGhost) PACGhostDrop();
         PACCBigStyle(vc, gPACFreeMid, gPACFreeCandW, gPACFreeCandH, NO);
-        UIView *bc = [v viewWithTag:182100];
-        if (bc) {
-            CGRect want = CGRectMake(0, 0, gPACFreeFrame.size.width, gPACFreeFrame.size.height);
-            if (!CGRectEqualToRect(bc.frame, want) && gPACFreeCandH < 6) bc.frame = want;
-            v.clipsToBounds = NO;
-            [bc setNeedsLayout];
-            [bc layoutIfNeeded];
-        }
-        {
-            NSString *fl = [NSString stringWithFormat:@"free apply host f %@ b %@ big %@ super %@ cand %lux%lu",
-                            NSStringFromCGRect(v.frame), NSStringFromCGRect(v.bounds),
-                            bc ? NSStringFromCGRect(bc.frame) : @"none", NSStringFromClass(v.superview.class),
-                            (unsigned long)gPACFreeCandW, (unsigned long)gPACFreeCandH];
-            static NSString *lastFl;
-            if (![fl isEqualToString:lastFl]) { lastFl = fl; PACCSizeLog(fl); }
-        }
     }
 }
 static const void *kPACMidKey      = &kPACMidKey;
@@ -4757,6 +4789,19 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         gPACFreeVC = nil;
         gPACFreeMid = nil;
         (void)snapBorder;
+        UIView *ghostEnd = gPACGhost;
+        BOOL keepGhost = ghostEnd && g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
+                         PACSizeAllowedFor(mid, p.width, p.height) && PACGhostBigSize(PACCBigKind(mid), p.width, p.height);
+        if (ghostEnd && !keepGhost) PACGhostDrop();
+        if (keepGhost) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.85 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                UIView *gg = gPACGhost;
+                if (gg != ghostEnd) return;
+                [UIView animateWithDuration:0.2 animations:^{ gg.alpha = 0.0; } completion:^(BOOL f) {
+                    if (gPACGhost == gg) PACGhostDrop();
+                }];
+            });
+        }
         if (g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
             PACSizeAllowedFor(mid, p.width, p.height)) {
             int bk = PACCBigKind(mid);
@@ -4808,6 +4853,12 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             [ModuleCollection(ov).view layoutIfNeeded];
             [snapM.view.layer removeAllAnimations];
             CGRect nf = snapM.view.frame;
+            if (keepGhost) {
+                ghostEnd.frame = freeFrameEnd;
+                [UIView animateWithDuration:0.55 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.3
+                                    options:UIViewAnimationOptionAllowUserInteraction
+                                 animations:^{ ghostEnd.frame = nf; } completion:nil];
+            }
             if (!CGRectEqualToRect(nf, freeFrameEnd)) {
                 snapM.view.frame = freeFrameEnd;
                 [UIView animateWithDuration:0.55 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.3
@@ -5970,7 +6021,7 @@ void PACCLandEndPass(UIView *cv) {
             NSInteger ax = -1, ay = -1;
             if (!modified || forceAnchor) {
                 if ([lk containsString:@"connectivitymodule"]) { ax = 0; ay = 0; }
-                else if ([lk containsString:@"nowplaying"]) { ax = 2; ay = 0; }
+                else if ([lk containsString:@"nowplaying"]) { ax = (PACConnHiddenFor(@"com.apple.control-center.ConnectivityModule") && !PACLandPageZeroCloneExists(@"com.apple.control-center.ConnectivityModule")) ? 0 : 2; ay = 0; }
                 else if ([lk containsString:@"orientationlock"]) { ax = 0; ay = 2; }
                 else if ([lk containsString:@"airplaymirroring"] || [lk containsString:@"screenmirroring"]) { ax = 1; ay = 2; }
                 else if ([lk containsString:@"focus"]) { ax = 0; ay = 3; }
