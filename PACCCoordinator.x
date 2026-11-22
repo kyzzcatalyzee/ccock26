@@ -299,7 +299,7 @@ BOOL gPACCRevealAll = NO;
             UIView *v = queue.firstObject;
             [queue removeObjectAtIndex:0];
             NSString *cn = NSStringFromClass(v.class);
-            if ([cn isEqualToString:@"UIStatusBar_Modern"]) {
+            if ([cn isEqualToString:@"CCUIStatusBar"] || [cn isEqualToString:@"UIStatusBar_Modern"]) {
                 statusBar = v;
                 [dump appendFormat:@"[%@ %@ win %@] ", cn, NSStringFromCGRect(v.frame), NSStringFromClass(sw.class)];
                 break;
@@ -340,7 +340,7 @@ BOOL gPACCRevealAll = NO;
                         objc_setAssociatedObject(fv, kFGBaseKey, fb, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                     }
                     CGAffineTransform fbase = fb.CGAffineTransformValue;
-                    CGAffineTransform ftarget = fgLand ? CGAffineTransformConcat(fbase, CGAffineTransformMakeTranslation(0, -30.0)) : fbase;
+                    CGAffineTransform ftarget = CGAffineTransformConcat(fbase, CGAffineTransformMakeTranslation(0, fgLand ? -30.0 : 0.0));
                     if (!CGAffineTransformEqualToTransform(fv.transform, ftarget)) {
                         objc_setAssociatedObject(fv, kFGLastKey, [NSValue valueWithCGAffineTransform:ftarget], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                         fv.transform = ftarget;
