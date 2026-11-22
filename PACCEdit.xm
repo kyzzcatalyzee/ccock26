@@ -185,6 +185,26 @@ static void PACSetFlag(CFStringRef key) {
     CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
+static int sPACConnHidden = -1;
+
+static BOOL PACConnHiddenFor(NSString *mid) {
+    if (![mid isEqualToString:@"com.apple.control-center.ConnectivityModule"]) return NO;
+    if (sPACConnHidden < 0) sPACConnHidden = PACFlagIsSet(CFSTR("ConnHidden")) ? 1 : 0;
+    return sPACConnHidden == 1;
+}
+
+static void PACSetConnHidden(BOOL on) {
+    sPACConnHidden = on ? 1 : 0;
+    CFPreferencesSetAppValue(CFSTR("ConnHidden"), on ? kCFBooleanTrue : NULL, CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
+}
+
+static CCUILayoutRect PACHiddenLayoutRect(CCUILayoutRect r) {
+    CCUILayoutPoint p = {0, 60};
+    r.origin = p;
+    return r;
+}
+
 static BOOL PACPrefKeyExists(CFStringRef key) {
     CFPropertyListRef v = CFPreferencesCopyAppValue(key, CFSTR("pawxed.ccock26.preferences"));
     BOOL has = (v != NULL);
@@ -400,6 +420,7 @@ static void PACMigrateMissingOrigins(UIViewController *ov) {
     for (UIViewController *m in ModuleControllers(ov)) {
         NSString *mid = PACMid(m);
         if (!mid.length) continue;
+        if (PACConnHiddenFor(mid)) continue;
 
         if (PACTargetOriginForRotation(mid, toLandscape)) {
             [already addObject:mid];
@@ -4379,8 +4400,10 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     id prov = PACSettingsProvider();
     SEL get = NSSelectorFromString(@"orderedUserEnabledModuleIdentifiers");
     SEL set = NSSelectorFromString(@"setAndSaveOrderedUserEnabledModuleIdentifiers:");
+    BOOL restoringConn = PACConnHiddenFor(mid);
+    if (restoringConn) PACSetConnHidden(NO);
     if (PACCBigKind(mid) == 3) { PACAddCloneOf(mid, ov); return; }
-    if (PACCBigKind(mid)) {
+    if (PACCBigKind(mid) && !restoringConn) {
         BOOL onGrid = NO;
         for (UIViewController *m in ModuleControllers(ov)) if ([PACMid(m) isEqualToString:mid]) { onGrid = YES; break; }
         if (!onGrid && prov && [prov respondsToSelector:get]) {
@@ -4801,7 +4824,9 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         BOOL slide = PACIsNonNotchedDevice() && (visibleCount == 12 || enabledCount == 12);
         NSDictionary<NSString *, NSValue *> *oldFrames = slide ? PACCaptureModuleFrames(ov, mid) : nil;
 
-        if ([prov respondsToSelector:get] && [prov respondsToSelector:set]) {
+        if ([mid isEqualToString:@"com.apple.control-center.ConnectivityModule"]) {
+            PACSetConnHidden(YES);
+        } else if ([prov respondsToSelector:get] && [prov respondsToSelector:set]) {
             NSArray *ids = ((id (*)(id, SEL))objc_msgSend)(prov, get);
             NSMutableArray *mut = [ids mutableCopy];
             [mut removeObject:mid];
@@ -4815,6 +4840,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         PACSaveStore();
 
         if (victim) PACStripChrome(victim);
+        if (victim && PACConnHiddenFor(mid)) victim.view.transform = CGAffineTransformIdentity;
         [victimBorder removeFromSuperview];
         [victimRM removeFromSuperview];
         [victimRZ removeFromSuperview];
@@ -5465,6 +5491,7 @@ static void PACApplyChrome(UIViewController *m, UIViewController *ov) {
     if (!view) return;
     NSString *mid = PACMid(m);
     if (!mid.length) return;
+    if (PACConnHiddenFor(mid)) return;
     CGRect vis = PACVisibleFrame(m, ov);
     if (CGRectIsEmpty(vis)) return;
     {
@@ -5665,6 +5692,7 @@ void PACCLandEndPass(UIView *cv) {
             if (cand == subview) { myMid = key; break; }
         }
         if (!myMid.length) return r;
+        if (PACConnHiddenFor(myMid)) return PACHiddenLayoutRect(r);
         {
             static NSMutableSet<NSString *> *loggedR;
             if (!loggedR) loggedR = [NSMutableSet set];
@@ -5679,6 +5707,7 @@ void PACCLandEndPass(UIView *cv) {
             UIView *v = [value isKindOfClass:UIView.class] ? value
                       : ([value respondsToSelector:@selector(view)] ? [value view] : nil);
             if (!v) continue;
+            if (PACConnHiddenFor(key)) continue;
             CCUILayoutRect nr = %orig(layoutView, v);
             [others addObject:@{@"k": key, @"x": @(nr.origin.x), @"y": @(nr.origin.y), @"w": @(nr.size.width), @"h": @(nr.size.height)}];
         }
@@ -5774,6 +5803,7 @@ void PACCLandEndPass(UIView *cv) {
         if (cand == subview) { mid = key; *stop = YES; }
     }];
     if (!mid.length) return r;
+    if (PACConnHiddenFor(mid)) return PACHiddenLayoutRect(r);
 
     PACEnsureStore();
 

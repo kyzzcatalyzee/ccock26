@@ -114,7 +114,7 @@ static CGFloat sSwipeStretch = 0.0;
 static CGFloat sSwipeSpeedNorm = 0.0;
 
 static void PACCAddJellyFrom(CALayer *layer, CGFloat startX, CGFloat startY, CGFloat speedNorm) {
-    CGFloat stiff = 28.0 + 120.0 * MAX(0.0, MIN(1.0, speedNorm));
+    CGFloat stiff = 70.0 + 150.0 * MAX(0.0, MIN(1.0, speedNorm));
     CGFloat damp = 2.0 * sqrt(stiff) * 1.0;
     CASpringAnimation *jy = [CASpringAnimation animationWithKeyPath:@"transform.scale.y"];
     jy.fromValue = @(startY);
@@ -419,10 +419,11 @@ static const void *kPACCSwipeRecKey = &kPACCSwipeRecKey;
         if (g.state == UIGestureRecognizerStateBegan) { sStretchLast = nowT; sSwipeStretch = 0.0; sSwipeSpeedNorm = 0.0; }
         CGFloat dtS = MIN(0.05, MAX(0.0, nowT - sStretchLast));
         sStretchLast = nowT;
-        CGFloat normNow = MIN(1.0, fabs(vy) / 1800.0);
-        sSwipeSpeedNorm += (normNow - sSwipeSpeedNorm) * MIN(1.0, dtS * 10.0);
-        CGFloat durS = 0.85 - 0.70 * sSwipeSpeedNorm;
-        sSwipeStretch = MIN(0.15, sSwipeStretch + 0.15 * dtS / durS);
+        CGFloat normNow = MIN(1.0, fabs(vy) / 1400.0);
+        sSwipeSpeedNorm += (normNow - sSwipeSpeedNorm) * MIN(1.0, dtS * 16.0);
+        CGFloat rateS = 7.0 + 45.0 * sSwipeSpeedNorm;
+        CGFloat goalS = 0.15 * MIN(1.0, 0.25 + sSwipeSpeedNorm * 1.5);
+        sSwipeStretch += (goalS - sSwipeStretch) * MIN(1.0, dtS * rateS);
         CGFloat stretch = sSwipeStretch;
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
