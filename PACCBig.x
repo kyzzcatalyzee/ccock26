@@ -1996,7 +1996,8 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
         bv = [[want alloc] initWithFrame:host.bounds];
         bv.alpha = 0;
         [host addSubview:bv];
-        [UIView animateWithDuration:0.3 animations:^{ bv.alpha = 1; }];
+        PACBigAnimateBlur(bv, 14.0, 0.0, 0.32, 0.12, YES);
+        [UIView animateWithDuration:0.24 delay:0.12 options:UIViewAnimationOptionCurveEaseOut animations:^{ bv.alpha = 1; } completion:nil];
     }
     PACBigMask(host, bv, YES);
     if (host.subviews.lastObject != bv) [host bringSubviewToFront:bv];

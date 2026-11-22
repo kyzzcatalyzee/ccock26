@@ -4643,17 +4643,40 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             int bk = PACCBigKind(mid);
             BOOL bigNow = (bk == 1 && p.width >= 4 && p.height >= 4) ||
                           (bk == 2 && p.width >= 2 && p.height >= 2 && !(p.width == 2 && p.height == 2));
+            [self commitResize:mid w:p.width h:p.height overlay:ov];
             if (bigNow && !PACIsLandscape()) {
-                if (PACAddCloneSized(mid, ov, p.width, p.height, mid)) {
+                NSUInteger wantW = p.width, wantH = p.height;
+                NSUInteger epochAtCommit = gPACEditEpoch;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.75 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    if (epochAtCommit != gPACEditEpoch || !gEditModeActive || PACIsLandscape()) return;
+                    if (PACConnHiddenFor(mid)) return;
+                    NSUInteger ew = 1, eh = 1;
+                    PACEffectiveSize(mid, &ew, &eh);
+                    NSArray<NSNumber *> *oo = PACGetOrigin(mid);
+                    if (ew != wantW || eh != wantH || oo.count < 2) return;
+                    PACEnsureClones();
+                    NSString *cid = [NSString stringWithFormat:@"%llx", (unsigned long long)(CACurrentMediaTime() * 1000.0)];
+                    [gPACClones addObject:[@{@"id": cid, @"mid": mid, @"c": oo[0], @"a": oo[1], @"w": @(wantW), @"h": @(wantH)} mutableCopy]];
+                    PACSaveClones();
                     PACEnsureStore();
                     PACSetOrigin(mid, nil);
                     [gEditSizes removeObjectForKey:mid];
                     PACInvalidateOtherOrientationOriginForModule(mid);
                     PACSaveStore();
                     PACSetHiddenFor(mid, YES);
-                }
-            } else {
-                [self commitResize:mid w:p.width h:p.height overlay:ov];
+                    PACCSyncClones(ov, NO);
+                    UIView *cl = nil;
+                    for (UIView *sv in ModuleCollection(ov).view.subviews) {
+                        if (sv.tag == kPACCloneTag && [objc_getAssociatedObject(sv, kPACCloneIDKey) isEqualToString:cid]) { cl = sv; break; }
+                    }
+                    if (cl) {
+                        cl.alpha = 0.0;
+                        [UIView animateWithDuration:0.22 animations:^{ cl.alpha = 1.0; }];
+                    }
+                    [self relayout:ov];
+                    PACSettleEditLayout(ov);
+                    PACCSyncClones(ov, NO);
+                });
             }
         }
         objc_setAssociatedObject(g, kPACStartSzKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
