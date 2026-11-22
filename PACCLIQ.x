@@ -577,9 +577,11 @@ static BOOL PACCLIQModuleHasLG(UIView *host) {
     return NO;
 }
 
+static BOOL sPACCLIQForceOwn = NO;
+
 static PACCLIQGlassView *PACCLIQInstallGlass(UIView *host, CGFloat radius) {
     if (!host) return nil;
-    if (PACCLIQShouldGlass() && PACCLIQModuleHasLG(host)) {
+    if (!sPACCLIQForceOwn && PACCLIQShouldGlass() && PACCLIQModuleHasLG(host)) {
         UIView *own = [host viewWithTag:kPACCLIQGlassTag];
         if (own) { own.layer.filters = nil; [own removeFromSuperview]; }
         return nil;
@@ -633,6 +635,14 @@ void PACCLIQSpecularFade(UIView *host, BOOL hidden, CFTimeInterval dur, CFTimeIn
     PACCLIQGlassView *glass = (PACCLIQGlassView *)[host viewWithTag:kPACCLIQGlassTag];
     if (![glass isKindOfClass:PACCLIQGlassView.class]) return;
     [glass setSpecularHidden:hidden fadeDuration:dur delay:delay];
+}
+
+BOOL PACCLIQApplyGlassOwn(UIView *host, CGFloat radius) {
+    if (!host) return NO;
+    sPACCLIQForceOwn = YES;
+    PACCLIQGlassView *glass = PACCLIQInstallGlass(host, radius);
+    sPACCLIQForceOwn = NO;
+    return glass && [glass filterIsLive];
 }
 
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius) {

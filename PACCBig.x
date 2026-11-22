@@ -309,6 +309,8 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 }
 
 BOOL PACBigLGGlass(UIView *host, CGFloat radius);
+BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius);
+extern BOOL PACCLIQApplyGlassOwn(UIView *host, CGFloat radius);
 
 @implementation PACBigCard
 - (instancetype)initWithFrame:(CGRect)f {
@@ -388,7 +390,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius);
             [wc pacHideLG];
         });
     }
-    if (PACCLIQGlassOn()) _material.hidden = PACBigLGGlass(self, self.layer.cornerRadius);
+    if (PACCLIQGlassOn()) _material.hidden = PACBigLGGlassOwn(self, self.layer.cornerRadius);
     else _material.hidden = NO;
     {
         static const char kLGSig = 0;
@@ -1531,6 +1533,12 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     return PACCLIQApplyGlass(host, radius);
 }
 
+BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
+    UIView *stale = [host viewWithTag:190002];
+    if (stale) [stale removeFromSuperview];
+    return PACCLIQApplyGlassOwn(host, radius);
+}
+
 @implementation PACBigMusic {
     UIView *_blur;
     UIImageView *_art;
@@ -1679,7 +1687,7 @@ BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     _blur.layer.cornerRadius = self.layer.cornerRadius;
     _blur.layer.cornerCurve = kCACornerCurveContinuous;
     _blur.clipsToBounds = YES;
-    _blur.hidden = (PACCLIQGlassOn() && PACBigLGGlass(self, self.layer.cornerRadius));
+    _blur.hidden = (PACCLIQGlassOn() && PACBigLGGlassOwn(self, self.layer.cornerRadius));
     CGFloat pad = 14.0;
     BOOL tile = (w < 260.0 && h >= 120.0);
     BOOL full = !self.compact && !tile;
@@ -1961,10 +1969,6 @@ static void PACBigHideModuleMaterialEx(UIView *host, BOOL hide, BOOL includeLG) 
     }
 }
 
-static void PACBigHideModuleMaterial(UIView *host, BOOL hide) {
-    PACBigHideModuleMaterialEx(host, hide, NO);
-}
-
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded) {
     PACCCrumb("PACCBigStyle");
     UIView *host = m.view;
@@ -1980,10 +1984,10 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
             [existing removeFromSuperview];
             PACBigMask(host, nil, NO);
         }
-        if (kind && !(expanded && kind == 1)) PACBigHideModuleMaterial(host, NO);
+        if (kind && !(expanded && kind == 1)) PACBigHideModuleMaterialEx(host, NO, YES);
         return;
     }
-    PACBigHideModuleMaterial(host, YES);
+    PACBigHideModuleMaterialEx(host, YES, YES);
 
     UIView *bv = existing;
     Class want = (kind == 1) ? PACBigConn.class : PACBigMusic.class;
