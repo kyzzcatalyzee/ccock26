@@ -198,6 +198,7 @@ static void PACSetFlag(CFStringRef key) {
 }
 
 static int sPACHiddenFlag[2] = {-1, -1};
+static BOOL PACNonSeedCloneExists(NSString *mid);
 
 static int PACHiddenSlot(NSString *mid) {
     if ([mid isEqualToString:@"com.apple.control-center.ConnectivityModule"]) return 0;
@@ -209,7 +210,9 @@ static BOOL PACConnHiddenFor(NSString *mid) {
     int slot = PACHiddenSlot(mid);
     if (slot < 0) return NO;
     if (sPACHiddenFlag[slot] < 0) sPACHiddenFlag[slot] = PACFlagIsSet(slot == 0 ? CFSTR("ConnHidden") : CFSTR("MusicHidden")) ? 1 : 0;
-    return sPACHiddenFlag[slot] == 1;
+    if (sPACHiddenFlag[slot] != 1) return NO;
+    if (PACIsLandscape() && PACNonSeedCloneExists(mid)) return NO;
+    return YES;
 }
 
 static BOOL PACConnExplicitHidden(NSString *mid) {
@@ -2153,6 +2156,18 @@ static void PACEnsureClones(void) {
         PACSaveClones();
         PACSetFlag(CFSTR("BuiltinPagesGoneClones"));
     }
+}
+
+static BOOL PACNonSeedCloneExists(NSString *mid) {
+    PACEnsureClones();
+    int want = PACCBigKind(mid);
+    if (!want) return NO;
+    for (NSDictionary *d in gPACClones) {
+        NSString *cid = d[@"id"] ?: @"";
+        if ([cid isEqualToString:@"seedconn"] || [cid isEqualToString:@"seedmusic"]) continue;
+        if (PACCBigKind(d[@"mid"] ?: @"") == want) return YES;
+    }
+    return NO;
 }
 
 
@@ -4631,7 +4646,10 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             NSArray<NSNumber *> *lc = objc_getAssociatedObject(g, kPACCandKey);
             next = (lc.count >= 2) ? (CCUILayoutSize){lc[0].unsignedIntegerValue, lc[1].unsignedIntegerValue} : (CCUILayoutSize){sw, sh};
         }
+        NSArray<NSNumber *> *prevCand = objc_getAssociatedObject(g, kPACCandKey);
+        BOOL candChanged = !(prevCand.count >= 2 && prevCand[0].unsignedIntegerValue == next.width && prevCand[1].unsignedIntegerValue == next.height);
         objc_setAssociatedObject(g, kPACCandKey, @[@(next.width), @(next.height)], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        gPACPendingResizeSize = next;
         NSValue *sfv = objc_getAssociatedObject(g, kPACStartFrameKey);
         if (sfv) {
             CGRect sf = sfv.CGRectValue;
@@ -4653,6 +4671,13 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
                 gPACFreeFrame = CGRectMake(sf.origin.x, sf.origin.y, fw, fh);
                 gPACFreeActive = YES;
                 rmc.view.frame = gPACFreeFrame;
+                if (candChanged && PACCBigKind(mid)) PACCBigStyle(rmc, mid, next.width, next.height, NO);
+                UIView *bigCard = [rmc.view viewWithTag:182100];
+                if (bigCard && !CGRectEqualToRect(bigCard.frame, rmc.view.bounds)) {
+                    bigCard.frame = rmc.view.bounds;
+                    [bigCard setNeedsLayout];
+                    [bigCard layoutIfNeeded];
+                }
                 [rmc.view layoutIfNeeded];
                 PACApplyChrome(rmc, ov);
             }
