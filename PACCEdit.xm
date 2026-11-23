@@ -3878,6 +3878,47 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     PACAddCloneSized(mid, ov, 0, 0, nil);
 }
 
+static void PACGhostPreview(UIViewController *ov, NSString *mid, NSUInteger w, NSUInteger h) {
+    int kind = PACCBigKind(mid);
+    UIViewController *rmc = nil;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        if ([PACMid(m) isEqualToString:mid]) { rmc = m; break; }
+    }
+    UIView *v = rmc.view;
+    UIView *cv = v.superview;
+    if (!kind || !cv || !PACGhostBigSize(kind, w, h)) {
+        if (gPACGhost) PACGhostDrop();
+        return;
+    }
+    UIView *g = gPACGhost;
+    BOOL fresh = NO;
+    if (!g || g.superview != cv) {
+        PACGhostDrop();
+        g = PACCBigNewClone(kind);
+        g.tag = 182101;
+        g.clipsToBounds = YES;
+        g.userInteractionEnabled = NO;
+        g.alpha = 0.0;
+        g.frame = v.frame;
+        [cv addSubview:g];
+        gPACGhost = g;
+        gPACGhostHidden = [NSMutableArray array];
+        fresh = YES;
+    }
+    for (UIView *sv in v.subviews) {
+        if (sv.alpha > 0.01) { [gPACGhostHidden addObject:sv]; sv.alpha = 0.0; }
+    }
+    CGRect target = v.frame;
+    g.layer.cornerCurve = kCACornerCurveContinuous;
+    g.layer.cornerRadius = MIN(40.0, MIN(target.size.width, target.size.height) * 0.22);
+    PACCBigConfigureClone(g, kind, w, h, v);
+    [cv bringSubviewToFront:g];
+    [UIView animateWithDuration:0.4 delay:0 usingSpringWithDamping:0.82 initialSpringVelocity:0.2
+                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ g.frame = target; if (fresh) g.alpha = 1.0; } completion:nil];
+    if (!fresh) g.alpha = 1.0;
+}
+
 @implementation PACEditProxy
 + (instancetype)shared {
     static PACEditProxy *s; static dispatch_once_t o;
@@ -4914,6 +4955,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
             if (PACCLIQIsActive()) PACSpringRelayout(ov, ^{ [self relayout:ov]; });
             else [self relayout:ov];
             PACSettleEditLayout(ov);
+            PACGhostPreview(ov, mid, next.width, next.height);
         }
 
     } else if (g.state == UIGestureRecognizerStateEnded ||
@@ -4922,6 +4964,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
         CCUILayoutSize p = gPACPendingResizeSize;
         gPACPendingResizeID = nil;
         gPACPendingResizeSize = (CCUILayoutSize){0, 0};
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ PACGhostDrop(); });
         if (g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
             PACSizeAllowedFor(mid, p.width, p.height)) {
             int bk = PACCBigKind(mid);
