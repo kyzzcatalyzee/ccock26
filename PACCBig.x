@@ -1745,13 +1745,31 @@ static UIView *PACBigMakeRoutePicker(void) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
-    self.layer.cornerRadius = (!self.compact || h < 100.0 || h > 220.0 || w < h * 1.3) ? MIN(34.0, h * 0.5) : 38.0;
+    self.layer.cornerRadius = (!self.compact || h < 100.0 || h > 220.0 || w < h * 1.3) ? MIN(34.0, h * 0.5) : 44.0;
     if (!_blur.superview) [self insertSubview:_blur atIndex:0];
     _blur.frame = self.bounds;
     _blur.layer.cornerRadius = self.layer.cornerRadius;
     _blur.layer.cornerCurve = kCACornerCurveContinuous;
     _blur.clipsToBounds = YES;
     PACBigApplyMaterial(self, _blur, self.layer.cornerRadius);
+    if (self.layer.cornerRadius > 40.0 && !self.standalone) {
+        CGSize cs = self.bounds.size;
+        int up = 0;
+        for (UIView *p = self; p && up < 5; p = p.superview, up++) {
+            if ([NSStringFromClass(p.class) isEqualToString:@"CCUIContentModuleContainerView"]) break;
+            if (p != self && fabs(p.bounds.size.width - cs.width) < 1.0 && fabs(p.bounds.size.height - cs.height) < 1.0 && p.layer.cornerRadius > 1.0 && fabs(p.layer.cornerRadius - self.layer.cornerRadius) > 0.5) {
+                p.layer.cornerRadius = self.layer.cornerRadius;
+                p.layer.cornerCurve = kCACornerCurveContinuous;
+            }
+            for (UIView *s in p.subviews) {
+                if (s == self || [NSStringFromClass(s.class) hasPrefix:@"LG"]) continue;
+                if (fabs(s.bounds.size.width - cs.width) < 1.0 && fabs(s.bounds.size.height - cs.height) < 1.0 && s.layer.cornerRadius > 1.0 && fabs(s.layer.cornerRadius - self.layer.cornerRadius) > 0.5) {
+                    s.layer.cornerRadius = self.layer.cornerRadius;
+                    s.layer.cornerCurve = kCACornerCurveContinuous;
+                }
+            }
+        }
+    }
     CGFloat pad = 14.0;
     BOOL tile = (w < 260.0 && h >= 120.0);
     BOOL full = !self.compact && !tile;
@@ -1862,15 +1880,15 @@ static UIView *PACBigMakeRoutePicker(void) {
         _seek.frame = CGRectMake(x, seekY, tw, 24.0);
         _elapsed.frame = CGRectMake(x, seekY + 22.0, 80.0, 14.0);
         _remaining.frame = CGRectMake(x + tw - 80.0, seekY + 22.0, 80.0, 14.0);
-        CGFloat bw = 38.0 * sc;
+        CGFloat bw = 38.0 * sc, pbw = 46.0 * sc;
         CGFloat cy = (wp + 42.0 * sc + seekY) * 0.5 + 2.0 * sc;
         CGFloat mx = x + tw * 0.5;
         CGFloat step = MIN(tw * 0.32, bw * 2.0);
         _prev.frame = CGRectMake(mx - step - bw * 0.5, cy - bw * 0.5, bw, bw);
-        _play.frame = CGRectMake(mx - bw * 0.5, cy - bw * 0.5, bw, bw);
+        _play.frame = CGRectMake(mx - pbw * 0.5, cy - pbw * 0.5, pbw, pbw);
         _next.frame = CGRectMake(mx + step - bw * 0.5, cy - bw * 0.5, bw, bw);
         [self setSymbol:@"backward.fill" size:17.0 * sc on:_prev];
-        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:22.0 * sc on:_play];
+        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:28.0 * sc on:_play];
         [self setSymbol:@"forward.fill" size:17.0 * sc on:_next];
         _pill.hidden = YES;
         return;
