@@ -1528,7 +1528,24 @@ static UIView *PACBigMediaMaterial(void) {
     return material;
 }
 
+static void PACBigRadiusDump(UIView *card) {
+    if (![card isKindOfClass:PACBigMusic.class]) return;
+    NSMutableString *o = [NSMutableString stringWithFormat:@"music radius card %.1f size %@ |", card.layer.cornerRadius, NSStringFromCGSize(card.bounds.size)];
+    UIView *p = card;
+    for (int i = 0; i < 5 && p; i++, p = p.superview) {
+        [o appendFormat:@" [%d %@ r%.1f %@]", i, NSStringFromClass(p.class), p.layer.cornerRadius, NSStringFromCGSize(p.bounds.size)];
+        if (i == 0) continue;
+        for (UIView *s in p.subviews) {
+            if (s == card || s.layer.cornerRadius < 1.0) continue;
+            [o appendFormat:@" {%@ r%.1f %@ a%.2f}", NSStringFromClass(s.class), s.layer.cornerRadius, NSStringFromCGSize(s.bounds.size), s.alpha];
+        }
+    }
+    static NSString *last;
+    if (![o isEqualToString:last]) { last = [o copy]; PACCSizeLog(o); }
+}
+
 static BOOL PACBigApplyMaterial(UIView *card, UIView *fallback, CGFloat radius) {
+    PACBigRadiusDump(card);
     if (!PACCLIQGlassOn()) { fallback.hidden = NO; return NO; }
     if (PACCLIQViewHasLG(card)) {
         UIView *own = [card viewWithTag:190002];

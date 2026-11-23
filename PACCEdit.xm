@@ -1213,7 +1213,6 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
 }
 
 static CGFloat PACRadiusForMid(NSString *mid, NSUInteger w, NSUInteger h) {
-    if (w == 4 && h == 2 && PACCBigKind(mid) == 2) return 38.0;
     return PACRadiusForSize(w, h);
 }
 
@@ -1257,7 +1256,7 @@ static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
     for (UIView *a = g.superview; a; a = a.superview) {
         NSString *an = NSStringFromClass(a.class);
-        if ([an isEqualToString:@"PACBigCard"] || [an isEqualToString:@"PACBigMusic"]) { PACBigFixLGRadius(g, a.layer.cornerRadius); return; }
+        if ([an isEqualToString:@"PACBigCard"]) { PACBigFixLGRadius(g, a.layer.cornerRadius); return; }
         if ([an isEqualToString:@"CCUIContentModuleContainerView"]) break;
     }
     UIView *module = nil;
