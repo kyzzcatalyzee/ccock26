@@ -637,6 +637,10 @@ void PACCLIQSpecularFade(UIView *host, BOOL hidden, CFTimeInterval dur, CFTimeIn
     [glass setSpecularHidden:hidden fadeDuration:dur delay:delay];
 }
 
+BOOL PACCLIQViewHasLG(UIView *host) {
+    return host && PACCLIQShouldGlass() && PACCLIQModuleHasLG(host);
+}
+
 BOOL PACCLIQApplyGlassOwn(UIView *host, CGFloat radius) {
     if (!host) return NO;
     sPACCLIQForceOwn = YES;

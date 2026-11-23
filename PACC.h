@@ -114,6 +114,7 @@ void PACCLogCloseSamples(id module, UIViewController *ov);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);
 BOOL PACCLIQIsActive(void);
 BOOL PACCLIQGlassOn(void);
+BOOL PACCLIQViewHasLG(UIView *host);
 BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius);
 void PACCLIQSetFixedBlur(UIView *host, CGFloat blur);
 void PACBigFixLGRadius(UIView *g, CGFloat r);

@@ -311,6 +311,7 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
 
 BOOL PACBigLGGlass(UIView *host, CGFloat radius);
 BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius);
+static BOOL PACBigApplyMaterial(UIView *card, UIView *fallback, CGFloat radius);
 extern BOOL PACCLIQApplyGlassOwn(UIView *host, CGFloat radius);
 
 @implementation PACBigCard
@@ -391,8 +392,7 @@ extern BOOL PACCLIQApplyGlassOwn(UIView *host, CGFloat radius);
             [wc pacHideLG];
         });
     }
-    if (PACCLIQGlassOn()) _material.hidden = PACBigLGGlassOwn(self, self.layer.cornerRadius);
-    else _material.hidden = NO;
+    PACBigApplyMaterial(self, _material, self.layer.cornerRadius);
     {
         static const char kLGSig = 0;
         NSString *sig = [NSString stringWithFormat:@"%.1f,%.1f,%.1f", self.bounds.size.width, self.bounds.size.height, self.layer.cornerRadius];
@@ -1528,6 +1528,18 @@ static UIView *PACBigMediaMaterial(void) {
     return material;
 }
 
+static BOOL PACBigApplyMaterial(UIView *card, UIView *fallback, CGFloat radius) {
+    if (!PACCLIQGlassOn()) { fallback.hidden = NO; return NO; }
+    if (PACCLIQViewHasLG(card)) {
+        UIView *own = [card viewWithTag:190002];
+        if (own) { own.layer.filters = nil; [own removeFromSuperview]; }
+        fallback.hidden = YES;
+        return YES;
+    }
+    fallback.hidden = PACBigLGGlassOwn(card, radius);
+    return NO;
+}
+
 BOOL PACBigLGGlass(UIView *host, CGFloat radius) {
     UIView *stale = [host viewWithTag:190002];
     if (stale) [stale removeFromSuperview];
@@ -1722,7 +1734,7 @@ static UIView *PACBigMakeRoutePicker(void) {
     _blur.layer.cornerRadius = self.layer.cornerRadius;
     _blur.layer.cornerCurve = kCACornerCurveContinuous;
     _blur.clipsToBounds = YES;
-    _blur.hidden = (PACCLIQGlassOn() && PACBigLGGlassOwn(self, self.layer.cornerRadius));
+    PACBigApplyMaterial(self, _blur, self.layer.cornerRadius);
     CGFloat pad = 14.0;
     BOOL tile = (w < 260.0 && h >= 120.0);
     BOOL full = !self.compact && !tile;
@@ -1747,6 +1759,8 @@ static UIView *PACBigMakeRoutePicker(void) {
         UIImage *ai = [UIImage systemImageNamed:@"airplayaudio" withConfiguration:ac] ?: [UIImage systemImageNamed:@"airplay.audio" withConfiguration:ac];
         _airIcon.image = [ai imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         _airIcon.frame = _airBg.bounds;
+        _route.frame = _airBg.frame;
+        [self bringSubviewToFront:_route];
         UIFont *tf = [UIFont systemFontOfSize:14.5 * sc * (_playing ? 1.0 : 0.9) weight:UIFontWeightSemibold];
         UIFont *af = [UIFont systemFontOfSize:14.5 * sc weight:UIFontWeightRegular];
         _title.font = tf; _artist.font = af;
@@ -1819,6 +1833,8 @@ static UIView *PACBigMakeRoutePicker(void) {
         UIImage *ai = [UIImage systemImageNamed:@"airplayaudio" withConfiguration:ac] ?: [UIImage systemImageNamed:@"airplay.audio" withConfiguration:ac];
         _airIcon.image = [ai imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         _airIcon.frame = _airBg.bounds;
+        _route.frame = _airBg.frame;
+        [self bringSubviewToFront:_route];
         _title.font = [UIFont systemFontOfSize:16.0 * sc weight:UIFontWeightBold];
         _artist.font = [UIFont systemFontOfSize:14.0 * sc weight:UIFontWeightRegular];
         _artist.hidden = NO;
@@ -2105,7 +2121,7 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
         if (kind && !(expanded && kind == 1)) PACBigHideModuleMaterialEx(host, NO, YES);
         return;
     }
-    PACBigHideModuleMaterialEx(host, YES, YES);
+    PACBigHideModuleMaterialEx(host, YES, !(PACCLIQGlassOn() && PACCLIQViewHasLG(host)));
 
     UIView *bv = existing;
     Class want = (kind == 1) ? PACBigConn.class : PACBigMusic.class;

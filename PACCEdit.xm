@@ -178,6 +178,7 @@ static NSArray<UIView *> *PACCompactGlyphHosts(UIView *view);
 static void PACLayoutModuleIcon(UIViewController *m);
 static void PACRestoreModuleIcon(UIViewController *m);
 static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h);
+static CGFloat PACRadiusForMid(NSString *mid, NSUInteger w, NSUInteger h);
 static void PACApplyRadiusToModule(UIViewController *m);
 static void PACRefreshPresentation(UIViewController *m, UIViewController *ov);
 static BOOL PACWasResizedFromOneByOne(NSString *mid);
@@ -1211,6 +1212,11 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
     return calculatedRadius(CGRectMake(0.0, 0.0, widthPt, heightPt), 22.0);
 }
 
+static CGFloat PACRadiusForMid(NSString *mid, NSUInteger w, NSUInteger h) {
+    if (w == 4 && h == 2 && PACCBigKind(mid) == 2) return 38.0;
+    return PACRadiusForSize(w, h);
+}
+
 
 static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 
@@ -1251,7 +1257,7 @@ static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
     for (UIView *a = g.superview; a; a = a.superview) {
         NSString *an = NSStringFromClass(a.class);
-        if ([an isEqualToString:@"PACBigCard"]) { PACBigFixLGRadius(g, a.layer.cornerRadius); return; }
+        if ([an isEqualToString:@"PACBigCard"] || [an isEqualToString:@"PACBigMusic"]) { PACBigFixLGRadius(g, a.layer.cornerRadius); return; }
         if ([an isEqualToString:@"CCUIContentModuleContainerView"]) break;
     }
     UIView *module = nil;
@@ -1571,7 +1577,7 @@ static void PACApplyRadiusToModule(UIViewController *m) {
 
     NSUInteger w = 1, h = 1;
     PACEffectiveSize(mid, &w, &h);
-    CGFloat radius = PACRadiusForSize(w, h);
+    CGFloat radius = PACRadiusForMid(mid, w, h);
 
     CGSize moduleSize = m.view.bounds.size;
     if (moduleSize.width < 1.0 || moduleSize.height < 1.0) return;
@@ -5659,7 +5665,7 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     BOOL animate = PACAnimationsAllowed();
     NSUInteger radiusW = 1, radiusH = 1;
     PACEffectiveSize(mid, &radiusW, &radiusH);
-    CGFloat radius = PACRadiusForSize(radiusW, radiusH);
+    CGFloat radius = PACRadiusForMid(mid, radiusW, radiusH);
     PACSetRadius(buttonView.layer, radius, animate && objc_getAssociatedObject(m.view, kPACLastRadiusKey) != nil);
 
     BOOL isResizedFromOneByOne = PACWasResizedFromOneByOne(mid);
@@ -5915,7 +5921,7 @@ static void PACApplyChrome(UIViewController *m, UIViewController *ov) {
     if (PACCLIQIsActive() && !PACModuleIsExpanded(m)) {
         NSUInteger ew = 1, eh = 1;
         PACEffectiveSize(mid, &ew, &eh);
-        radius = PACRadiusForSize(ew, eh);
+        radius = PACRadiusForMid(mid, ew, eh);
     }
     if (radius < 1.0) radius = MIN(CGRectGetWidth(vis), CGRectGetHeight(vis)) * 0.5;
 
