@@ -2478,6 +2478,9 @@ static UIView *PACCPrivateConnHost(UIViewController *ov) {
 
 static PACCCloneMirror *sPACMirror;
 static const void *kPACMirroredKey = &kPACMirroredKey;
+static const void *kPACRestPosKey = &kPACRestPosKey;
+static const void *kPACLastPosKey = &kPACLastPosKey;
+static const void *kPACSincePosKey = &kPACSincePosKey;
 
 @implementation PACCCloneMirror
 - (void)tick:(CADisplayLink *)l {
@@ -2492,6 +2495,21 @@ static const void *kPACMirroredKey = &kPACMirroredKey;
         [refs addObject:v];
     }
     if (!refs.count) return;
+    if (gEditModeActive) return;
+    CFTimeInterval nowT = CACurrentMediaTime();
+    for (UIView *r in refs) {
+        CGPoint pp = (r.layer.presentationLayer ?: r.layer).position;
+        NSValue *lastV = objc_getAssociatedObject(r, kPACLastPosKey);
+        NSNumber *sinceN = objc_getAssociatedObject(r, kPACSincePosKey);
+        BOOL moved = !lastV || hypot(pp.x - lastV.CGPointValue.x, pp.y - lastV.CGPointValue.y) > 0.05;
+        if (moved) {
+            objc_setAssociatedObject(r, kPACLastPosKey, [NSValue valueWithCGPoint:pp], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            objc_setAssociatedObject(r, kPACSincePosKey, @(nowT), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            if (!objc_getAssociatedObject(r, kPACRestPosKey)) objc_setAssociatedObject(r, kPACRestPosKey, [NSValue valueWithCGPoint:pp], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        } else if (nowT - sinceN.doubleValue > 0.4) {
+            objc_setAssociatedObject(r, kPACRestPosKey, [NSValue valueWithCGPoint:pp], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    }
     for (UIView *cl in cv.subviews) {
         if (cl.tag != kPACCloneTag || cl.hidden) continue;
         CGFloat cy = cl.layer.position.y;
@@ -2520,8 +2538,9 @@ static const void *kPACMirroredKey = &kPACMirroredKey;
         CALayer *pl = best.layer.presentationLayer ?: best.layer;
         CATransform3D t = pl.transform;
         CGFloat op = pl.opacity;
-        CGFloat pdx = pl.position.x - best.layer.position.x;
-        CGFloat pdy = pl.position.y - best.layer.position.y;
+        NSValue *restV = objc_getAssociatedObject(best, kPACRestPosKey);
+        CGFloat pdx = restV ? pl.position.x - restV.CGPointValue.x : 0.0;
+        CGFloat pdy = restV ? pl.position.y - restV.CGPointValue.y : 0.0;
         BOOL idle = CATransform3DIsIdentity(t) && op > 0.999 && fabs(pdx) < 0.05 && fabs(pdy) < 0.05;
         if (!idle) t = CATransform3DConcat(t, CATransform3DMakeTranslation(pdx, pdy, 0.0));
         if (idle && !was) continue;
