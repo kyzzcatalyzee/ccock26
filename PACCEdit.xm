@@ -2488,6 +2488,7 @@ static PACCCloneMirror *sPACMirror;
 static const void *kPACMirroredKey = &kPACMirroredKey;
 static const void *kPACRestPosKey = &kPACRestPosKey;
 static NSInteger sPACMirrorLogBudget = 0;
+static BOOL kPACMirrorTransformCopy = NO;
 static const void *kPACLastPosKey = &kPACLastPosKey;
 static const void *kPACSincePosKey = &kPACSincePosKey;
 
@@ -2518,6 +2519,7 @@ static const void *kPACSincePosKey = &kPACSincePosKey;
         PACCSizeLog(ml);
         sPACMirrorLogBudget--;
     }
+    if (!kPACMirrorTransformCopy) return;
     for (UIView *r in refs) {
         CGPoint pp = (r.layer.presentationLayer ?: r.layer).position;
         NSValue *lastV = objc_getAssociatedObject(r, kPACLastPosKey);
@@ -2578,37 +2580,6 @@ static const void *kPACSincePosKey = &kPACSincePosKey;
 }
 @end
 
-static void PACCCloneEntrance(UIViewController *ov) {
-    if (PACIsLandscape() || gEditModeActive || !gPACClones.count) return;
-    UIView *cv = ModuleCollection(ov).view;
-    if (!cv) return;
-    for (UIView *cl in cv.subviews) {
-        if (cl.tag != kPACCloneTag || cl.hidden || cl.alpha < 0.01) continue;
-        CASpringAnimation *ty = [CASpringAnimation animationWithKeyPath:@"transform.translation.y"];
-        ty.additive = YES;
-        ty.fromValue = @(-46.0);
-        ty.toValue = @0.0;
-        ty.mass = 1.0; ty.stiffness = 170.0; ty.damping = 17.0;
-        ty.duration = ty.settlingDuration;
-        ty.fillMode = kCAFillModeBackwards;
-        CASpringAnimation *sc = [CASpringAnimation animationWithKeyPath:@"transform.scale"];
-        sc.additive = YES;
-        sc.fromValue = @(-0.14);
-        sc.toValue = @0.0;
-        sc.mass = 1.0; sc.stiffness = 170.0; sc.damping = 17.0;
-        sc.duration = sc.settlingDuration;
-        sc.fillMode = kCAFillModeBackwards;
-        CABasicAnimation *op = [CABasicAnimation animationWithKeyPath:@"opacity"];
-        op.fromValue = @0.0;
-        op.toValue = @(cl.layer.opacity);
-        op.duration = 0.26;
-        op.fillMode = kCAFillModeBackwards;
-        [cl.layer addAnimation:ty forKey:@"PACEntryTY"];
-        [cl.layer addAnimation:sc forKey:@"PACEntrySC"];
-        [cl.layer addAnimation:op forKey:@"PACEntryOP"];
-    }
-}
-
 static void PACCCloneMirrorStart(UIView *cv) {
     if (!sPACMirror) {
         sPACMirror = [PACCCloneMirror new];
@@ -2621,6 +2592,50 @@ static void PACCCloneMirrorStart(UIView *cv) {
     lastMirrorStart = nowS;
     sPACMirror.cv = cv;
     sPACMirror.link.paused = NO;
+}
+
+static void PACCMirrorNativeAnimation(CALayer *layer, CAAnimation *anim, NSString *key) {
+    id del = layer.delegate;
+    if (![del isKindOfClass:UIView.class]) return;
+    static Class modCls;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ modCls = NSClassFromString(@"CCUIContentModuleContainerView"); });
+    if (!modCls || ![del isKindOfClass:modCls]) return;
+    if ([key hasPrefix:@"PAC"]) return;
+    if (![anim isKindOfClass:CABasicAnimation.class]) return;
+    UIView *mv = (UIView *)del;
+    UIView *cv = mv.superview;
+    if (!cv || PACIsLandscape()) return;
+    CABasicAnimation *src = (CABasicAnimation *)anim;
+    NSString *kp = src.keyPath ?: @"";
+    BOOL isPos = [kp isEqualToString:@"position"];
+    BOOL isOk = isPos || [kp isEqualToString:@"opacity"] || [kp isEqualToString:@"transform"] || [kp hasPrefix:@"transform."];
+    if (!isOk) return;
+    UIView *best = nil;
+    CGFloat bd = CGFLOAT_MAX;
+    for (UIView *cl in cv.subviews) {
+        if (cl.tag != kPACCloneTag || cl.hidden || cl.alpha < 0.01) continue;
+        CGFloat d = fabs(cl.layer.position.y - layer.position.y);
+        if (d < bd) { bd = d; best = cl; }
+    }
+    if (!best || bd > 400.0) return;
+    CABasicAnimation *c = [src copy];
+    if (isPos) {
+        if (c.additive) {
+        } else if ([c.fromValue isKindOfClass:NSValue.class] && [c.toValue isKindOfClass:NSValue.class]) {
+            CGPoint a = [(NSValue *)c.fromValue CGPointValue];
+            CGPoint b = [(NSValue *)c.toValue CGPointValue];
+            c.additive = YES;
+            c.fromValue = [NSValue valueWithCGPoint:CGPointMake(a.x - b.x, a.y - b.y)];
+            c.toValue = [NSValue valueWithCGPoint:CGPointZero];
+        } else {
+            return;
+        }
+    }
+    if (sPACMirrorLogBudget > 0) {
+        PACCSizeLog([NSString stringWithFormat:@"mirror-anim key %@ kp %@ cls %@ dur %.2f from %@ to %@ add %d", key ?: @"-", kp, NSStringFromClass(src.class), src.duration, src.fromValue, src.toValue, (int)src.additive]);
+    }
+    [best.layer addAnimation:c forKey:[@"PACMir_" stringByAppendingString:key ?: kp]];
 }
 
 void PACCSyncClones(UIViewController *ov, BOOL animated) {
@@ -6255,19 +6270,12 @@ void PACCLandEndPass(UIView *cv) {
 - (void)addAnimation:(CAAnimation *)anim forKey:(NSString *)key {
     if (gEditModeActive && PACShouldBlockGlyphAnimation((CALayer *)self, anim)) return;
     %orig;
+    if (!gEditModeActive && gEnabled && gPACClones.count) PACCMirrorNativeAnimation((CALayer *)self, anim, key);
 }
 
 %end
 
 %hook UIViewController
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    if ([NSStringFromClass(self.class) containsString:@"ControlCenterOverlayViewController"]) {
-        UIViewController *entOv = (UIViewController *)self;
-        dispatch_async(dispatch_get_main_queue(), ^{ PACCCloneEntrance(entOv); });
-    }
-}
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
