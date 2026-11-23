@@ -6327,7 +6327,7 @@ void PACCLandEndPass(UIView *cv) {
 %hook CCUIButtonModuleView
 
 - (void)setHighlighted:(BOOL)highlighted {
-    BOOL wasHi = self.highlighted;
+    BOOL wasHi = ((UIControl *)(id)self).highlighted;
     %orig;
     if (!gEnabled || gEditModeActive || wasHi == highlighted) return;
     UIView *bv = (UIView *)(id)self;
