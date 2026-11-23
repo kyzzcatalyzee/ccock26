@@ -1216,7 +1216,7 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
 }
 
 static CGFloat PACRadiusForMid(NSString *mid, NSUInteger w, NSUInteger h) {
-    if (w == 4 && h == 2 && PACCBigKind(mid) == 2) return 30.0;
+    if (w == 4 && h == 2 && PACCBigKind(mid) == 2) return 25.0;
     return PACRadiusForSize(w, h);
 }
 

@@ -242,6 +242,10 @@ static CGFloat gPACCPortFix = 0.0;
 static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop, CGFloat *outRaise) {
     static CGFloat cSc = 1.0, cMc = 0.0, cTop = 0.0, cRaise = 0.0;
     static BOOL have = NO;
+    if (have && (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil)) {
+        *outSc = cSc; *outMc = cMc; *outTop = cTop; *outRaise = cRaise;
+        return YES;
+    }
     if (!cv || !cv.window) {
         if (!have) return NO;
     } else {
