@@ -237,71 +237,23 @@ static inline CATransform3D PACCLandTransform(UIView *cv, CGFloat shift, CGFloat
     return t;
 }
 #define kPACPortScaleOn 1
-static CGFloat gPACCPortTarget = -1.0;
-static CGFloat gPACCPortFix = 0.0;
-static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop, CGFloat *outRaise) {
-    static CGFloat cSc = 1.0, cMc = 0.0, cTop = 0.0, cRaise = 0.0;
-    static BOOL have = NO;
-    if (have && (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil)) {
-        *outSc = cSc; *outMc = cMc; *outTop = cTop; *outRaise = cRaise;
-        return YES;
-    }
-    if (!cv || !cv.window) {
-        if (!have) return NO;
-    } else {
-        if (MIN(cv.window.bounds.size.width, cv.window.bounds.size.height) >= 422.0) return NO;
-        CGFloat mn = CGFLOAT_MAX, mx = -CGFLOAT_MAX, top = CGFLOAT_MAX;
-        PACCLandCollect(cv, 1, CGPointZero, PageSpan() * 0.9, &mn, &mx, &top);
-        if (mn <= mx) {
-            {
-                static CGFloat bestTop = CGFLOAT_MAX;
-                if (top >= 0.0 && top < 150.0 && top < bestTop) bestTop = top;
-                if (bestTop != CGFLOAT_MAX) top = bestTop;
-            }
-            CGFloat H = cv.window.bounds.size.height;
-            CGPoint o = PACCLandOrigin(cv);
-            CGFloat topWin = o.y + top;
-            CGFloat targetTop = (topWin > 48.0) ? MAX(48.0, topWin - 20.0) : topWin;
-            CGFloat rowsH = 8.0 * PACCGridCell() + 7.0 * PACCGridGap();
-            CGFloat sc = MIN(0.97, (H - 12.0 - targetTop) / rowsH);
-            if (MIN(cv.window.bounds.size.width, H) < 422.0) { sc = 0.91; targetTop = 88.0; }
-            cSc = MAX(0.6, MIN(1.0, sc));
-            {
-                static CGFloat lastLogTop = -999.0, lastLogSc = -1.0;
-                if (fabs(lastLogTop - topWin) > 0.5 || fabs(lastLogSc - cSc) > 0.001) {
-                    lastLogTop = topWin; lastLogSc = cSc;
-                    PACCSizeLog([NSString stringWithFormat:@"portrait fit H %.1f oy %.1f top %.1f topWin %.1f target %.1f rowsH %.1f cvH %.1f scale %.3f",
-                                 H, o.y, top, topWin, targetTop, rowsH, cv.bounds.size.height, cSc]);
-                }
-            }
-            cMc = (mn + mx) * 0.5;
-            cTop = top;
-            cRaise = 0.0;
-            gPACCPortTarget = targetTop;
-            have = YES;
-        }
-    }
-    *outSc = cSc; *outMc = cMc; *outTop = cTop; *outRaise = cRaise;
-    return have;
+extern CGFloat gPACPortSc, gPACPortMc, gPACPortTop;
+extern BOOL gPACPortHave;
+static inline BOOL PACCPortFrameActive(UIView *cv) {
+    if (!kPACPortScaleOn || PACCLandscapeNow()) return NO;
+    UIScreen *sc = UIScreen.mainScreen;
+    if (CGRectGetHeight(sc.bounds) >= 800.0) return NO;
+    if (cv && cv.window && MIN(cv.window.bounds.size.width, cv.window.bounds.size.height) >= 422.0) return NO;
+    return YES;
 }
 static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGFloat shift, CGFloat offset) {
     cur.m11 = 1.0;
     cur.m22 = 1.0;
     cur.m41 = 0.0;
-    cur.m42 = shift + offset;
     cur.m43 = 0.0;
-    gPACCPortScale = 1.0;
-    if (!cv || !cv.window || !kPACPortScaleOn) return cur;
-    CGFloat sc = 1.0, mc = 0.0, top = 0.0, raise = 0.0;
-    if (!PACCPortMeasure(cv, &sc, &mc, &top, &raise)) return cur;
+    CGFloat sc = (gPACPortHave && PACCPortFrameActive(cv)) ? gPACPortSc : 1.0;
     gPACCPortScale = sc;
-    CGRect b = cv.bounds;
-    CGFloat cx = b.origin.x + b.size.width * 0.5;
-    CGFloat cy = b.origin.y + b.size.height * 0.5;
-    cur.m11 = sc;
-    cur.m22 = sc;
-    cur.m41 = (1.0 - sc) * (mc - cx);
-    cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + sc * offset + gPACCPortFix;
+    cur.m42 = shift + sc * offset;
     return cur;
 }
 #define PACSS() (PACCLandscapeNow() ? 1.0 : gPACCPortScale)
