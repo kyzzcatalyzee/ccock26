@@ -691,6 +691,10 @@ static void PACUpdateGridMetrics(UIViewController *ov) {
     } else {
         step = MAX(stepX, stepY);
     }
+    {
+        CGFloat fs = (gPACPortHave && PACCPortFrameActive(ModuleCollection(ov).view)) ? gPACPortSc : 1.0;
+        if (fs > 0.3 && fs < 1.0) { step /= fs; minW /= fs; }
+    }
     if (step < 55.0 || step > 130.0 || minW < 45.0 || minW > 120.0) return;
     CGFloat cell = floor(minW * 2.0 + 0.5) / 2.0;
     step = floor(step * 2.0 + 0.5) / 2.0;
