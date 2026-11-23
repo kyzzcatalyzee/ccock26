@@ -2,6 +2,7 @@
 #import "PACC.h"
 #import <CFNetwork/CFNetwork.h>
 #import <notify.h>
+#import <dlfcn.h>
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #include <time.h>
@@ -39,13 +40,13 @@ int PACCBigKind(NSString *mid) {
 BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h) {
     int k = PACCBigKind(mid);
     if (k == 1) return (w == 2 && h == 2) || (w == 4 && (h == 4 || h == 6 || h == 7 || h == 8));
-    if (k == 2) return (w == 2 && h == 2) || (w == 4 && (h == 2 || h == 4 || h == 6 || h == 7 || h == 8));
+    if (k == 2) return (w == 2 && h == 2) || (w == 4 && (h == 1 || h == 2 || h == 4 || h == 6 || h == 7 || h == 8));
     if (k == 3) return (w == 1 && h == 1) || (w == 2 && h == 1);
     return NO;
 }
 
 void PACCBigSnapSize(NSString *mid, NSInteger wantW, NSInteger wantH, NSUInteger *outW, NSUInteger *outH) {
-    NSUInteger cands[][2] = { {1, 1}, {2, 1}, {2, 2}, {4, 2}, {4, 4}, {4, 6}, {4, 7}, {4, 8} };
+    NSUInteger cands[][2] = { {1, 1}, {2, 1}, {2, 2}, {4, 1}, {4, 2}, {4, 4}, {4, 6}, {4, 7}, {4, 8} };
     NSInteger best = NSIntegerMax;
     NSUInteger bw = 2, bh = 2;
     for (size_t i = 0; i < sizeof(cands) / sizeof(cands[0]); i++) {
@@ -1539,7 +1540,41 @@ BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
     return PACCLIQApplyGlassOwn(host, radius);
 }
 
+static NSString *PACBigNotPlayingText(void) {
+    NSString *lang = NSLocale.preferredLanguages.firstObject ?: @"en";
+    NSString *l = lang.lowercaseString;
+    static NSDictionary *tbl;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        tbl = @{@"id": @"Tidak Diputar", @"ms": @"Tidak Dimainkan", @"es": @"No se reproduce", @"fr": @"Aucune lecture",
+                @"de": @"Keine Wiedergabe", @"pt": @"Nada Tocando", @"it": @"Non in riproduzione", @"nl": @"Niet aan het afspelen",
+                @"ru": @"Не воспроизводится", @"ja": @"停止中", @"ko": @"재생 중이 아님", @"zh-hant": @"未在播放",
+                @"zh": @"未在播放", @"tr": @"Çalmıyor", @"ar": @"غير قيد التشغيل", @"th": @"ไม่ได้เล่น", @"vi": @"Không phát",
+                @"pl": @"Nie odtwarzane", @"uk": @"Не відтворюється", @"hi": @"चल नहीं रहा", @"sv": @"Spelas inte", @"da": @"Spiller ikke",
+                @"nb": @"Spilles ikke", @"fi": @"Ei toistossa", @"cs": @"Nehraje", @"el": @"Δεν παίζει", @"he": @"לא מנגן",
+                @"hu": @"Nincs lejátszás", @"ro": @"Nu se redă", @"fil": @"Hindi Nagpe-play"};
+    });
+    if ([l hasPrefix:@"zh-hant"] || [l hasPrefix:@"zh-tw"] || [l hasPrefix:@"zh-hk"]) return tbl[@"zh-hant"];
+    NSString *key = [[l componentsSeparatedByString:@"-"] firstObject];
+    NSString *v = tbl[key];
+    return v ?: @"Not Playing";
+}
+
+static UIView *PACBigMakeRoutePicker(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ dlopen("/System/Library/Frameworks/AVKit.framework/AVKit", RTLD_LAZY); });
+    Class c = NSClassFromString(@"AVRoutePickerView");
+    if (!c) return nil;
+    UIView *v = [[c alloc] initWithFrame:CGRectZero];
+    v.tintColor = [UIColor colorWithWhite:1 alpha:0.9];
+    @try { [v setValue:[UIColor colorWithWhite:1 alpha:0.9] forKey:@"activeTintColor"]; } @catch (...) {}
+    @try { [v setValue:@NO forKey:@"prioritizesVideoDevices"]; } @catch (...) {}
+    v.backgroundColor = UIColor.clearColor;
+    return v;
+}
+
 @implementation PACBigMusic {
+    UIView *_route;
     UIView *_blur;
     UIImageView *_art;
     UILabel *_title, *_artist, *_elapsed, *_remaining;
@@ -1681,7 +1716,7 @@ BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
-    self.layer.cornerRadius = MIN(34.0, h * 0.5);
+    self.layer.cornerRadius = (!self.compact || h < 100.0 || h > 220.0 || w < h * 1.3) ? MIN(34.0, h * 0.5) : 38.0;
     if (!_blur.superview) [self insertSubview:_blur atIndex:0];
     _blur.frame = self.bounds;
     _blur.layer.cornerRadius = self.layer.cornerRadius;
@@ -1691,10 +1726,15 @@ BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
     CGFloat pad = 14.0;
     BOOL tile = (w < 260.0 && h >= 120.0);
     BOOL full = !self.compact && !tile;
-    BOOL wideC = (!full && !tile && w > h * 1.3);
+    BOOL row1 = (!full && !tile && h < 100.0 && w > h * 2.4);
+    BOOL wideC = (!full && !tile && !row1 && w > h * 1.3);
+    _prev.hidden = row1;
     _seek.hidden = _elapsed.hidden = _remaining.hidden = !(full || wideC);
     _vol.hidden = _volLo.hidden = _volHi.hidden = !full;
-    _airBg.hidden = _airIcon.hidden = !(tile || wideC);
+    _airBg.hidden = _airIcon.hidden = !(tile || wideC || row1);
+    if (!_route && (tile || wideC || row1)) { _route = PACBigMakeRoutePicker(); if (_route) [self addSubview:_route]; }
+    _route.hidden = _airBg.hidden;
+    if (_route) { _airIcon.hidden = YES; _route.userInteractionEnabled = !gEditModeActive; }
     _pill.hidden = !(full && h >= 400.0);
     _artist.hidden = tile && !_playing;
     if (tile) {
@@ -1726,6 +1766,44 @@ BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
     _title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
     _artist.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
     _prev.alpha = _next.alpha = 1.0;
+    _title.textColor = UIColor.whiteColor;
+
+    if (row1) {
+        CGFloat pd = round(h * 0.15);
+        CGFloat a = h - pd * 2.0;
+        _art.frame = CGRectMake(pd, pd, a, a);
+        _art.layer.cornerRadius = a * 0.24;
+        CGFloat d = a;
+        _airBg.frame = CGRectMake(w - pd - d, pd, d, d);
+        _airBg.layer.cornerRadius = d * 0.5;
+        _route.frame = _airBg.frame;
+        [self bringSubviewToFront:_route];
+        CGFloat bw = round(d * 0.95);
+        CGFloat nx = CGRectGetMinX(_airBg.frame) - 4.0 - bw;
+        CGFloat px = nx - bw;
+        CGFloat by = (h - bw) * 0.5;
+        _play.frame = CGRectMake(px, by, bw, bw);
+        _next.frame = CGRectMake(nx, by, bw, bw);
+        _next.alpha = _playing ? 1.0 : 0.45;
+        [self setSymbol:_playing ? @"pause.fill" : @"play.fill" size:d * 0.5 on:_play];
+        [self setSymbol:@"forward.fill" size:d * 0.42 on:_next];
+        CGFloat tx = pd + a + pd * 1.2, tw = MAX(40.0, px - 6.0 - tx);
+        UIFont *tf = [UIFont systemFontOfSize:MIN(17.0, MAX(13.0, h * 0.25)) weight:UIFontWeightBold];
+        UIFont *af = [UIFont systemFontOfSize:MIN(15.0, MAX(12.0, h * 0.21)) weight:UIFontWeightRegular];
+        _title.font = tf; _artist.font = af;
+        _title.textColor = _playing ? UIColor.whiteColor : [UIColor colorWithWhite:1 alpha:0.35];
+        _artist.hidden = !_playing;
+        CGFloat th = ceil(tf.lineHeight), ah = ceil(af.lineHeight);
+        if (_playing) {
+            CGFloat y0 = (h - th - ah) * 0.5;
+            _title.frame = CGRectMake(tx, y0, tw, th);
+            _artist.frame = CGRectMake(tx, y0 + th, tw, ah);
+        } else {
+            _title.frame = CGRectMake(tx, (h - th) * 0.5, tw, th);
+        }
+        _pill.hidden = YES;
+        return;
+    }
 
     if (wideC) {
         CGFloat sc = MAX(1.0, MIN(h / 165.0, 2.0));
@@ -1918,7 +1996,7 @@ BOOL PACBigLGGlassOwn(UIView *host, CGFloat radius) {
         id el = d[@"kMRMediaRemoteNowPlayingInfoElapsedTime"], du = d[@"kMRMediaRemoteNowPlayingInfoDuration"];
         id ra = d[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"], ts = d[@"kMRMediaRemoteNowPlayingInfoTimestamp"];
         BOOL has = [title isKindOfClass:NSString.class] && title.length;
-        s->_title.text = has ? title : @"Not Playing";
+        s->_title.text = has ? title : PACBigNotPlayingText();
         s->_artist.text = [artist isKindOfClass:NSString.class] ? artist : @"";
         if (CACurrentMediaTime() >= s->_holdUntil) {
             s->_elapsedSec = [el respondsToSelector:@selector(doubleValue)] ? [el doubleValue] : 0;
@@ -2017,9 +2095,9 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     UIView *existing = [host viewWithTag:kPACBigTag];
     BOOL big = NO;
     if (kind == 1) big = (w >= 4 && h >= 4);
-    else if (kind == 2) big = (w >= 2 && h >= 2 && !(w == 2 && h == 2));
+    else if (kind == 2) big = (w >= 4) || (w >= 2 && h >= 2 && !(w == 2 && h == 2));
     if (expanded || !big || !gEnabled || PACCBigKind(mid) == 0 ||
-        host.bounds.size.width < 60 || host.bounds.size.height < 60) {
+        host.bounds.size.width < 60 || host.bounds.size.height < 40) {
         if (existing) {
             [existing removeFromSuperview];
             PACBigMask(host, nil, NO);

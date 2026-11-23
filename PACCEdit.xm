@@ -3880,6 +3880,7 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
 
 static void PACGhostPreview(UIViewController *ov, NSString *mid, NSUInteger w, NSUInteger h) {
     int kind = PACCBigKind(mid);
+    if (kind != 1) { if (gPACGhost) PACGhostDrop(); return; }
     UIViewController *rmc = nil;
     for (UIViewController *m in ModuleControllers(ov)) {
         if ([PACMid(m) isEqualToString:mid]) { rmc = m; break; }
@@ -4968,8 +4969,7 @@ static void PACGhostPreview(UIViewController *ov, NSString *mid, NSUInteger w, N
         if (g.state == UIGestureRecognizerStateEnded && p.width && p.height &&
             PACSizeAllowedFor(mid, p.width, p.height)) {
             int bk = PACCBigKind(mid);
-            BOOL bigNow = (bk == 1 && p.width >= 4 && p.height >= 4) ||
-                          (bk == 2 && p.width >= 2 && p.height >= 2 && !(p.width == 2 && p.height == 2));
+            BOOL bigNow = (bk == 1 && p.width >= 4 && p.height >= 4);
             [self commitResize:mid w:p.width h:p.height overlay:ov];
             if (bigNow && !PACIsLandscape()) {
                 NSUInteger wantW = p.width, wantH = p.height;
@@ -6142,7 +6142,7 @@ void PACCLandEndPass(UIView *cv) {
             BOOL isSlider = PACLandscapeIsSlider(k);
             if (isSlider) { w = 1; h = 2; }
             NSUInteger nw = w, nh = h;
-            if (!isSlider && gEditModeEnabled && nw == 1 && nh == 1) {
+            if (!isSlider && gEditModeEnabled && ((nw == 1 && nh == 1) || [lk containsString:@"nowplaying"])) {
                 NSArray<NSNumber *> *sv = gEditSizes[k];
                 if (sv.count >= 2) {
                     NSUInteger sw = sv[0].unsignedIntegerValue, sh = sv[1].unsignedIntegerValue;
@@ -6158,6 +6158,7 @@ void PACCLandEndPass(UIView *cv) {
                 if (PACLandCloneSize(k, &cw2, &ch2)) { w = MIN(cw2, (NSUInteger)4); h = MIN(ch2, rows); forceAnchor = YES; }
             }
             BOOL modified = (w != nw || h != nh);
+            if (!isSlider && modified && [lk containsString:@"nowplaying"]) forceAnchor = YES;
             NSInteger ax = -1, ay = -1;
             if (!modified || forceAnchor) {
                 if ([lk containsString:@"connectivitymodule"]) { ax = 0; ay = 0; }
