@@ -41,6 +41,12 @@ BOOL gPagerScrubbing = NO;
 %end
 
 %hook CCUIModuleCollectionView
+- (void)setFrame:(CGRect)frame {
+    if (gEnabled && kPACPortScaleOn && !PACCLandscapeNow() && CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0) {
+        frame.origin.y -= 69.0;
+    }
+    %orig(frame);
+}
 - (void)didMoveToWindow {
     %orig;
     if (!gEnabled) return;

@@ -271,7 +271,7 @@ static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, C
             }
             cMc = (mn + mx) * 0.5;
             cTop = top;
-            cRaise = targetTop - topWin;
+            cRaise = 0.0;
             gPACCPortTarget = targetTop;
             have = YES;
         }
@@ -293,26 +293,6 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     CGRect b = cv.bounds;
     CGFloat cx = b.origin.x + b.size.width * 0.5;
     CGFloat cy = b.origin.y + b.size.height * 0.5;
-    if (fabs(offset) < 0.5 && gPACCPortTarget > 0.0) {
-        CGFloat actualTop = CGFLOAT_MAX;
-        for (UIView *sv in cv.subviews) {
-            if (sv.hidden || sv.alpha < 0.01) continue;
-            CGRect fr = sv.frame;
-            if (fr.size.width < 20.0 || fr.size.width > 360.0 || fr.origin.y > PageSpan() * 0.9 || fr.origin.y < -2.0) continue;
-            CGRect wr = [cv convertRect:fr toView:nil];
-            if (wr.origin.y < actualTop) actualTop = wr.origin.y;
-        }
-        if (actualTop != CGFLOAT_MAX && actualTop > -400.0 && actualTop < 600.0) {
-            CGFloat err = gPACCPortTarget - actualTop;
-            static CFTimeInterval lastFixT = 0.0;
-            CFTimeInterval nowT = CACurrentMediaTime();
-            if (fabs(err) > 2.0 && fabs(err) < 120.0 && gCurrentPage == 0 && nowT - lastFixT > 0.2) {
-                lastFixT = nowT;
-                gPACCPortFix = MAX(-120.0, MIN(20.0, gPACCPortFix + err * 0.5));
-                PACCSizeLog([NSString stringWithFormat:@"portrait fix actualTop %.1f target %.1f fix %.1f", actualTop, gPACCPortTarget, gPACCPortFix]);
-            }
-        }
-    }
     cur.m11 = sc;
     cur.m22 = sc;
     cur.m41 = (1.0 - sc) * (mc - cx);
