@@ -4478,6 +4478,14 @@ static void PACAddCloneOf(NSString *mid, UIViewController *ov) {
     NSMutableDictionary<NSString *, NSValue *> *placed = [NSMutableDictionary dictionary];
     NSMutableArray<NSDictionary *> *entries = [NSMutableArray array];
 
+    PACEnsureClones();
+    for (NSDictionary *cd in gPACClones) {
+        NSUInteger ca = [cd[@"a"] unsignedIntegerValue];
+        if (ca / kPACStride != page) continue;
+        PACRect crect = {[cd[@"c"] unsignedIntegerValue], ca % kPACStride, [cd[@"w"] unsignedIntegerValue], [cd[@"h"] unsignedIntegerValue]};
+        placed[[@"clone:" stringByAppendingString:cd[@"id"] ?: @""]] = [NSValue value:&crect withObjCType:@encode(PACRect)];
+    }
+
     for (UIViewController *m in ModuleControllers(ov)) {
         NSString *mid = PACMid(m);
         if (!mid.length) continue;
@@ -6275,7 +6283,35 @@ void PACCLandEndPass(UIView *cv) {
 
 %end
 
+static UIView *PACCFindStatusBarView(UIView *root) {
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
+    NSUInteger i = 0;
+    while (i < q.count && i < 500) {
+        UIView *v = q[i++];
+        if ([NSStringFromClass(v.class) isEqualToString:@"CCUIStatusBar"]) return v;
+        [q addObjectsFromArray:v.subviews];
+    }
+    return nil;
+}
+
 %hook UIViewController
+
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    if (gEnabled && kPACPortScaleOn && [NSStringFromClass(self.class) containsString:@"ControlCenterOverlayViewController"]) {
+        UIView *sbv = PACCFindStatusBarView(((UIViewController *)self).view);
+        if (sbv) { [sbv.layer removeAllAnimations]; sbv.alpha = 1.0; }
+    }
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    %orig;
+    if (gEnabled && kPACPortScaleOn && !PACIsLandscape() && CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0 &&
+        [NSStringFromClass(self.class) containsString:@"ControlCenterOverlayViewController"]) {
+        UIView *sbv = PACCFindStatusBarView(((UIViewController *)self).view);
+        if (sbv) [UIView animateWithDuration:0.12 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ sbv.alpha = 0.0; } completion:nil];
+    }
+}
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
