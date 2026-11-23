@@ -369,7 +369,7 @@ BOOL gPACCRevealAll = NO;
     }
     CGAffineTransform base = storedBase.CGAffineTransformValue;
 
-    CGFloat dy = land ? 0.0 : (-43.0 + ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0));
+    CGFloat dy = land ? 0.0 : ((gCurrentPage == PACCMediaPageIndex()) ? -25.0 : 0.0);
     CGAffineTransform target = CGAffineTransformConcat(base, CGAffineTransformMakeTranslation(0, dy));
 
     if (CGAffineTransformEqualToTransform(statusBar.transform, target)) return;

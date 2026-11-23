@@ -31,6 +31,15 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+%hook CCUIStatusBar
+- (void)setFrame:(CGRect)frame {
+    if (gEnabled && kPACPortScaleOn && !PACCLandscapeNow() && CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0) {
+        frame.origin.y -= 43.0;
+    }
+    %orig(frame);
+}
+%end
+
 %hook CCUIModuleCollectionView
 - (void)didMoveToWindow {
     %orig;

@@ -306,9 +306,9 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
             CGFloat err = gPACCPortTarget - actualTop;
             static CFTimeInterval lastFixT = 0.0;
             CFTimeInterval nowT = CACurrentMediaTime();
-            if (fabs(err) > 0.75 && nowT - lastFixT > 0.03) {
+            if (fabs(err) > 2.0 && fabs(err) < 120.0 && gCurrentPage == 0 && nowT - lastFixT > 0.2) {
                 lastFixT = nowT;
-                gPACCPortFix = MAX(-300.0, MIN(300.0, gPACCPortFix + err));
+                gPACCPortFix = MAX(-120.0, MIN(20.0, gPACCPortFix + err * 0.5));
                 PACCSizeLog([NSString stringWithFormat:@"portrait fix actualTop %.1f target %.1f fix %.1f", actualTop, gPACCPortTarget, gPACCPortFix]);
             }
         }
