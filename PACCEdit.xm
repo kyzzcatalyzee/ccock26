@@ -2576,7 +2576,10 @@ static void PACCCloneMirrorStart(UIView *cv) {
         sPACMirror.link = [CADisplayLink displayLinkWithTarget:sPACMirror selector:@selector(tick:)];
         [sPACMirror.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
     }
-    if (sPACMirror.link.paused) sPACMirrorLogBudget = 90;
+    static CFTimeInterval lastMirrorStart = 0.0;
+    CFTimeInterval nowS = CACurrentMediaTime();
+    if (nowS - lastMirrorStart > 2.0) sPACMirrorLogBudget = 90;
+    lastMirrorStart = nowS;
     sPACMirror.cv = cv;
     sPACMirror.link.paused = NO;
 }
