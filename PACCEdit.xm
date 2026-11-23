@@ -770,6 +770,9 @@ static NSUInteger PACVisibleRowCap(UIViewController *ov) {
     if (safeBottom < 1.0) safeBottom = 20.0;
     CGFloat usableBottom = overlayH - safeBottom - 8.0;
     CGFloat usableH = usableBottom - base.y;
+    if (!PACIsLandscape() && CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0) {
+        usableH = overlayH - 4.0 - base.y + kPACgap * PACSS();
+    }
     if (usableH < kPACStep * PACSS()) return 0;
     NSInteger rows = (NSInteger)floor(usableH / (kPACStep * PACSS()));
     if (rows <= 0) rows = 1;
@@ -1213,7 +1216,7 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
 }
 
 static CGFloat PACRadiusForMid(NSString *mid, NSUInteger w, NSUInteger h) {
-    if (w == 4 && h == 2 && PACCBigKind(mid) == 2) return 44.0;
+    if (w == 4 && h == 2 && PACCBigKind(mid) == 2) return 30.0;
     return PACRadiusForSize(w, h);
 }
 

@@ -1745,14 +1745,15 @@ static UIView *PACBigMakeRoutePicker(void) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
-    self.layer.cornerRadius = (!self.compact || h < 100.0 || h > 220.0 || w < h * 1.3) ? MIN(34.0, h * 0.5) : 44.0;
+    BOOL wide42 = (self.compact && h >= 100.0 && h <= 220.0 && w >= h * 1.3);
+    self.layer.cornerRadius = wide42 ? 30.0 : MIN(34.0, h * 0.5);
     if (!_blur.superview) [self insertSubview:_blur atIndex:0];
     _blur.frame = self.bounds;
     _blur.layer.cornerRadius = self.layer.cornerRadius;
     _blur.layer.cornerCurve = kCACornerCurveContinuous;
     _blur.clipsToBounds = YES;
     PACBigApplyMaterial(self, _blur, self.layer.cornerRadius);
-    if (self.layer.cornerRadius > 40.0 && !self.standalone) {
+    if (wide42 && !self.standalone) {
         CGSize cs = self.bounds.size;
         int up = 0;
         for (UIView *p = self; p && up < 5; p = p.superview, up++) {
