@@ -2470,6 +2470,84 @@ static UIView *PACCPrivateConnHost(UIViewController *ov) {
     return sVC.view;
 }
 
+@interface PACCCloneMirror : NSObject
+@property (nonatomic, weak) UIView *cv;
+@property (nonatomic, strong) CADisplayLink *link;
+- (void)tick:(CADisplayLink *)l;
+@end
+
+static PACCCloneMirror *sPACMirror;
+static const void *kPACMirroredKey = &kPACMirroredKey;
+
+@implementation PACCCloneMirror
+- (void)tick:(CADisplayLink *)l {
+    UIView *cv = self.cv;
+    if (!cv || !cv.window || !gPACClones.count) { l.paused = YES; return; }
+    if (PACIsLandscape()) return;
+    NSMutableArray<UIView *> *refs = [NSMutableArray array];
+    for (UIView *v in cv.subviews) {
+        if (v.tag == kPACCloneTag || v.hidden) continue;
+        CGSize sz = v.layer.bounds.size;
+        if (sz.width < 20.0 || sz.width > 400.0 || sz.height < 20.0) continue;
+        [refs addObject:v];
+    }
+    if (!refs.count) return;
+    for (UIView *cl in cv.subviews) {
+        if (cl.tag != kPACCloneTag || cl.hidden) continue;
+        CGFloat cy = cl.layer.position.y;
+        UIView *best = nil;
+        CGFloat bd = CGFLOAT_MAX;
+        for (UIView *r in refs) {
+            CGFloat d = fabs(r.layer.position.y - cy);
+            if (d < bd) { bd = d; best = r; }
+        }
+        BOOL was = objc_getAssociatedObject(cl, kPACMirroredKey) != nil;
+        BOOL onPage = NO;
+        NSString *cid = objc_getAssociatedObject(cl, kPACCloneIDKey);
+        for (NSDictionary *d in gPACClones) {
+            if ([d[@"id"] isEqualToString:cid ?: @""]) {
+                onPage = ((NSInteger)([d[@"a"] unsignedIntegerValue] / PACPageDivisor()) == gCurrentPage);
+                break;
+            }
+        }
+        if (!best || bd > 400.0 || !onPage) {
+            if (was) {
+                cl.layer.transform = CATransform3DIdentity;
+                objc_setAssociatedObject(cl, kPACMirroredKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            continue;
+        }
+        CALayer *pl = best.layer.presentationLayer ?: best.layer;
+        CATransform3D t = pl.transform;
+        CGFloat op = pl.opacity;
+        CGFloat pdx = pl.position.x - best.layer.position.x;
+        CGFloat pdy = pl.position.y - best.layer.position.y;
+        BOOL idle = CATransform3DIsIdentity(t) && op > 0.999 && fabs(pdx) < 0.05 && fabs(pdy) < 0.05;
+        if (!idle) t = CATransform3DConcat(t, CATransform3DMakeTranslation(pdx, pdy, 0.0));
+        if (idle && !was) continue;
+        if (idle) {
+            cl.layer.transform = CATransform3DIdentity;
+            cl.alpha = 1.0;
+            objc_setAssociatedObject(cl, kPACMirroredKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            continue;
+        }
+        cl.layer.transform = t;
+        cl.alpha = op;
+        objc_setAssociatedObject(cl, kPACMirroredKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+@end
+
+static void PACCCloneMirrorStart(UIView *cv) {
+    if (!sPACMirror) {
+        sPACMirror = [PACCCloneMirror new];
+        sPACMirror.link = [CADisplayLink displayLinkWithTarget:sPACMirror selector:@selector(tick:)];
+        [sPACMirror.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    }
+    sPACMirror.cv = cv;
+    sPACMirror.link.paused = NO;
+}
+
 void PACCSyncClones(UIViewController *ov, BOOL animated) {
     PACCCrumb("PACCSyncClones");
     static BOOL busy = NO;
@@ -2477,6 +2555,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
     PACEnsureClones();
     UIView *cv = ModuleCollection(ov).view;
     if (!cv) return;
+    PACCCloneMirrorStart(cv);
     if (PACFlagIsSet(CFSTR("SeedClonesPending")) && !PACIsLandscape()) {
         CGFloat sbx = 0, sby = 0;
         if (PACRawGridBase(ov, &sbx, &sby)) {
