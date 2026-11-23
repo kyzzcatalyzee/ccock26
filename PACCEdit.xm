@@ -2348,6 +2348,14 @@ static CGRect PACLandCloneRect(UIView *cv, NSInteger page) {
     return PACCLandUnmap(cv, want, page);
 }
 
+static void PACSetCloneFrame(UIView *cl, CGRect fr) {
+    if (CGRectEqualToRect(cl.frame, fr)) return;
+    if (gEditModeActive) { cl.frame = fr; return; }
+    [UIView performWithoutAnimation:^{ cl.frame = fr; }];
+    [cl.layer removeAnimationForKey:@"position"];
+    [cl.layer removeAnimationForKey:@"bounds"];
+}
+
 void PACCClonesRelayout(UIView *cv) {
     if (cv && gPACClones.count && PACIsLandscape()) {
         if (!cv.window) return;
@@ -2362,7 +2370,7 @@ void PACCClonesRelayout(UIView *cv) {
                 if (kind != 1 && kind != 2) break;
                 if (pg < 1) { if (!PACLandSlotFrame(cv, kind, &fr)) break; }
                 else fr = PACLandCloneRect(cv, pg);
-                if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
+                PACSetCloneFrame(cl, fr);
                 break;
             }
         }
@@ -2376,7 +2384,7 @@ void PACCClonesRelayout(UIView *cv) {
             if (![d[@"id"] isEqualToString:cid ?: @""]) continue;
             CGRect f = PACCloneFrame(d, gPACGridBX, gPACGridBY);
             CGRect fr = PACCloneBigFrame(d, f);
-            if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
+            PACSetCloneFrame(cl, fr);
             cl.clipsToBounds = CGRectEqualToRect(fr, f);
             if (!gPACCRevealAll && !gPagerScrubbing && !gPageAnimating && !gEditModeActive &&
                 (NSInteger)([d[@"a"] unsignedIntegerValue] / PACPageDivisor()) != gCurrentPage && cl.alpha > 0.01) cl.alpha = 0.0;
@@ -2670,7 +2678,7 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
                 if (![loggedC containsObject:cl2]) { [loggedC addObject:cl2]; PACCSizeLog(cl2); }
             }
         }
-        if (!CGRectEqualToRect(cl.frame, fr)) cl.frame = fr;
+        PACSetCloneFrame(cl, fr);
         cl.clipsToBounds = CGRectEqualToRect(fr, f);
         UIView *bg = [cl viewWithTag:kPACCloneBgTag];
         if (bg) { if (!CGRectEqualToRect(bg.frame, cl.bounds)) bg.frame = cl.bounds; [cl sendSubviewToBack:bg]; }
