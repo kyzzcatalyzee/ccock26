@@ -2479,6 +2479,7 @@ static UIView *PACCPrivateConnHost(UIViewController *ov) {
 static PACCCloneMirror *sPACMirror;
 static const void *kPACMirroredKey = &kPACMirroredKey;
 static const void *kPACRestPosKey = &kPACRestPosKey;
+static NSInteger sPACMirrorLogBudget = 0;
 static const void *kPACLastPosKey = &kPACLastPosKey;
 static const void *kPACSincePosKey = &kPACSincePosKey;
 
@@ -2497,6 +2498,18 @@ static const void *kPACSincePosKey = &kPACSincePosKey;
     if (!refs.count) return;
     if (gEditModeActive) return;
     CFTimeInterval nowT = CACurrentMediaTime();
+    if (sPACMirrorLogBudget > 0) {
+        NSMutableString *ml = [NSMutableString stringWithFormat:@"mirror t %.2f cvKeys %@ cvPos %@ sub %@ |", nowT, [cv.layer animationKeys] ?: @"-",
+                               NSStringFromCGPoint(cv.layer.position), NSStringFromCGAffineTransform(CATransform3DGetAffineTransform(cv.layer.sublayerTransform))];
+        for (UIView *v in cv.subviews) {
+            if (v.hidden || v.layer.bounds.size.width < 20.0) continue;
+            CALayer *pl0 = v.layer.presentationLayer ?: v.layer;
+            [ml appendFormat:@" %@%@ m%.0f,%.0f p%.0f,%.0f a%.2f k%lu;", v.tag == kPACCloneTag ? @"CL" : @"M", NSStringFromClass(v.class),
+             v.layer.position.x, v.layer.position.y, pl0.position.x, pl0.position.y, pl0.opacity, (unsigned long)[v.layer animationKeys].count];
+        }
+        PACCSizeLog(ml);
+        sPACMirrorLogBudget--;
+    }
     for (UIView *r in refs) {
         CGPoint pp = (r.layer.presentationLayer ?: r.layer).position;
         NSValue *lastV = objc_getAssociatedObject(r, kPACLastPosKey);
@@ -2563,6 +2576,7 @@ static void PACCCloneMirrorStart(UIView *cv) {
         sPACMirror.link = [CADisplayLink displayLinkWithTarget:sPACMirror selector:@selector(tick:)];
         [sPACMirror.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
     }
+    if (sPACMirror.link.paused) sPACMirrorLogBudget = 90;
     sPACMirror.cv = cv;
     sPACMirror.link.paused = NO;
 }
