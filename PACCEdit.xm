@@ -2578,6 +2578,37 @@ static const void *kPACSincePosKey = &kPACSincePosKey;
 }
 @end
 
+static void PACCCloneEntrance(UIViewController *ov) {
+    if (PACIsLandscape() || gEditModeActive || !gPACClones.count) return;
+    UIView *cv = ModuleCollection(ov).view;
+    if (!cv) return;
+    for (UIView *cl in cv.subviews) {
+        if (cl.tag != kPACCloneTag || cl.hidden || cl.alpha < 0.01) continue;
+        CASpringAnimation *ty = [CASpringAnimation animationWithKeyPath:@"transform.translation.y"];
+        ty.additive = YES;
+        ty.fromValue = @(-46.0);
+        ty.toValue = @0.0;
+        ty.mass = 1.0; ty.stiffness = 170.0; ty.damping = 17.0;
+        ty.duration = ty.settlingDuration;
+        ty.fillMode = kCAFillModeBackwards;
+        CASpringAnimation *sc = [CASpringAnimation animationWithKeyPath:@"transform.scale"];
+        sc.additive = YES;
+        sc.fromValue = @(-0.14);
+        sc.toValue = @0.0;
+        sc.mass = 1.0; sc.stiffness = 170.0; sc.damping = 17.0;
+        sc.duration = sc.settlingDuration;
+        sc.fillMode = kCAFillModeBackwards;
+        CABasicAnimation *op = [CABasicAnimation animationWithKeyPath:@"opacity"];
+        op.fromValue = @0.0;
+        op.toValue = @(cl.layer.opacity);
+        op.duration = 0.26;
+        op.fillMode = kCAFillModeBackwards;
+        [cl.layer addAnimation:ty forKey:@"PACEntryTY"];
+        [cl.layer addAnimation:sc forKey:@"PACEntrySC"];
+        [cl.layer addAnimation:op forKey:@"PACEntryOP"];
+    }
+}
+
 static void PACCCloneMirrorStart(UIView *cv) {
     if (!sPACMirror) {
         sPACMirror = [PACCCloneMirror new];
@@ -6230,6 +6261,14 @@ void PACCLandEndPass(UIView *cv) {
 
 %hook UIViewController
 
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    if ([NSStringFromClass(self.class) containsString:@"ControlCenterOverlayViewController"]) {
+        UIViewController *entOv = (UIViewController *)self;
+        dispatch_async(dispatch_get_main_queue(), ^{ PACCCloneEntrance(entOv); });
+    }
+}
+
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     if (!PACEditAllowed()) return;
@@ -6286,6 +6325,24 @@ void PACCLandEndPass(UIView *cv) {
 %end
 
 %hook CCUIButtonModuleView
+
+- (void)setHighlighted:(BOOL)highlighted {
+    BOOL wasHi = self.highlighted;
+    %orig;
+    if (!gEnabled || gEditModeActive || wasHi == highlighted) return;
+    UIView *bv = (UIView *)(id)self;
+    CGSize bsz = bv.bounds.size;
+    if (bsz.width > 100.0 || bsz.width < 30.0 || fabs(bsz.width - bsz.height) > 6.0) return;
+    if (highlighted) {
+        [UIView animateWithDuration:0.22 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
+                            options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
+                         animations:^{ bv.transform = CGAffineTransformMakeScale(0.88, 0.88); } completion:nil];
+    } else {
+        [UIView animateWithDuration:0.6 delay:0 usingSpringWithDamping:0.38 initialSpringVelocity:9
+                            options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
+                         animations:^{ bv.transform = CGAffineTransformIdentity; } completion:nil];
+    }
+}
 
 - (void)setSelected:(BOOL)selected {
     %orig;
