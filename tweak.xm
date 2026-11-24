@@ -480,7 +480,36 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+static const void *kPACBaseScaleKey = &kPACBaseScaleKey;
+static BOOL sPACOwnTransform = NO;
+
 %hook CCUIContentModuleContainerView
+- (void)setTransform:(CGAffineTransform)t {
+    NSNumber *base = objc_getAssociatedObject(self, kPACBaseScaleKey);
+    if (base && !sPACOwnTransform) {
+        static int logged = 0;
+        if (logged < 8) {
+            logged++;
+            NSArray<NSString *> *cs = NSThread.callStackSymbols;
+            NSString *where = cs.count > 3 ? [[cs subarrayWithRange:NSMakeRange(1, 3)] componentsJoinedByString:@" | "] : @"?";
+            PACCSizeLog([NSString stringWithFormat:@"container setTransform a%.3f d%.3f base %.3f from %@", t.a, t.d, base.doubleValue, where]);
+        }
+        CGFloat k = base.doubleValue;
+        t = CGAffineTransformConcat(t, CGAffineTransformMakeScale(k, k));
+    }
+    %orig(t);
+}
+
+- (CGAffineTransform)transform {
+    CGAffineTransform t = %orig;
+    NSNumber *base = objc_getAssociatedObject(self, kPACBaseScaleKey);
+    if (base && !sPACOwnTransform && base.doubleValue > 0.01) {
+        CGFloat k = 1.0 / base.doubleValue;
+        t = CGAffineTransformConcat(t, CGAffineTransformMakeScale(k, k));
+    }
+    return t;
+}
+
 - (void)setFrame:(CGRect)f {
     UIView *v = (UIView *)(id)self;
     UIView *cv = v.superview;
@@ -491,15 +520,38 @@ BOOL gPagerScrubbing = NO;
         CGFloat sc = gPACPortSc;
         v.bounds = CGRectMake(0.0, 0.0, f.size.width / sc, f.size.height / sc);
         v.center = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
+        objc_setAssociatedObject(self, kPACBaseScaleKey, @(sc), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        sPACOwnTransform = YES;
         v.transform = CGAffineTransformMakeScale(sc, sc);
+        sPACOwnTransform = NO;
         return;
     }
-    if (!CGAffineTransformIsIdentity(v.transform)) v.transform = CGAffineTransformIdentity;
+    if (objc_getAssociatedObject(self, kPACBaseScaleKey)) {
+        objc_setAssociatedObject(self, kPACBaseScaleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        sPACOwnTransform = YES;
+        v.transform = CGAffineTransformIdentity;
+        sPACOwnTransform = NO;
+    }
     %orig;
 }
 
 - (void)layoutSubviews {
     %orig;
+    {
+        NSNumber *base = objc_getAssociatedObject(self, kPACBaseScaleKey);
+        UIView *sv = (UIView *)(id)self;
+        if (base && sv.superview && gEnabled && !PACCLandscapeNow()) {
+            CGAffineTransform cur = sv.layer.affineTransform;
+            if (fabs(cur.a - 1.0) < 0.0005 && fabs(cur.d - 1.0) < 0.0005 && fabs(cur.b) < 0.0005 && fabs(cur.c) < 0.0005) {
+                static int relogged = 0;
+                if (relogged < 8) { relogged++; PACCSizeLog(@"container transform lost, reapplying"); }
+                CGFloat k = base.doubleValue;
+                sPACOwnTransform = YES;
+                sv.transform = CGAffineTransformMakeScale(k, k);
+                sPACOwnTransform = NO;
+            }
+        }
+    }
     if (gEnabled) PACCBigStripContainer((UIView *)self);
 }
 %end
