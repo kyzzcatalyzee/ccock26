@@ -101,6 +101,7 @@ void Haptic(void) {
 }
 
 CGFloat gPACCPortScale = 1.0;
+BOOL gPACCPortSuspend = NO;
 static CGFloat gPACCGridCell = 0.0;
 static CGFloat gPACCGridGap  = 0.0;
 

@@ -103,6 +103,21 @@ BOOL gPagerScrubbing = NO;
 - (void)moduleCollectionViewController:(id)collection willOpenExpandedModule:(id)module {
     PACCNoteExpandedModule(module, YES, nil);
     gCCAModuleExpanded = YES;
+    @try {
+        UIView *ccv = ((UIViewController *)collection).view;
+        if (gEnabled && ccv && !PACCLandscapeNow() && gPACCPortScale < 0.999 && !gPACCPortSuspend) {
+            CATransform3D from = ccv.layer.sublayerTransform;
+            gPACCPortSuspend = YES;
+            CATransform3D to = PACCDesiredTransform(from, ccv, PACCLandShiftNow(), -(CGFloat)gCurrentPage * PageSpan());
+            ccv.layer.sublayerTransform = to;
+            CABasicAnimation *a = [CABasicAnimation animationWithKeyPath:@"sublayerTransform"];
+            a.fromValue = [NSValue valueWithCATransform3D:from];
+            a.toValue = [NSValue valueWithCATransform3D:to];
+            a.duration = 0.2;
+            a.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+            [ccv.layer addAnimation:a forKey:@"pac.portSuspend"];
+        }
+    } @catch (__unused NSException *e) {}
     UIViewController *overlay = (UIViewController *)(id)self;
     UIView *indicator = [overlay.view viewWithTag:kPageIndicatorTag];
     [UIView animateWithDuration:0.2 animations:^{
@@ -118,6 +133,22 @@ BOOL gPagerScrubbing = NO;
     %orig;
     gCCAModuleExpanded = NO;
     gPACCExpandQuietUntil = CACurrentMediaTime() + 1.5;
+    @try {
+        UIView *ccv = ((UIViewController *)collection).view;
+        if (gPACCPortSuspend && ccv) {
+            CATransform3D from = ccv.layer.sublayerTransform;
+            gPACCPortSuspend = NO;
+            CATransform3D to = PACCDesiredTransform(from, ccv, PACCLandShiftNow(), -(CGFloat)gCurrentPage * PageSpan());
+            ccv.layer.sublayerTransform = to;
+            CABasicAnimation *a = [CABasicAnimation animationWithKeyPath:@"sublayerTransform"];
+            a.fromValue = [NSValue valueWithCATransform3D:from];
+            a.toValue = [NSValue valueWithCATransform3D:to];
+            a.duration = 0.28;
+            a.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+            [ccv.layer addAnimation:a forKey:@"pac.portSuspend"];
+        }
+    } @catch (__unused NSException *e) {}
+    gPACCPortSuspend = NO;
     UIViewController *overlay = (UIViewController *)(id)self;
     PACCNoteExpandedModule(module, NO, overlay);
     dispatch_async(dispatch_get_main_queue(), ^{

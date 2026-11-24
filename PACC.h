@@ -284,6 +284,7 @@ static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, C
     *outSc = cSc; *outMc = cMc; *outTop = cTop; *outRaise = cRaise;
     return have;
 }
+extern BOOL gPACCPortSuspend;
 static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGFloat shift, CGFloat offset) {
     cur.m11 = 1.0;
     cur.m22 = 1.0;
@@ -295,6 +296,7 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     CGFloat sc = 1.0, mc = 0.0, top = 0.0, raise = 0.0;
     if (!PACCPortMeasure(cv, &sc, &mc, &top, &raise)) return cur;
     gPACCPortScale = sc;
+    if (gPACCPortSuspend) return cur;
     CGRect b = cv.bounds;
     CGFloat cx = b.origin.x + b.size.width * 0.5;
     CGFloat cy = b.origin.y + b.size.height * 0.5;
