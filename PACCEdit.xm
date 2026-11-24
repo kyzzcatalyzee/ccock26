@@ -327,6 +327,13 @@ static void PACSeedDefaultPages(void) {
     CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
 }
 
+static NSString *PACResKey(void) {
+    CGSize s = UIScreen.mainScreen.bounds.size;
+    return [NSString stringWithFormat:@"%.0fx%.0f@%.2f", MIN(s.width, s.height), MAX(s.width, s.height), UIScreen.mainScreen.scale];
+}
+static BOOL gPACMetricsAuth = NO;
+static void PACMigrateAnchorsForStride(void);
+
 static void PACEnsureStore(void) {
     PACSeedDefaultPages();
     static BOOL metricsLoaded = NO;
@@ -334,9 +341,23 @@ static void PACEnsureStore(void) {
         metricsLoaded = YES;
         CFPropertyListRef c = CFPreferencesCopyAppValue(CFSTR("GridCell"), CFSTR("pawxed.ccock26.preferences"));
         CFPropertyListRef g = CFPreferencesCopyAppValue(CFSTR("GridGap"),  CFSTR("pawxed.ccock26.preferences"));
+        CFPropertyListRef rk = CFPreferencesCopyAppValue(CFSTR("GridResKey"), CFSTR("pawxed.ccock26.preferences"));
+        NSString *curKey = PACResKey();
+        NSString *savedKey = (rk && CFGetTypeID(rk) == CFStringGetTypeID()) ? (__bridge NSString *)rk : nil;
         if (c && g && CFGetTypeID(c) == CFNumberGetTypeID() && CFGetTypeID(g) == CFNumberGetTypeID()) {
-            PACCSetGridMetrics([(__bridge NSNumber *)c doubleValue], [(__bridge NSNumber *)g doubleValue]);
+            if (!savedKey || [savedKey isEqualToString:curKey]) {
+                PACCSetGridMetrics([(__bridge NSNumber *)c doubleValue], [(__bridge NSNumber *)g doubleValue]);
+                gPACMetricsAuth = YES;
+                if (!savedKey) {
+                    CFPreferencesSetAppValue(CFSTR("GridResKey"), (__bridge CFPropertyListRef)curKey, CFSTR("pawxed.ccock26.preferences"));
+                }
+            } else {
+                PACCSizeLog([NSString stringWithFormat:@"resolution changed %@ -> %@, grid metrics will be re-measured", savedKey, curKey]);
+            }
+        } else if (!c && !g) {
+            PACCSizeLog([NSString stringWithFormat:@"resolution %@ (no saved grid metrics)", curKey]);
         }
+        if (rk) CFRelease(rk);
         if (c) CFRelease(c);
         if (g) CFRelease(g);
     }
@@ -378,6 +399,7 @@ static void PACEnsureStore(void) {
         gEditBaseSizes = [(__bridge NSDictionary *)v mutableCopy] ?: [NSMutableDictionary dictionary];
         if (v) CFRelease(v);
     }
+    PACMigrateAnchorsForStride();
 }
 
 static void PACSaveStore(void) {
@@ -701,13 +723,32 @@ static void PACUpdateGridMetrics(UIViewController *ov) {
     step = floor(step * 2.0 + 0.5) / 2.0;
     CGFloat gap = step - cell;
     if (gap < 4.0 || gap > 40.0) return;
-    if (fabs(cell - PACCGridCell()) < 0.4 && fabs(gap - PACCGridGap()) < 0.4) return;
+    if (fabs(cell - PACCGridCell()) < 0.4 && fabs(gap - PACCGridGap()) < 0.4) {
+        NSString *rk0 = PACResKey();
+        CFPropertyListRef sk = CFPreferencesCopyAppValue(CFSTR("GridResKey"), CFSTR("pawxed.ccock26.preferences"));
+        BOOL same = sk && CFGetTypeID(sk) == CFStringGetTypeID() && [(__bridge NSString *)sk isEqualToString:rk0];
+        if (sk) CFRelease(sk);
+        if (!same) {
+            CFPreferencesSetAppValue(CFSTR("GridCell"), (__bridge CFPropertyListRef)@(cell), CFSTR("pawxed.ccock26.preferences"));
+            CFPreferencesSetAppValue(CFSTR("GridGap"),  (__bridge CFPropertyListRef)@(gap),  CFSTR("pawxed.ccock26.preferences"));
+            CFPreferencesSetAppValue(CFSTR("GridResKey"), (__bridge CFPropertyListRef)rk0, CFSTR("pawxed.ccock26.preferences"));
+            CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
+        }
+        gPACMetricsAuth = YES;
+        PACRefreshGridConstants();
+        PACMigrateAnchorsForStride();
+        return;
+    }
 
     PACCSetGridMetrics(cell, gap);
     CFPreferencesSetAppValue(CFSTR("GridCell"), (__bridge CFPropertyListRef)@(cell), CFSTR("pawxed.ccock26.preferences"));
     CFPreferencesSetAppValue(CFSTR("GridGap"),  (__bridge CFPropertyListRef)@(gap),  CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesSetAppValue(CFSTR("GridResKey"), (__bridge CFPropertyListRef)PACResKey(), CFSTR("pawxed.ccock26.preferences"));
     CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
+    gPACMetricsAuth = YES;
     PACRefreshGridConstants();
+    PACMigrateAnchorsForStride();
+    PACCSizeLog([NSString stringWithFormat:@"grid metrics measured for %@: cell %.1f gap %.1f stride %lu", PACResKey(), cell, gap, (unsigned long)kPACStride]);
     [ov.view setNeedsLayout];
 }
 
@@ -2282,6 +2323,45 @@ static void PACSaveClones(void) {
     PACEnsureClones();
     CFPreferencesSetAppValue(CFSTR("EditClones"), (__bridge CFPropertyListRef)[gPACClones copy], CFSTR("pawxed.ccock26.preferences"));
     CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
+}
+
+static void PACMigrateAnchorsForStride(void) {
+    static BOOL busy = NO;
+    if (busy || !gPACMetricsAuth || PACIsLandscape()) return;
+    NSUInteger ns = kPACStride;
+    if (ns < 8 || ns > 40) return;
+    busy = YES;
+    NSUInteger os = 0;
+    CFPropertyListRef sv = CFPreferencesCopyAppValue(CFSTR("AnchorStride"), CFSTR("pawxed.ccock26.preferences"));
+    if (sv && CFGetTypeID(sv) == CFNumberGetTypeID()) os = [(__bridge NSNumber *)sv unsignedIntegerValue];
+    if (sv) CFRelease(sv);
+    if (os == ns) { busy = NO; return; }
+    if (os >= 8 && os <= 40) {
+        PACEnsureStore();
+        PACEnsureClones();
+        NSUInteger (^conv)(NSUInteger) = ^NSUInteger(NSUInteger a) {
+            return (a / os) * ns + MIN(a % os, ns - 1);
+        };
+        NSUInteger n = 0;
+        for (NSString *key in [gEditOrigins.allKeys copy]) {
+            NSArray<NSNumber *> *o = gEditOrigins[key];
+            if (![o isKindOfClass:NSArray.class] || o.count < 2) continue;
+            NSUInteger a0 = o[1].unsignedIntegerValue, a1 = conv(a0);
+            if (a1 != a0) { gEditOrigins[key] = @[o[0], @(a1)]; n++; }
+        }
+        NSUInteger nc = 0;
+        for (NSMutableDictionary *cd in gPACClones) {
+            NSUInteger a0 = [cd[@"a"] unsignedIntegerValue], a1 = conv(a0);
+            if (a1 != a0) { cd[@"a"] = @(a1); nc++; }
+        }
+        PACSaveStore();
+        PACSaveClones();
+        PACCSizeLog([NSString stringWithFormat:@"page stride changed %lu -> %lu (resolution %@): migrated %lu origins, %lu clones",
+                     (unsigned long)os, (unsigned long)ns, PACResKey(), (unsigned long)n, (unsigned long)nc]);
+    }
+    CFPreferencesSetAppValue(CFSTR("AnchorStride"), (__bridge CFPropertyListRef)@(ns), CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
+    busy = NO;
 }
 
 static CGFloat gPACGridBX = 0, gPACGridBY = 0;

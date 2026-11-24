@@ -197,6 +197,18 @@ BOOL gPagerScrubbing = NO;
     if (gEnabled) {
         UIViewController *overlay = (UIViewController *)(id)self;
         [PACC.shared layoutPageIndicatorForOverlay:overlay];
+        if (gPagingEnabled && !gCCAModuleExpanded && !PACCLandscapeNow()) {
+            UIView *pind = [overlay.view viewWithTag:kPageIndicatorTag];
+            if (!pind) {
+                [PACC.shared installPageIndicatorOnOverlay:overlay];
+                pind = [overlay.view viewWithTag:kPageIndicatorTag];
+            }
+            if (pind && pind.hidden && pind.layer.animationKeys.count == 0) {
+                pind.hidden = NO;
+                pind.alpha = 1.0;
+                pind.transform = CGAffineTransformIdentity;
+            }
+        }
         [PACC.shared adjustStatusBarForOverlay:overlay];
         {
             static void *kPACCLandShiftKey = &kPACCLandShiftKey;
