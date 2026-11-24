@@ -182,6 +182,15 @@ BOOL gPagerScrubbing = NO;
         gCurrentPage = 0;
         [PACC.shared adjustStatusBarForOverlay:overlay];
         gCurrentPage = savedPage;
+
+        if (stateChanged && savedPage != 0 && !gEditModeActive && gPagingEnabled) {
+            UIView *rind = [overlay.view viewWithTag:kPageIndicatorTag];
+            SEL rsel = NSSelectorFromString(gExperimentalPagingEnabled ? @"experimentalSetCurrentPage:forOverlay:" : @"stableSetCurrentPage:forOverlay:");
+            if (rind && [rind respondsToSelector:rsel]) {
+                ((void (*)(id, SEL, NSUInteger, id))objc_msgSend)(rind, rsel, 0, overlay);
+                PACCSizeLog([NSString stringWithFormat:@"reset to main page on dismiss (was %ld)", (long)savedPage]);
+            }
+        }
     }
 }
 

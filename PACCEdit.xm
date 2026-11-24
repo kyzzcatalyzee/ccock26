@@ -2980,12 +2980,27 @@ static BOOL PACFindSlot(NSString *mid, NSUInteger w, NSUInteger h, UIViewControl
     }
 
     NSUInteger cap = PACVisibleRowCap(ov);
+    {
+        NSMutableString *dbg = [NSMutableString stringWithFormat:@"find slot %@ %lux%lu res %@ stride %lu rows %lu cap %lu cur %ld base.y %.1f overlayH %.1f |",
+            mid, (unsigned long)w, (unsigned long)h, PACResKey(), (unsigned long)kPACStride, (unsigned long)kPACRows, (unsigned long)cap,
+            (long)gCurrentPage, PACGridBase(ov).y, CGRectGetHeight(ov.view.bounds)];
+        for (NSNumber *pn in order) {
+            NSDictionary *pm = pages[pn];
+            [dbg appendFormat:@" p%@:", pn];
+            for (NSString *k in pm) {
+                PACRect q = {}; [pm[k] getValue:&q];
+                [dbg appendFormat:@" %@(%lu,%lu,%lux%lu)", [k componentsSeparatedByString:@"."].lastObject, (unsigned long)q.c, (unsigned long)q.r, (unsigned long)q.w, (unsigned long)q.h];
+            }
+        }
+        PACCSizeLog(dbg);
+    }
     for (NSNumber *pn in order) {
         NSUInteger p = pn.unsignedIntegerValue;
         NSUInteger maxRow = (cap + 1 >= h) ? cap + 1 - h : 0;
         if (kPACRows >= h) maxRow = MIN(maxRow, kPACRows - h);
         NSUInteger oc = 0, orr = 0;
         if (PACFirstFreeCell(pages[pn] ?: @{}, w, h, maxRow, &oc, &orr)) {
+            PACCSizeLog([NSString stringWithFormat:@"find slot -> page %lu col %lu row %lu (maxRow %lu)", (unsigned long)p, (unsigned long)oc, (unsigned long)orr, (unsigned long)maxRow]);
             if (outCol) *outCol = oc;
             if (outAbs) *outAbs = p * kPACStride + orr;
             if (outPage) *outPage = p;
