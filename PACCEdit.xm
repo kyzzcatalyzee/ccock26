@@ -637,13 +637,6 @@ static BOOL PACRawFrame(UIViewController *m, UIViewController *overlay, CGRect *
         if (!sv) return NO;
         CGPoint c = v.center;
         CGRect b = v.bounds;
-        CGAffineTransform vt = v.transform;
-        if (!CGAffineTransformIsIdentity(vt)) {
-            CGPoint bc = CGPointMake(b.origin.x + b.size.width * 0.5, b.origin.y + b.size.height * 0.5);
-            r = CGRectOffset(r, -bc.x, -bc.y);
-            r = CGRectApplyAffineTransform(r, vt);
-            r = CGRectOffset(r, bc.x, bc.y);
-        }
         r.origin.x += c.x - b.size.width * 0.5 - b.origin.x;
         r.origin.y += c.y - b.size.height * 0.5 - b.origin.y;
         v = sv;

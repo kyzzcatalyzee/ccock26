@@ -480,78 +480,41 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
-static const void *kPACBaseScaleKey = &kPACBaseScaleKey;
-static BOOL sPACOwnTransform = NO;
-
 %hook CCUIContentModuleContainerView
-- (void)setTransform:(CGAffineTransform)t {
-    NSNumber *base = objc_getAssociatedObject(self, kPACBaseScaleKey);
-    if (base && !sPACOwnTransform) {
-        static int logged = 0;
-        if (logged < 8) {
-            logged++;
-            NSArray<NSString *> *cs = NSThread.callStackSymbols;
-            NSString *where = cs.count > 3 ? [[cs subarrayWithRange:NSMakeRange(1, 3)] componentsJoinedByString:@" | "] : @"?";
-            PACCSizeLog([NSString stringWithFormat:@"container setTransform a%.3f d%.3f base %.3f from %@", t.a, t.d, base.doubleValue, where]);
-        }
-        CGFloat k = base.doubleValue;
-        t = CGAffineTransformConcat(t, CGAffineTransformMakeScale(k, k));
-    }
-    %orig(t);
-}
-
-- (CGAffineTransform)transform {
-    CGAffineTransform t = %orig;
-    NSNumber *base = objc_getAssociatedObject(self, kPACBaseScaleKey);
-    if (base && !sPACOwnTransform && base.doubleValue > 0.01) {
-        CGFloat k = 1.0 / base.doubleValue;
-        t = CGAffineTransformConcat(t, CGAffineTransformMakeScale(k, k));
-    }
-    return t;
-}
-
-- (void)setFrame:(CGRect)f {
-    UIView *v = (UIView *)(id)self;
-    UIView *cv = v.superview;
-    if (cv && ![NSStringFromClass(cv.class) isEqualToString:@"CCUIModuleCollectionView"]) cv = nil;
-    BOOL act = gEnabled && gPACPortHave && cv && cv.window && !PACCLandscapeNow() && PACCPortFrameActive(cv) &&
-               f.size.width > 2.0 && f.size.height > 2.0 && gPACPortSc > 0.3 && gPACPortSc < 0.999;
-    if (act) {
-        CGFloat sc = gPACPortSc;
-        v.bounds = CGRectMake(0.0, 0.0, f.size.width / sc, f.size.height / sc);
-        v.center = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
-        objc_setAssociatedObject(self, kPACBaseScaleKey, @(sc), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        sPACOwnTransform = YES;
-        v.transform = CGAffineTransformMakeScale(sc, sc);
-        sPACOwnTransform = NO;
-        return;
-    }
-    if (objc_getAssociatedObject(self, kPACBaseScaleKey)) {
-        objc_setAssociatedObject(self, kPACBaseScaleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        sPACOwnTransform = YES;
-        v.transform = CGAffineTransformIdentity;
-        sPACOwnTransform = NO;
-    }
-    %orig;
-}
-
 - (void)layoutSubviews {
     %orig;
-    {
-        NSNumber *base = objc_getAssociatedObject(self, kPACBaseScaleKey);
-        UIView *sv = (UIView *)(id)self;
-        if (base && sv.superview && gEnabled && !PACCLandscapeNow()) {
-            CGAffineTransform cur = sv.layer.affineTransform;
-            if (fabs(cur.a - 1.0) < 0.0005 && fabs(cur.d - 1.0) < 0.0005 && fabs(cur.b) < 0.0005 && fabs(cur.c) < 0.0005) {
-                static int relogged = 0;
-                if (relogged < 8) { relogged++; PACCSizeLog(@"container transform lost, reapplying"); }
-                CGFloat k = base.doubleValue;
-                sPACOwnTransform = YES;
-                sv.transform = CGAffineTransformMakeScale(k, k);
-                sPACOwnTransform = NO;
+    @try {
+        UIView *me = (UIView *)(id)self;
+        UIView *cv = me.superview;
+        BOOL inGrid = cv && [NSStringFromClass(cv.class) isEqualToString:@"CCUIModuleCollectionView"];
+        BOOL ex = NO;
+        SEL s1 = NSSelectorFromString(@"isExpanded"), s2 = NSSelectorFromString(@"expanded");
+        if ([me respondsToSelector:s1]) ex = ((BOOL (*)(id, SEL))objc_msgSend)(me, s1);
+        else if ([me respondsToSelector:s2]) ex = ((BOOL (*)(id, SEL))objc_msgSend)(me, s2);
+        CGSize bs = me.bounds.size;
+        BOOL act = gEnabled && inGrid && !ex && gPACPortHave && cv.window && !PACCLandscapeNow() &&
+                   PACCPortFrameActive(cv) && gPACPortSc > 0.3 && gPACPortSc < 0.999 && bs.width > 2.0 && bs.height > 2.0;
+        static const void *kScaled = &kScaled;
+        if (act) {
+            CGFloat k = gPACPortSc;
+            CGAffineTransform want = CGAffineTransformMakeScale(k, k);
+            for (UIView *s in me.subviews) {
+                if (s.tag == 190200 || s.tag == 182100) continue;
+                s.transform = CGAffineTransformIdentity;
+                s.bounds = CGRectMake(0, 0, bs.width / k, bs.height / k);
+                s.center = CGPointMake(bs.width * 0.5, bs.height * 0.5);
+                s.transform = want;
+                objc_setAssociatedObject(s, kScaled, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+        } else {
+            for (UIView *s in me.subviews) {
+                if (!objc_getAssociatedObject(s, kScaled)) continue;
+                objc_setAssociatedObject(s, kScaled, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                s.transform = CGAffineTransformIdentity;
+                s.frame = me.bounds;
             }
         }
-    }
+    } @catch (__unused NSException *e) {}
     if (gEnabled) PACCBigStripContainer((UIView *)self);
 }
 %end
