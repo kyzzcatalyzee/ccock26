@@ -148,6 +148,28 @@ BOOL gPagerScrubbing = NO;
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[overlay.view viewWithTag:kMediaPlayerTag];
 
     if (state == 1) {
+        if (stateChanged && gCurrentPage != 0 && !gEditModeActive && gPagingEnabled && !PACCLandscapeNow()) {
+            UIView *rind = [overlay.view viewWithTag:kPageIndicatorTag];
+            UIViewController *rcol = ModuleCollection(overlay);
+            [CATransaction begin];
+            [CATransaction setDisableActions:YES];
+            if (rcol.view) {
+                [rcol.view.layer removeAllAnimations];
+                [PACC.shared snapToFirstPageForOverlay:overlay];
+            } else {
+                gCurrentPage = 0;
+            }
+            if ([rind isKindOfClass:CCAPageIndicator.class]) {
+                ((CCAPageIndicator *)rind).currentPage = 0;
+                [(CCAPageIndicator *)rind layoutButtons];
+            }
+            gPageAnimating = NO;
+            [PACC.shared applyHeaderMaterialHidden:NO forOverlay:overlay];
+            [PACC.shared adjustStatusBarForOverlay:overlay];
+            [PACC.shared syncModuleVisibilityForOverlay:overlay animated:NO];
+            [CATransaction commit];
+            PACCSizeLog(@"reset to main page on present (teleport)");
+        }
         if (!notched) {
             UIViewController *collection = ModuleCollection(overlay);
             if (collection && collection.view) {
@@ -183,14 +205,6 @@ BOOL gPagerScrubbing = NO;
         [PACC.shared adjustStatusBarForOverlay:overlay];
         gCurrentPage = savedPage;
 
-        if (stateChanged && savedPage != 0 && !gEditModeActive && gPagingEnabled) {
-            UIView *rind = [overlay.view viewWithTag:kPageIndicatorTag];
-            SEL rsel = NSSelectorFromString(gExperimentalPagingEnabled ? @"experimentalSetCurrentPage:forOverlay:" : @"stableSetCurrentPage:forOverlay:");
-            if (rind && [rind respondsToSelector:rsel]) {
-                ((void (*)(id, SEL, NSUInteger, id))objc_msgSend)(rind, rsel, 0, overlay);
-                PACCSizeLog([NSString stringWithFormat:@"reset to main page on dismiss (was %ld)", (long)savedPage]);
-            }
-        }
     }
 }
 

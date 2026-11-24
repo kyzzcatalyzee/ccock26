@@ -360,6 +360,17 @@ static void PACEnsureStore(void) {
         if (rk) CFRelease(rk);
         if (c) CFRelease(c);
         if (g) CFRelease(g);
+        {
+            CFPropertyListRef as = CFPreferencesCopyAppValue(CFSTR("AnchorStride"), CFSTR("pawxed.ccock26.preferences"));
+            CFPropertyListRef ak = CFPreferencesCopyAppValue(CFSTR("AnchorResKey"), CFSTR("pawxed.ccock26.preferences"));
+            NSString *aks = (ak && CFGetTypeID(ak) == CFStringGetTypeID()) ? (__bridge NSString *)ak : nil;
+            if (as && CFGetTypeID(as) == CFNumberGetTypeID() && (!aks || [aks isEqualToString:curKey])) {
+                NSUInteger ps = [(__bridge NSNumber *)as unsignedIntegerValue];
+                if (ps >= 8 && ps <= 40) gPACPinnedStride = ps;
+            }
+            if (as) CFRelease(as);
+            if (ak) CFRelease(ak);
+        }
     }
     if (!gEditOrigins) {
         CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridOrigins"), CFSTR("pawxed.ccock26.preferences"));
@@ -2335,7 +2346,12 @@ static void PACMigrateAnchorsForStride(void) {
     CFPropertyListRef sv = CFPreferencesCopyAppValue(CFSTR("AnchorStride"), CFSTR("pawxed.ccock26.preferences"));
     if (sv && CFGetTypeID(sv) == CFNumberGetTypeID()) os = [(__bridge NSNumber *)sv unsignedIntegerValue];
     if (sv) CFRelease(sv);
-    if (os == ns) { busy = NO; return; }
+    if (os == ns) {
+        gPACPinnedStride = MAX(gPACPinnedStride, ns);
+        CFPreferencesSetAppValue(CFSTR("AnchorResKey"), (__bridge CFPropertyListRef)PACResKey(), CFSTR("pawxed.ccock26.preferences"));
+        busy = NO;
+        return;
+    }
     if (os >= 8 && os <= 40) {
         PACEnsureStore();
         PACEnsureClones();
@@ -2360,7 +2376,9 @@ static void PACMigrateAnchorsForStride(void) {
                      (unsigned long)os, (unsigned long)ns, PACResKey(), (unsigned long)n, (unsigned long)nc]);
     }
     CFPreferencesSetAppValue(CFSTR("AnchorStride"), (__bridge CFPropertyListRef)@(ns), CFSTR("pawxed.ccock26.preferences"));
+    CFPreferencesSetAppValue(CFSTR("AnchorResKey"), (__bridge CFPropertyListRef)PACResKey(), CFSTR("pawxed.ccock26.preferences"));
     CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
+    gPACPinnedStride = ns;
     busy = NO;
 }
 

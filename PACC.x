@@ -125,6 +125,8 @@ NSInteger PACCMediaPageIndex(void) { return gMediaPageEnabled ? 1 : -1; }
 NSInteger PACCPromoPageIndex(void) { return gPromoPageEnabled ? (gMediaPageEnabled ? 2 : 1) : -1; }
 NSUInteger PACCBasePageCount(void) { return 1 + (gMediaPageEnabled ? 1 : 0) + (gPromoPageEnabled ? 1 : 0); }
 
+NSUInteger gPACPinnedStride = 0;
+
 CGFloat PageSpan(void) {
     CGSize size = UIScreen.mainScreen.bounds.size;
     BOOL landscape = size.width > size.height;
@@ -136,7 +138,9 @@ CGFloat PageSpan(void) {
 
     CGFloat extra = screenH - pageSpan;
     NSUInteger spacerRows = extra > step * 0.35 ? (NSUInteger)ceil(extra / step) : 0;
-    return (CGFloat)(gridRows + spacerRows) * step;
+    NSUInteger total = gridRows + spacerRows;
+    if (!landscape && gPACPinnedStride > total) total = gPACPinnedStride;
+    return (CGFloat)total * step;
 }
 
 UIViewController *OverlayIn(UIViewController *root) {
