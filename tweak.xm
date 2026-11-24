@@ -480,6 +480,11 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+static const void *kPACScaledKey = &kPACScaledKey;
+static const void *kPACRescaleKey = &kPACRescaleKey;
+static BOOL sPACScaleOwn = NO;
+static void PACCScaleContainerContent(UIView *me);
+
 static void PACCScaleContainerContent(UIView *me) {
     @try {
                 UIView *cv = me.superview;
@@ -491,28 +496,68 @@ static void PACCScaleContainerContent(UIView *me) {
         CGSize bs = me.bounds.size;
         BOOL act = gEnabled && inGrid && !ex && gPACPortHave && cv.window && !PACCLandscapeNow() &&
                    PACCPortFrameActive(cv) && gPACPortSc > 0.3 && gPACPortSc < 0.999 && bs.width > 2.0 && bs.height > 2.0;
-        static const void *kScaled = &kScaled;
+        const void *kScaled = kPACScaledKey;
         if (act) {
             CGFloat k = gPACPortSc;
             CGAffineTransform want = CGAffineTransformMakeScale(k, k);
             for (UIView *s in me.subviews) {
                 if (s.tag == 190200 || s.tag == 182100) continue;
+                sPACScaleOwn = YES;
                 s.transform = CGAffineTransformIdentity;
                 s.bounds = CGRectMake(0, 0, bs.width / k, bs.height / k);
                 s.center = CGPointMake(bs.width * 0.5, bs.height * 0.5);
                 s.transform = want;
+                sPACScaleOwn = NO;
                 objc_setAssociatedObject(s, kScaled, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            if (!objc_getAssociatedObject(me, kPACRescaleKey)) {
+                objc_setAssociatedObject(me, kPACRescaleKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                __weak UIView *wme = me;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    UIView *m = wme;
+                    if (!m) return;
+                    objc_setAssociatedObject(m, kPACRescaleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                    PACCScaleContainerContent(m);
+                });
             }
         } else {
             for (UIView *s in me.subviews) {
                 if (!objc_getAssociatedObject(s, kScaled)) continue;
                 objc_setAssociatedObject(s, kScaled, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                sPACScaleOwn = YES;
                 s.transform = CGAffineTransformIdentity;
                 s.frame = me.bounds;
+                sPACScaleOwn = NO;
             }
         }
     } @catch (__unused NSException *e) {}
 }
+
+%hook CCUIContentModuleContentContainerView
+- (void)setFrame:(CGRect)f {
+    UIView *v = (UIView *)(id)self;
+    if (!sPACScaleOwn && gEnabled && objc_getAssociatedObject(v, kPACScaledKey) && gPACPortSc > 0.3 && gPACPortSc < 0.999 &&
+        f.size.width > 2.0 && f.size.height > 2.0) {
+        CGFloat k = gPACPortSc;
+        sPACScaleOwn = YES;
+        v.bounds = CGRectMake(0, 0, f.size.width / k, f.size.height / k);
+        v.center = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
+        sPACScaleOwn = NO;
+        return;
+    }
+    %orig;
+}
+- (void)setBounds:(CGRect)b {
+    UIView *v = (UIView *)(id)self;
+    UIView *sv = v.superview;
+    if (!sPACScaleOwn && gEnabled && sv && objc_getAssociatedObject(v, kPACScaledKey) && gPACPortSc > 0.3 && gPACPortSc < 0.999 &&
+        fabs(b.size.width - sv.bounds.size.width) < 1.0 && fabs(b.size.height - sv.bounds.size.height) < 1.0) {
+        b.size = CGSizeMake(b.size.width / gPACPortSc, b.size.height / gPACPortSc);
+    }
+    %orig(b);
+}
+- (void)setCenter:(CGPoint)c { %orig; }
+%end
 
 %hook CCUIContentModuleContainerView
 - (void)layoutSubviews {
