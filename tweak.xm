@@ -226,7 +226,7 @@ BOOL gPagerScrubbing = NO;
                 [PACC.shared installPageIndicatorOnOverlay:overlay];
                 pind = [overlay.view viewWithTag:kPageIndicatorTag];
             }
-            if (pind && pind.hidden && pind.layer.animationKeys.count == 0) {
+            if (pind && (pind.hidden || pind.alpha < 0.99) && pind.layer.animationKeys.count == 0) {
                 pind.hidden = NO;
                 pind.alpha = 1.0;
                 pind.transform = CGAffineTransformIdentity;

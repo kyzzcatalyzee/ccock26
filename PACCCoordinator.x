@@ -415,12 +415,10 @@ BOOL gPACCRevealAll = NO;
         } completion:nil];
     }
     if (indicator) {
-        indicator.hidden = NO;
-        indicator.alpha = 0.0;
+        [indicator.layer removeAllAnimations];
+        indicator.hidden = gCCAModuleExpanded;
+        indicator.alpha = 1.0;
         indicator.transform = CGAffineTransformIdentity;
-        [UIView animateWithDuration:0.35 delay:0.05 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction animations:^{
-            indicator.alpha = 1.0;
-        } completion:nil];
     }
 }
 
