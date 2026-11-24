@@ -119,7 +119,9 @@ BOOL PACCLIQApplyGlass(UIView *host, CGFloat radius);
 void PACCLIQSetFixedBlur(UIView *host, CGFloat blur);
 void PACBigFixLGRadius(UIView *g, CGFloat r);
 void PACBigRefreshLG(UIView *root);
-#define kPACConnExtra 45.0
+#define kPACConnExtra 0.0
+#define kPACConnLen 570.0
+#define kPACMusicExtra 45.0
 #define kPACConnW 330.0
 #define kPACLandShift (-28.0)
 static inline BOOL PACCLandscapeNow(void) {
@@ -345,9 +347,17 @@ static inline CGRect PACCBigOutsetS(int kind, CGRect f, CGFloat ss) {
     CGFloat dx = (kind == 1) ? MAX(0.0, (f.size.width - kPACConnW * ss) * 0.5) : 5.0 * ss;
     CGFloat gap = PACCGridGap() * ss;
     CGFloat step = (PACCGridCell() + PACCGridGap()) * ss;
+    if (kind == 1 || kind == 2) {
+        CGRect cr = f;
+        CGFloat th = kPACConnLen * ss;
+        cr.origin.y += (f.size.height - th) * 0.5;
+        cr.size.height = th;
+        return CGRectInset(cr, dx, 0);
+    }
+    CGFloat ex = kPACMusicExtra;
     CGRect r = f;
-    if (r.size.height > 7.5 * step - gap) r.size.height = 7.0 * step - gap - kPACConnExtra * ss;
-    return CGRectInset(r, dx, -kPACConnExtra * ss * 0.5);
+    if (r.size.height > 7.5 * step - gap) r.size.height = 7.0 * step - gap - ex * ss;
+    return CGRectInset(r, dx, -ex * ss * 0.5);
 }
 static inline CGRect PACCBigOutset(int kind, CGRect f) {
     return PACCBigOutsetS(kind, f, 1.0);

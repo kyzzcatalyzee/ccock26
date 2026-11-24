@@ -367,6 +367,11 @@ static void PACEnsureStore(void) {
         CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditGridSizes"), CFSTR("pawxed.ccock26.preferences"));
         gEditSizes = [(__bridge NSDictionary *)v mutableCopy] ?: [NSMutableDictionary dictionary];
         if (v) CFRelease(v);
+        for (NSString *k in [gEditSizes.allKeys copy]) {
+            id sz = gEditSizes[k];
+            if ([k isKindOfClass:NSString.class] && (PACCBigKind(k) == 1 || PACCBigKind(k) == 2) && [sz isKindOfClass:NSArray.class] && [sz count] == 2 &&
+                [sz[0] unsignedIntegerValue] == 4 && [sz[1] unsignedIntegerValue] == 6) gEditSizes[k] = @[@4, @7];
+        }
     }
     if (!gEditBaseSizes) {
         CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("EditBaseSizes"), CFSTR("pawxed.ccock26.preferences"));
@@ -2207,6 +2212,24 @@ static void PACEnsureClones(void) {
         PACSaveClones();
         PACSetFlag(CFSTR("SeedClones6"));
     }
+    if (!PACFlagIsSet(CFSTR("ConnClones7"))) {
+        for (NSMutableDictionary *cd in gPACClones) {
+            NSString *cmid = cd[@"mid"];
+            if ([cmid isKindOfClass:NSString.class] && PACCBigKind(cmid) == 1 && [cd[@"w"] unsignedIntegerValue] == 4 &&
+                [cd[@"h"] unsignedIntegerValue] == 6) cd[@"h"] = @7;
+        }
+        PACSaveClones();
+        PACSetFlag(CFSTR("ConnClones7"));
+    }
+    if (!PACFlagIsSet(CFSTR("MusicClones7"))) {
+        for (NSMutableDictionary *cd in gPACClones) {
+            NSString *cmid = cd[@"mid"];
+            if ([cmid isKindOfClass:NSString.class] && PACCBigKind(cmid) == 2 && [cd[@"w"] unsignedIntegerValue] == 4 &&
+                [cd[@"h"] unsignedIntegerValue] == 6) cd[@"h"] = @7;
+        }
+        PACSaveClones();
+        PACSetFlag(CFSTR("MusicClones7"));
+    }
     if (!PACIsLandscape() && !PACFlagIsSet(CFSTR("BuiltinPagesGoneClones"))) {
         PACRefreshGridConstants();
         NSUInteger old = PACOldBasePages();
@@ -2661,8 +2684,8 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             PACRefreshGridConstants();
             NSUInteger base = PACBasePageCount();
             [gPACClones removeAllObjects];
-            [gPACClones addObject:[@{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(base * kPACStride),       @"w": @4, @"h": @6} mutableCopy]];
-            [gPACClones addObject:[@{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @((base + 1) * kPACStride), @"w": @4, @"h": @6} mutableCopy]];
+            [gPACClones addObject:[@{@"id": @"seedconn",  @"mid": @"com.apple.control-center.ConnectivityModule",       @"c": @0, @"a": @(base * kPACStride),       @"w": @4, @"h": @7} mutableCopy]];
+            [gPACClones addObject:[@{@"id": @"seedmusic", @"mid": @"com.apple.mediaremote.controlcenter.nowplaying", @"c": @0, @"a": @((base + 1) * kPACStride), @"w": @4, @"h": @7} mutableCopy]];
             PACSaveClones();
             CFPreferencesSetAppValue(CFSTR("SeedClonesPending"), NULL, CFSTR("pawxed.ccock26.preferences"));
             CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));

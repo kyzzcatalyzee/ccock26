@@ -39,8 +39,8 @@ int PACCBigKind(NSString *mid) {
 
 BOOL PACCBigSizeAllowed(NSString *mid, NSUInteger w, NSUInteger h) {
     int k = PACCBigKind(mid);
-    if (k == 1) return (w == 2 && h == 2) || (w == 4 && (h == 4 || h == 6 || h == 7 || h == 8));
-    if (k == 2) return (w == 2 && h == 2) || (w == 4 && (h == 1 || h == 2 || h == 4 || h == 6 || h == 7 || h == 8));
+    if (k == 1) return (w == 2 && h == 2) || (w == 4 && (h == 4 || h == 7 || h == 8));
+    if (k == 2) return (w == 2 && h == 2) || (w == 4 && (h == 1 || h == 2 || h == 4 || h == 7 || h == 8));
     if (k == 3) return (w == 1 && h == 1) || (w == 2 && h == 1);
     return NO;
 }

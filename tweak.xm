@@ -556,11 +556,14 @@ static void PACCTrackExpansion(UIViewController *vc) {
         const CGFloat kWantW = 330.0;
         if (gEnabled && exp && wrap && wrap != me.view && CGAffineTransformIsIdentity(wrap.transform) &&
             me.view.bounds.size.width < me.view.bounds.size.height &&
-            wrap.bounds.size.height > 300.0 && wrap.bounds.size.height < kWant - 0.5) {
+            wrap.bounds.size.height > 300.0 &&
+            (wrap.bounds.size.height < kWant - 0.5 || wrap.bounds.size.width > kWantW + 0.5)) {
             CGRect f = wrap.frame;
-            CGFloat dh = kWant - f.size.height;
-            f.origin.y -= dh * 0.5;
-            f.size.height = kWant;
+            if (f.size.height < kWant - 0.5) {
+                CGFloat dh = kWant - f.size.height;
+                f.origin.y -= dh * 0.5;
+                f.size.height = kWant;
+            }
             {
                 CGFloat nw = MIN(f.size.width, kWantW);
                 f.origin.x += (f.size.width - nw) * 0.5;
