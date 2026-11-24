@@ -6054,8 +6054,15 @@ void PACCLandEndPass(UIView *cv) {
     if (gEnabled && cv && cv.window && PACCPortFrameActive(cv)) {
         if (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil) return;
         if (gPACAccMn > gPACAccMx) return;
+        static CGFloat sSpan = 0;
+        CGFloat span = gPACAccMx - gPACAccMn;
         CGFloat mc = (gPACAccMn + gPACAccMx) * 0.5;
         CGFloat top = gPACAccTop;
+        if (gPACPortHave) {
+            if (span < sSpan - 1.0) mc = gPACPortMc;
+            top = MIN(top, gPACPortTop);
+        }
+        sSpan = MAX(sSpan, span);
         BOOL changed = !gPACPortHave || fabs(mc - gPACPortMc) > 0.5 || fabs(top - gPACPortTop) > 0.5;
         if (!changed) return;
         gPACPortSc = 0.91;

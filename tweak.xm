@@ -480,12 +480,9 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
-%hook CCUIContentModuleContainerView
-- (void)layoutSubviews {
-    %orig;
+static void PACCScaleContainerContent(UIView *me) {
     @try {
-        UIView *me = (UIView *)(id)self;
-        UIView *cv = me.superview;
+                UIView *cv = me.superview;
         BOOL inGrid = cv && [NSStringFromClass(cv.class) isEqualToString:@"CCUIModuleCollectionView"];
         BOOL ex = NO;
         SEL s1 = NSSelectorFromString(@"isExpanded"), s2 = NSSelectorFromString(@"expanded");
@@ -515,6 +512,12 @@ BOOL gPagerScrubbing = NO;
             }
         }
     } @catch (__unused NSException *e) {}
+}
+
+%hook CCUIContentModuleContainerView
+- (void)layoutSubviews {
+    %orig;
+    PACCScaleContainerContent((UIView *)(id)self);
     if (gEnabled) PACCBigStripContainer((UIView *)self);
 }
 %end
@@ -550,6 +553,10 @@ static void PACCTrackExpansion(UIViewController *vc) {
 %hook CCUIContentModuleContainerViewController
 - (void)viewDidLayoutSubviews {
     %orig;
+    if (gEnabled) {
+        UIView *cvw = ((UIViewController *)(id)self).view;
+        if (cvw && [NSStringFromClass(cvw.class) isEqualToString:@"CCUIContentModuleContainerView"]) PACCScaleContainerContent(cvw);
+    }
     @try {
         static __weak UIViewController *sExpandedVC = nil;
         UIViewController *vc0 = (UIViewController *)self;
