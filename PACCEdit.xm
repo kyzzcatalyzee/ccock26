@@ -691,10 +691,6 @@ static void PACUpdateGridMetrics(UIViewController *ov) {
     } else {
         step = MAX(stepX, stepY);
     }
-    {
-        CGFloat fs = (gPACPortHave && PACCPortFrameActive(ModuleCollection(ov).view)) ? gPACPortSc : 1.0;
-        if (fs > 0.3 && fs < 1.0) { step /= fs; minW /= fs; }
-    }
     if (step < 55.0 || step > 130.0 || minW < 45.0 || minW > 120.0) return;
     CGFloat cell = floor(minW * 2.0 + 0.5) / 2.0;
     step = floor(step * 2.0 + 0.5) / 2.0;
@@ -2278,9 +2274,8 @@ static BOOL PACRawGridBase(UIViewController *ov, CGFloat *ox, CGFloat *oy) {
             NSArray<NSNumber *> *o = mid.length ? PACGetOrigin(mid) : nil;
             CGRect raw;
             if (o.count < 2 || !PACRawFrame(m, ov, &raw) || CGRectIsEmpty(raw)) continue;
-            CGFloat fs = PACCPortFrameActive(ModuleCollection(ov).view) ? gPACCPortScale : 1.0;
-            CGFloat x = raw.origin.x - (CGFloat)o[0].unsignedIntegerValue * kPACStep * fs;
-            CGFloat y = raw.origin.y - (CGFloat)o[1].unsignedIntegerValue * kPACStep * fs;
+            CGFloat x = raw.origin.x - (CGFloat)o[0].unsignedIntegerValue * kPACStep;
+            CGFloat y = raw.origin.y - (CGFloat)o[1].unsignedIntegerValue * kPACStep;
             if (x < bx) bx = x;
             if (y < by) by = y;
         }
@@ -2344,9 +2339,8 @@ static void PACRefreshPagerIcons(UIViewController *ov) {
 static CGRect PACCloneFrame(NSDictionary *d, CGFloat bx, CGFloat by) {
     NSUInteger c = [d[@"c"] unsignedIntegerValue], a = [d[@"a"] unsignedIntegerValue];
     NSUInteger w = [d[@"w"] unsignedIntegerValue], h = [d[@"h"] unsignedIntegerValue];
-    CGFloat fs = (!PACIsLandscape() && gPACPortHave && gPACCPortScale < 0.999) ? gPACCPortScale : 1.0;
-    return CGRectMake(bx + (CGFloat)c * kPACStep * fs, by + (CGFloat)a * kPACStep * fs,
-                      ((CGFloat)w * kPACStep - kPACgap) * fs, ((CGFloat)h * kPACStep - kPACgap) * fs);
+    return CGRectMake(bx + (CGFloat)c * kPACStep, by + (CGFloat)a * kPACStep,
+                      (CGFloat)w * kPACStep - kPACgap, (CGFloat)h * kPACStep - kPACgap);
 }
 
 static CGRect PACCloneBigFrame(NSDictionary *d, CGRect f) {
@@ -6051,30 +6045,6 @@ void PACCLandBeginPass(UIView *cv) {
 }
 
 void PACCLandEndPass(UIView *cv) {
-    if (gEnabled && cv && cv.window && PACCPortFrameActive(cv)) {
-        if (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil) return;
-        if (gPACAccMn > gPACAccMx) return;
-        static CGFloat sSpan = 0;
-        CGFloat span = gPACAccMx - gPACAccMn;
-        CGFloat mc = (gPACAccMn + gPACAccMx) * 0.5;
-        CGFloat top = gPACAccTop;
-        if (gPACPortHave) {
-            if (span < sSpan - 1.0) mc = gPACPortMc;
-            top = MIN(top, gPACPortTop);
-        }
-        sSpan = MAX(sSpan, span);
-        BOOL changed = !gPACPortHave || fabs(mc - gPACPortMc) > 0.5 || fabs(top - gPACPortTop) > 0.5;
-        if (!changed) return;
-        gPACPortSc = 0.91;
-        gPACPortMc = mc;
-        gPACPortTop = top;
-        gPACPortHave = YES;
-        gPACCPortScale = gPACPortSc;
-        PACCSizeLog([NSString stringWithFormat:@"portrait frame fit mc %.1f top %.1f scale %.3f", mc, top, gPACPortSc]);
-        __weak UIView *wcv = cv;
-        dispatch_async(dispatch_get_main_queue(), ^{ [wcv setNeedsLayout]; });
-        return;
-    }
     if (!kPACLandFrameScale || !gEnabled || !PACCLandscapeNow() || !cv || !cv.window) return;
     if (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil) return;
     if (gPACAccMn > gPACAccMx) return;
@@ -6099,20 +6069,6 @@ void PACCLandEndPass(UIView *cv) {
 %hook CCUIModuleCollectionView
 - (CGRect)frameForLayoutRect:(CCUILayoutRect)rect {
     CGRect f = %orig;
-    if (gEnabled && !PACCLandscapeNow()) {
-        UIView *pcv = (UIView *)(id)self;
-        if (!pcv.window || !PACCPortFrameActive(pcv)) return f;
-        if (CGRectGetWidth(f) >= 2.0 && CGRectGetWidth(f) <= 360.0 && CGRectGetMinY(f) >= 0.0 && CGRectGetMinY(f) < PageSpan() * 0.9 &&
-            CGRectGetMinX(f) >= 0.0 && CGRectGetMaxX(f) <= pcv.bounds.size.width + 1.0) {
-            gPACAccMn = MIN(gPACAccMn, CGRectGetMinX(f));
-            gPACAccMx = MAX(gPACAccMx, CGRectGetMaxX(f));
-            gPACAccTop = MIN(gPACAccTop, CGRectGetMinY(f));
-        }
-        if (!gPACPortHave) return f;
-        CGFloat psc = gPACPortSc;
-        return CGRectMake(gPACPortMc + psc * (f.origin.x - gPACPortMc), gPACPortTop + psc * (f.origin.y - gPACPortTop),
-                          f.size.width * psc, f.size.height * psc);
-    }
     if (!kPACLandFrameScale || !gEnabled || !PACCLandscapeNow()) return f;
     UIView *cv = (UIView *)(id)self;
     if (!cv.window) return f;
