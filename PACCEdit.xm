@@ -4137,8 +4137,8 @@ static void PACGhostPreview(UIViewController *ov, NSString *mid, NSUInteger w, N
         pan.cancelsTouchesInView = YES;
 
         UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(shieldPan:)];
-        hold.minimumPressDuration = 0.22;
-        hold.allowableMovement = 12.0;
+        hold.minimumPressDuration = 0.15;
+        hold.allowableMovement = 14.0;
         hold.cancelsTouchesInView = YES;
 
         [pan requireGestureRecognizerToFail:hold];
@@ -4182,6 +4182,8 @@ static void PACGhostPreview(UIViewController *ov, NSString *mid, NSUInteger w, N
         [reset addTarget:self action:@selector(resetTap:) forControlEvents:UIControlEventTouchUpInside];
         [ov.view addSubview:reset];
     }
+    reset.hidden = YES;
+    reset.userInteractionEnabled = NO;
     CGFloat safeTop = ov.view.safeAreaInsets.top;
     if (safeTop < 1.0) safeTop = 20.0;
     reset.center = CGPointMake(CGRectGetMidX(ov.view.bounds), safeTop + 32.0);
@@ -4439,6 +4441,7 @@ static void PACGhostPreview(UIViewController *ov, NSString *mid, NSUInteger w, N
 
     NSUInteger visibleCap = PACVisibleRowCap(ov);
 
+    BOOL pushFailed = NO;
     for (NSString *oid in colliders) {
         PACRect orig = {};
         [snapshot[oid] getValue:&orig];
@@ -4446,10 +4449,39 @@ static void PACGhostPreview(UIViewController *ov, NSString *mid, NSUInteger w, N
         NSUInteger maxTopRow = (visibleCap + 1 >= orig.h) ? (visibleCap - orig.h + 1) : 0;
         NSUInteger newC = 0, newR = 0;
         if (!PACFindFreeCellFor(placed, orig.c, orig.r, orig.w, orig.h, maxTopRow, &newC, &newR)) {
-            return NO;
+            pushFailed = YES;
+            break;
         }
         PACRect np = {newC, newR, orig.w, orig.h};
         placed[oid] = [NSValue value:&np withObjCType:@encode(PACRect)];
+    }
+
+    if (pushFailed) {
+        NSMutableDictionary<NSString *, NSValue *> *repacked = [NSMutableDictionary dictionary];
+        repacked[mid] = [NSValue value:&targetRect withObjCType:@encode(PACRect)];
+        NSArray<NSString *> *order = [snapshot.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+            PACRect ra = {}, rb = {};
+            [snapshot[a] getValue:&ra];
+            [snapshot[b] getValue:&rb];
+            if (ra.r != rb.r) return ra.r < rb.r ? NSOrderedAscending : NSOrderedDescending;
+            if (ra.c != rb.c) return ra.c < rb.c ? NSOrderedAscending : NSOrderedDescending;
+            return [a compare:b];
+        }];
+        BOOL allPlaced = YES;
+        for (NSString *oid in order) {
+            PACRect orig = {};
+            [snapshot[oid] getValue:&orig];
+            NSUInteger maxTopRow = (visibleCap + 1 >= orig.h) ? (visibleCap - orig.h + 1) : 0;
+            NSUInteger newC = 0, newR = 0;
+            if (!PACFindFreeCellFor(repacked, orig.c, orig.r, orig.w, orig.h, maxTopRow, &newC, &newR)) {
+                allPlaced = NO;
+                break;
+            }
+            PACRect np = {newC, newR, orig.w, orig.h};
+            repacked[oid] = [NSValue value:&np withObjCType:@encode(PACRect)];
+        }
+        if (!allPlaced) return NO;
+        placed = repacked;
     }
 
     for (NSString *oid in placed) {
@@ -5013,7 +5045,24 @@ static void PACGhostPreview(UIViewController *ov, NSString *mid, NSUInteger w, N
         PACCBigSnapSize(cd[@"mid"], wantW, wantH, &w, &h);
         if (!w || !h) return;
         if (w == [cd[@"w"] unsignedIntegerValue] && h == [cd[@"h"] unsignedIntegerValue]) return;
-        if (!PACCloneFits(ov, cid, [cd[@"c"] unsignedIntegerValue], [cd[@"a"] unsignedIntegerValue], w, h)) return;
+        if (!PACCloneFits(ov, cid, [cd[@"c"] unsignedIntegerValue], [cd[@"a"] unsignedIntegerValue], w, h)) {
+            NSUInteger cc0 = [cd[@"c"] unsignedIntegerValue], ca0 = [cd[@"a"] unsignedIntegerValue];
+            NSUInteger pg0 = ca0 / kPACStride, cr0 = ca0 % kPACStride;
+            NSUInteger capRows = PACVisibleRowCap(ov) + 1;
+            BOOL found = NO;
+            NSUInteger bc = 0, br = 0;
+            NSInteger best = NSIntegerMax;
+            for (NSUInteger r = 0; r + h <= MIN(capRows, kPACRows); r++) {
+                for (NSUInteger c = 0; c + w <= kPACCols; c++) {
+                    if (!PACCloneFits(ov, cid, c, pg0 * kPACStride + r, w, h)) continue;
+                    NSInteger d = labs((long)c - (long)cc0) + labs((long)r - (long)cr0);
+                    if (d < best) { best = d; bc = c; br = r; found = YES; }
+                }
+            }
+            if (!found) return;
+            cd[@"c"] = @(bc);
+            cd[@"a"] = @(pg0 * kPACStride + br);
+        }
         cd[@"w"] = @(w);
         cd[@"h"] = @(h);
         if (gHapticsEnabled) Haptic();
