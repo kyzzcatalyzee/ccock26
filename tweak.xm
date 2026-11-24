@@ -552,8 +552,8 @@ static void PACCTrackExpansion(UIViewController *vc) {
         if ([me respondsToSelector:es]) exp = ((BOOL (*)(id, SEL))objc_msgSend)(me, es);
         UIView *cv = content.view;
         UIView *wrap = cv.superview;
-        const CGFloat kWant = 570.0;
-        const CGFloat kWantW = 330.0;
+        const CGFloat kWant = 600.0;
+        const CGFloat kWantW = 342.0;
         if (gEnabled && exp && wrap && wrap != me.view && CGAffineTransformIsIdentity(wrap.transform) &&
             me.view.bounds.size.width < me.view.bounds.size.height &&
             wrap.bounds.size.height > 300.0 &&
@@ -601,9 +601,9 @@ static void PACCTrackExpansion(UIViewController *vc) {
     PACCSizeLog([NSString stringWithFormat:@"hook height called: orig %.1f enabled %d", orig, (int)gEnabled]);
     if (!gEnabled) return orig;
     static NSString *lastNote;
-    NSString *note = [NSString stringWithFormat:@"expanded height: orig %.1f -> 570, screen %.1f", orig, [UIScreen mainScreen].bounds.size.height];
+    NSString *note = [NSString stringWithFormat:@"expanded height: orig %.1f -> 600, screen %.1f", orig, [UIScreen mainScreen].bounds.size.height];
     if (![note isEqualToString:lastNote]) { lastNote = note; PACCSizeLog(note); }
-    return 570.0;
+    return 600.0;
 }
 - (BOOL)providesOwnPlatter {
     if (gEnabled) {

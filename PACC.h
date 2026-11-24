@@ -120,9 +120,9 @@ void PACCLIQSetFixedBlur(UIView *host, CGFloat blur);
 void PACBigFixLGRadius(UIView *g, CGFloat r);
 void PACBigRefreshLG(UIView *root);
 #define kPACConnExtra 0.0
-#define kPACConnLen 570.0
+#define kPACConnLen 600.0
 #define kPACMusicExtra 45.0
-#define kPACConnW 330.0
+#define kPACConnW 342.0
 #define kPACLandShift (-28.0)
 static inline BOOL PACCLandscapeNow(void) {
     CGSize sz = UIScreen.mainScreen.bounds.size;
@@ -344,7 +344,7 @@ static inline CGRect PACCLandUnmap(UIView *cv, CGRect screenRect, NSInteger page
     return CGRectMake(x, y, screenRect.size.width / sc, screenRect.size.height / sc);
 }
 static inline CGRect PACCBigOutsetS(int kind, CGRect f, CGFloat ss) {
-    CGFloat dx = (kind == 1) ? MAX(0.0, (f.size.width - kPACConnW * ss) * 0.5) : 5.0 * ss;
+    CGFloat dx = (f.size.width - kPACConnW * ss) * 0.5;
     CGFloat gap = PACCGridGap() * ss;
     CGFloat step = (PACCGridCell() + PACCGridGap()) * ss;
     if (kind == 1 || kind == 2) {
