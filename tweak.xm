@@ -485,6 +485,25 @@ static const void *kPACRescaleKey = &kPACRescaleKey;
 static BOOL sPACScaleOwn = NO;
 static void PACCScaleContainerContent(UIView *me);
 
+static void PACCFillScaled(UIView *p, CGSize slot, int depth) {
+    if (depth > 4) return;
+    for (UIView *c in p.subviews) {
+        if (c.tag == 190200 || c.tag == 182100 || c.tag == 190002) continue;
+        if (!CGAffineTransformIsIdentity(c.transform)) continue;
+        CGSize cs = c.bounds.size;
+        if (fabs(cs.width - slot.width) < 1.5 && fabs(cs.height - slot.height) < 1.5 &&
+            fabs(c.frame.origin.x) < 1.5 && fabs(c.frame.origin.y) < 1.5) {
+            CGSize ps = p.bounds.size;
+            if (fabs(ps.width - slot.width) > 1.5 || fabs(ps.height - slot.height) > 1.5) {
+                sPACScaleOwn = YES;
+                c.frame = p.bounds;
+                sPACScaleOwn = NO;
+            }
+            PACCFillScaled(c, slot, depth + 1);
+        }
+    }
+}
+
 static void PACCScaleContainerContent(UIView *me) {
     @try {
                 UIView *cv = me.superview;
@@ -509,6 +528,7 @@ static void PACCScaleContainerContent(UIView *me) {
                 s.transform = want;
                 sPACScaleOwn = NO;
                 objc_setAssociatedObject(s, kScaled, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                PACCFillScaled(s, bs, 0);
             }
             if (!objc_getAssociatedObject(me, kPACRescaleKey)) {
                 objc_setAssociatedObject(me, kPACRescaleKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -556,6 +576,13 @@ static void PACCDumpGrid(UIView *cv) {
         for (UIView *s in c.subviews) {
             if (s.hidden || s.alpha < 0.05) continue;
             if (n++ >= 3) break;
+            PACCDumpTree(s, 0, o);
+        }
+        n = 0;
+        for (UIView *s in c.subviews) {
+            if (s.tag != 182200 || s.hidden) continue;
+            if (n++ >= 3) break;
+            [o appendString:@"\nCLONE"];
             PACCDumpTree(s, 0, o);
         }
         PACCSizeLog(o);
