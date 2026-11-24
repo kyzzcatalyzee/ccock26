@@ -79,7 +79,7 @@ jobs:
 
       - name: install deps
         run: |
-          brew install ldid make
+          brew install ldid make dpkg xz
           echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
 
       - name: build (${{ matrix.scheme }})
@@ -96,6 +96,25 @@ jobs:
             TARGET="$DEVICE_TARGET" \
             FINALPACKAGE=1 \
             $SCHEME_FLAG
+
+      - name: verify package (${{ matrix.scheme }})
+        run: |
+          for f in packages/*.deb; do
+            echo "== $f"
+            ar t "$f"
+            dpkg-deb -I "$f" > /dev/null
+            python3 - "$f" <<'PY'
+          import sys
+          d = open(sys.argv[1], 'rb').read()
+          p = 8
+          while p < len(d):
+              n = int(d[p + 48:p + 58])
+              p += 60 + n + (n & 1)
+          if p != len(d):
+              sys.exit("trailing garbage: archive ends at %d but file is %d bytes" % (p, len(d)))
+          print("archive ok", len(d))
+          PY
+          done
 
       - name: upload package (${{ matrix.scheme }})
         uses: actions/upload-artifact@v4
