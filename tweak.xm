@@ -533,6 +533,35 @@ static void PACCScaleContainerContent(UIView *me) {
     } @catch (__unused NSException *e) {}
 }
 
+static void PACCDumpTree(UIView *v, int depth, NSMutableString *o) {
+    if (depth > 4) return;
+    CGRect w = [v convertRect:v.bounds toView:nil];
+    CGAffineTransform tr = v.transform;
+    [o appendFormat:@"\n%*s%@ t%ld win {{%.1f,%.1f},{%.1f,%.1f}} b %.1fx%.1f tf %.3f%@", depth * 2, "", NSStringFromClass(v.class), (long)v.tag,
+        w.origin.x, w.origin.y, w.size.width, w.size.height, v.bounds.size.width, v.bounds.size.height, tr.a, v.hidden ? @" H" : @""];
+    for (UIView *s in v.subviews) PACCDumpTree(s, depth + 1, o);
+}
+
+static void PACCDumpGrid(UIView *cv) {
+    static CFTimeInterval last = 0;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (now - last < 4.0) return;
+    last = now;
+    __weak UIView *wcv = cv;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIView *c = wcv;
+        if (!c || !c.window) return;
+        NSMutableString *o = [NSMutableString stringWithFormat:@"grid dump sc %.3f have %d cv win %@", gPACPortSc, (int)gPACPortHave, NSStringFromCGRect([c convertRect:c.bounds toView:nil])];
+        int n = 0;
+        for (UIView *s in c.subviews) {
+            if (s.hidden || s.alpha < 0.05) continue;
+            if (n++ >= 3) break;
+            PACCDumpTree(s, 0, o);
+        }
+        PACCSizeLog(o);
+    });
+}
+
 %hook CCUIContentModuleContentContainerView
 - (void)setFrame:(CGRect)f {
     UIView *v = (UIView *)(id)self;
@@ -563,6 +592,7 @@ static void PACCScaleContainerContent(UIView *me) {
 - (void)layoutSubviews {
     %orig;
     PACCScaleContainerContent((UIView *)(id)self);
+    if (gEnabled && ((UIView *)(id)self).superview && !PACCLandscapeNow()) PACCDumpGrid(((UIView *)(id)self).superview);
     if (gEnabled) PACCBigStripContainer((UIView *)self);
 }
 %end
