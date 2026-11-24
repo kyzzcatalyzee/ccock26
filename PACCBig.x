@@ -1755,6 +1755,25 @@ static UIView *PACBigMakeRoutePicker(void) {
     PACBigApplyMaterial(self, _blur, self.layer.cornerRadius);
     if (wide42 && !self.standalone) {
         CGSize cs = self.bounds.size;
+        UIView *modC = nil;
+        for (UIView *q = self.superview; q; q = q.superview) {
+            if ([NSStringFromClass(q.class) isEqualToString:@"CCUIContentModuleContainerView"]) { modC = q; break; }
+        }
+        if (modC) {
+            NSMutableArray<UIView *> *bq = [NSMutableArray arrayWithObject:modC];
+            NSUInteger seen = 0;
+            while (bq.count && seen++ < 80) {
+                UIView *v = bq.firstObject; [bq removeObjectAtIndex:0];
+                NSString *cn = NSStringFromClass(v.class);
+                if ([cn hasPrefix:@"LG"] && fabs(v.bounds.size.width - cs.width) < 3.0 && fabs(v.bounds.size.height - cs.height) < 3.0) {
+                    PACBigFixLGRadius(v, self.layer.cornerRadius);
+                    static NSString *lastLG;
+                    NSString *ln = [NSString stringWithFormat:@"music LG %@ r%.1f %@", cn, v.layer.cornerRadius, NSStringFromCGSize(v.bounds.size)];
+                    if (![ln isEqualToString:lastLG]) { lastLG = ln; PACCSizeLog(ln); }
+                }
+                [bq addObjectsFromArray:v.subviews];
+            }
+        }
         int up = 0;
         for (UIView *p = self; p && up < 5; p = p.superview, up++) {
             if ([NSStringFromClass(p.class) isEqualToString:@"CCUIContentModuleContainerView"]) break;
