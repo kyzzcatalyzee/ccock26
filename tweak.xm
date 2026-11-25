@@ -99,6 +99,41 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+static NSUInteger gPACCDismissToken = 0;
+static NSInteger gPACCPState = -1;
+
+static BOOL PACCPanActive(UIViewController *ov) {
+    for (UIView *v = ov.view; v; v = v.superview) {
+        for (UIGestureRecognizer *gr in v.gestureRecognizers) {
+            if (![gr isKindOfClass:UIPanGestureRecognizer.class] && ![gr isKindOfClass:UILongPressGestureRecognizer.class]) continue;
+            if (gr.state == UIGestureRecognizerStateBegan || gr.state == UIGestureRecognizerStateChanged) return YES;
+        }
+    }
+    return NO;
+}
+
+// Fade the overlay leftovers only once the close is really happening: the
+// presentation state is still 3 and no finger is dragging any more. A pull that
+// is cancelled (state back to 1) bumps the token and nothing fades.
+static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elapsed) {
+    __weak UIViewController *wov = ov;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIViewController *o = wov;
+        if (!o || token != gPACCDismissToken || gPACCPState != 3) return;
+        double el = elapsed + 0.05;
+        if (el >= 0.3 && !PACCPanActive(o)) {
+            gPACCDismissing = YES;
+            PACCFadeOutClones(o);
+            [UIView animateWithDuration:0.22 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
+                o.view.alpha = 0.0;
+            } completion:nil];
+            PACCSizeLog([NSString stringWithFormat:@"dismiss fade started after %.2fs", el]);
+            return;
+        }
+        if (el < 2.5) PACCPollDismiss(o, token, el);
+    });
+}
+
 %hook CCUIModularControlCenterOverlayViewController
 - (void)moduleCollectionViewController:(id)collection willOpenExpandedModule:(id)module {
     PACCNoteExpandedModule(module, YES, nil);
@@ -146,11 +181,13 @@ BOOL gPagerScrubbing = NO;
     objc_setAssociatedObject(overlay, kLastPresentationStateKey, @(state), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (stateChanged) PACCSizeLog([NSString stringWithFormat:@"pstate %ld -> %ld alpha %.2f", (long)(lastState ? lastState.integerValue : -1), (long)state, overlay.view.alpha]);
     BOOL closing = (lastState && lastState.integerValue == 1);
+    gPACCPState = state;
 
     BOOL notched = (CGRectGetHeight(UIScreen.mainScreen.bounds) >= 800.0);
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[overlay.view viewWithTag:kMediaPlayerTag];
 
     if (state == 1) {
+        gPACCDismissToken++;
         if (gPACCDismissing) { gPACCDismissing = NO; PACCResetClonesAfterDismiss(overlay); }
         if (overlay.view.alpha < 0.999) {
             [overlay.view.layer removeAnimationForKey:@"opacity"];
@@ -202,13 +239,7 @@ BOOL gPagerScrubbing = NO;
             if (notched && gCurrentPage == PACCMediaPageIndex()) [player fadeIn];
         }
     } else if (state == 3) {
-        if (closing) {
-            gPACCDismissing = YES;
-            PACCFadeOutClones(overlay);
-            [UIView animateWithDuration:0.22 delay:0.08 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
-                overlay.view.alpha = 0.0;
-            } completion:nil];
-        }
+        if (closing) PACCPollDismiss(overlay, ++gPACCDismissToken, 0.0);
         [PACC.shared animateElementsOutForOverlay:overlay];
 
         if (player && stateChanged && gCurrentPage == PACCMediaPageIndex() && notched) {
