@@ -1,5 +1,6 @@
 #import "PACC.h"
 #import <sys/utsname.h>
+#import <objc/runtime.h>
 
 void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov);
 void PACCLogCloseSamples(id module, UIViewController *ov);
@@ -153,6 +154,25 @@ static BOOL PACCPanActive(UIViewController *ov) {
     return NO;
 }
 
+static void PACCDumpOverlayMethods(void) {
+    static BOOL done = NO;
+    if (done) return;
+    done = YES;
+    unsigned int n = 0;
+    Class *all = objc_copyClassList(&n);
+    for (unsigned int i = 0; i < n; i++) {
+        const char *cn = class_getName(all[i]);
+        if (strncmp(cn, "CCUIOverlay", 11) != 0 && strcmp(cn, "CCUIModularControlCenterOverlayViewController") != 0 && strncmp(cn, "SBControlCenter", 15) != 0) continue;
+        NSMutableString *line = [NSMutableString stringWithFormat:@"methods %s (super %s):", cn, class_getSuperclass(all[i]) ? class_getName(class_getSuperclass(all[i])) : "-"];
+        unsigned int mc = 0;
+        Method *ms = class_copyMethodList(all[i], &mc);
+        for (unsigned int j = 0; j < mc; j++) [line appendFormat:@" %s", sel_getName(method_getName(ms[j]))];
+        free(ms);
+        PACCSizeLog(line);
+    }
+    free(all);
+}
+
 static CGFloat gPACCCloseExtra = 0.0;
 static CGFloat gPACCCloseBase = 0.0;
 static CFTimeInterval gPACCCloseRelease = 0.0;
@@ -281,6 +301,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     if (stateChanged) PACCSizeLog([NSString stringWithFormat:@"pstate %ld -> %ld alpha %.2f", (long)(lastState ? lastState.integerValue : -1), (long)state, overlay.view.alpha]);
     BOOL closing = (lastState && lastState.integerValue == 1);
     gPACCPState = state;
+    PACCDumpOverlayMethods();
 
     BOOL notched = (CGRectGetHeight(UIScreen.mainScreen.bounds) >= 800.0);
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[overlay.view viewWithTag:kMediaPlayerTag];
