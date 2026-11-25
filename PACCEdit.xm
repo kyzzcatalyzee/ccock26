@@ -2732,6 +2732,7 @@ static void PACCMirrorNativeAnimation(CALayer *layer, CAAnimation *anim, NSStrin
     dispatch_once(&once, ^{ modCls = NSClassFromString(@"CCUIContentModuleContainerView"); });
     if (!modCls || ![del isKindOfClass:modCls]) return;
     if ([key hasPrefix:@"PAC"]) return;
+    if (gPACCDismissing) return;
     if (![anim isKindOfClass:CABasicAnimation.class]) return;
     UIView *mv = (UIView *)del;
     UIView *cv = mv.superview;
@@ -2774,9 +2775,38 @@ void PACCFadeOutClones(UIViewController *ov) {
     if (!ov || !ov.view) return;
     UIView *cv = ModuleCollection(ov).view;
     if (!cv) return;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        UIView *bv = m.view ? [m.view viewWithTag:182100] : nil;
+        if (!bv || bv.hidden || bv.alpha < 0.01) continue;
+        [UIView animateWithDuration:0.26 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn animations:^{
+            bv.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(0.92, 0.92), CGAffineTransformMakeTranslation(0, 150.0));
+            bv.alpha = 0.0;
+        } completion:nil];
+    }
     for (UIView *sv in [cv.subviews copy]) {
         if (sv.tag != kPACCloneTag || sv.hidden || sv.alpha < 0.01) continue;
-        [UIView animateWithDuration:0.18 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn animations:^{ sv.alpha = 0.0; } completion:nil];
+        for (NSString *k in [sv.layer.animationKeys copy]) if ([k hasPrefix:@"PACMir_"]) [sv.layer removeAnimationForKey:k];
+        [UIView animateWithDuration:0.26 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn animations:^{
+            sv.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(0.92, 0.92), CGAffineTransformMakeTranslation(0, 150.0));
+            sv.alpha = 0.0;
+        } completion:nil];
+    }
+}
+
+void PACCResetClonesAfterDismiss(UIViewController *ov) {
+    UIView *cv = ov.view ? ModuleCollection(ov).view : nil;
+    if (!cv) return;
+    for (UIViewController *m in ModuleControllers(ov)) {
+        UIView *bv = m.view ? [m.view viewWithTag:182100] : nil;
+        if (!bv) continue;
+        [bv.layer removeAllAnimations];
+        bv.transform = CGAffineTransformIdentity;
+        bv.alpha = 1.0;
+    }
+    for (UIView *sv in cv.subviews) {
+        if (sv.tag != kPACCloneTag) continue;
+        [sv.layer removeAllAnimations];
+        sv.transform = CGAffineTransformIdentity;
     }
 }
 
@@ -2885,8 +2915,8 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         }
 
         BOOL onPage = ((NSInteger)(a / PACPageDivisor()) == gCurrentPage) || gPACCRevealAll;
-        CGFloat alpha = (onPage && !gPACCDismissing) ? 1.0 : 0.0;
-        if (gPACCDismissing) animated = NO;
+        CGFloat alpha = onPage ? 1.0 : 0.0;
+        if (gPACCDismissing) alpha = cl.alpha;
         if (fabs(cl.alpha - alpha) > 0.01) {
             if (animated) [UIView animateWithDuration:0.35 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ cl.alpha = alpha; } completion:nil];
             else cl.alpha = alpha;
