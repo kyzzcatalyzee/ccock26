@@ -111,6 +111,7 @@ void PACCSizeLog(NSString *line);
 void PACCLandscapeRefresh(UIViewController *ov);
 void PACCSyncClones(UIViewController *overlay, BOOL animated);
 void PACCFadeOutClones(UIViewController *overlay);
+void PACCResetClonesAfterDismiss(UIViewController *overlay);
 extern BOOL gPACCDismissing;
 void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov);
 void PACCLogCloseSamples(id module, UIViewController *ov);
