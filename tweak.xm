@@ -162,7 +162,7 @@ static void PACCDumpOverlayMethods(void) {
     Class *all = objc_copyClassList(&n);
     for (unsigned int i = 0; i < n; i++) {
         const char *cn = class_getName(all[i]);
-        if (strncmp(cn, "CCUIOverlay", 11) != 0 && strcmp(cn, "CCUIModularControlCenterOverlayViewController") != 0 && strncmp(cn, "SBControlCenter", 15) != 0) continue;
+        if (strncmp(cn, "CCUIContentModule", 17) != 0 && strncmp(cn, "CCUIModuleCollection", 20) != 0 && strncmp(cn, "CCUIExpand", 10) != 0 && strncmp(cn, "CCUIMenuModule", 14) != 0) continue;
         NSMutableString *line = [NSMutableString stringWithFormat:@"methods %s (super %s):", cn, class_getSuperclass(all[i]) ? class_getName(class_getSuperclass(all[i])) : "-"];
         unsigned int mc = 0;
         Method *ms = class_copyMethodList(all[i], &mc);
