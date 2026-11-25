@@ -110,6 +110,8 @@ void PACCCrashLog(NSString *line);
 void PACCSizeLog(NSString *line);
 void PACCLandscapeRefresh(UIViewController *ov);
 void PACCSyncClones(UIViewController *overlay, BOOL animated);
+void PACCFadeOutClones(UIViewController *overlay);
+extern BOOL gPACCDismissing;
 void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov);
 void PACCLogCloseSamples(id module, UIViewController *ov);
 void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h, BOOL expanded);

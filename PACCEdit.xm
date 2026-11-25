@@ -2768,6 +2768,18 @@ static void PACCMirrorNativeAnimation(CALayer *layer, CAAnimation *anim, NSStrin
     [best.layer addAnimation:c forKey:[@"PACMir_" stringByAppendingString:key ?: kp]];
 }
 
+BOOL gPACCDismissing = NO;
+
+void PACCFadeOutClones(UIViewController *ov) {
+    if (!ov || !ov.view) return;
+    UIView *cv = ModuleCollection(ov).view;
+    if (!cv) return;
+    for (UIView *sv in [cv.subviews copy]) {
+        if (sv.tag != kPACCloneTag || sv.hidden || sv.alpha < 0.01) continue;
+        [UIView animateWithDuration:0.18 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn animations:^{ sv.alpha = 0.0; } completion:nil];
+    }
+}
+
 void PACCSyncClones(UIViewController *ov, BOOL animated) {
     PACCCrumb("PACCSyncClones");
     static BOOL busy = NO;
@@ -2873,7 +2885,8 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
         }
 
         BOOL onPage = ((NSInteger)(a / PACPageDivisor()) == gCurrentPage) || gPACCRevealAll;
-        CGFloat alpha = onPage ? 1.0 : 0.0;
+        CGFloat alpha = (onPage && !gPACCDismissing) ? 1.0 : 0.0;
+        if (gPACCDismissing) animated = NO;
         if (fabs(cl.alpha - alpha) > 0.01) {
             if (animated) [UIView animateWithDuration:0.35 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ cl.alpha = alpha; } completion:nil];
             else cl.alpha = alpha;

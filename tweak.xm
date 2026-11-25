@@ -148,6 +148,7 @@ BOOL gPagerScrubbing = NO;
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[overlay.view viewWithTag:kMediaPlayerTag];
 
     if (state == 1) {
+        gPACCDismissing = NO;
         if (stateChanged && gCurrentPage != 0 && !gEditModeActive && gPagingEnabled && !PACCLandscapeNow()) {
             UIView *rind = [overlay.view viewWithTag:kPageIndicatorTag];
             UIViewController *rcol = ModuleCollection(overlay);
@@ -194,6 +195,8 @@ BOOL gPagerScrubbing = NO;
             if (notched && gCurrentPage == PACCMediaPageIndex()) [player fadeIn];
         }
     } else if (state == 3) {
+        gPACCDismissing = YES;
+        PACCFadeOutClones(overlay);
         [PACC.shared animateElementsOutForOverlay:overlay];
 
         if (player && stateChanged && gCurrentPage == PACCMediaPageIndex() && notched) {
