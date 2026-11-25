@@ -144,6 +144,8 @@ BOOL gPagerScrubbing = NO;
     NSNumber *lastState = objc_getAssociatedObject(overlay, kLastPresentationStateKey);
     BOOL stateChanged = !lastState || lastState.integerValue != state;
     objc_setAssociatedObject(overlay, kLastPresentationStateKey, @(state), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (stateChanged) PACCSizeLog([NSString stringWithFormat:@"pstate %ld -> %ld alpha %.2f", (long)(lastState ? lastState.integerValue : -1), (long)state, overlay.view.alpha]);
+    BOOL closing = (lastState && lastState.integerValue == 1);
 
     BOOL notched = (CGRectGetHeight(UIScreen.mainScreen.bounds) >= 800.0);
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[overlay.view viewWithTag:kMediaPlayerTag];
@@ -200,11 +202,13 @@ BOOL gPagerScrubbing = NO;
             if (notched && gCurrentPage == PACCMediaPageIndex()) [player fadeIn];
         }
     } else if (state == 3) {
-        gPACCDismissing = YES;
-        PACCFadeOutClones(overlay);
-        [UIView animateWithDuration:0.22 delay:0.08 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
-            overlay.view.alpha = 0.0;
-        } completion:nil];
+        if (closing) {
+            gPACCDismissing = YES;
+            PACCFadeOutClones(overlay);
+            [UIView animateWithDuration:0.22 delay:0.08 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
+                overlay.view.alpha = 0.0;
+            } completion:nil];
+        }
         [PACC.shared animateElementsOutForOverlay:overlay];
 
         if (player && stateChanged && gCurrentPage == PACCMediaPageIndex() && notched) {
