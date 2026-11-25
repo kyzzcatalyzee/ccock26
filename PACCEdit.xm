@@ -3940,6 +3940,8 @@ static void PACCPortraitXformRefresh(UIViewController *ov) {
     if (!ov || PACIsLandscape()) return;
     UIViewController *c = ModuleCollection(ov);
     if (!c.view) return;
+    [PACC.shared updateQuickAccessButtonsForOverlay:ov];
+    [PACC.shared adjustStatusBarForOverlay:ov];
     CATransform3D t = c.view.layer.sublayerTransform;
     CATransform3D w = PACCDesiredTransform(t, c.view, PACCLandShiftNow(), -(CGFloat)gCurrentPage * PageSpan());
     if (PACCTransformClose(t, w)) return;

@@ -290,11 +290,12 @@ static inline BOOL PACCPortMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, C
     *outSc = cSc; *outMc = cMc; *outTop = cTop; *outRaise = cRaise;
     return have;
 }
+#define kPACCEditRaise 44.0
 static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGFloat shift, CGFloat offset) {
     cur.m11 = 1.0;
     cur.m22 = 1.0;
     cur.m41 = 0.0;
-    cur.m42 = shift + offset;
+    cur.m42 = shift + offset - (gEditModeActive ? kPACCEditRaise : 0.0);
     cur.m43 = 0.0;
     gPACCPortScale = 1.0;
     if (!cv || !cv.window || !kPACPortScaleOn) return cur;
@@ -307,7 +308,7 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     cur.m11 = sc;
     cur.m22 = sc;
     cur.m41 = (1.0 - sc) * (mc - cx);
-    cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + sc * offset + gPACCPortFix;
+    cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + sc * offset + gPACCPortFix - (gEditModeActive ? kPACCEditRaise : 0.0);
     return cur;
 }
 #define PACSS() (PACCLandscapeNow() ? 1.0 : gPACCPortScale)

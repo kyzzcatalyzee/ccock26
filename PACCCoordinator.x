@@ -279,7 +279,7 @@ BOOL gPACCRevealAll = NO;
 
 - (void)adjustStatusBarForOverlay:(UIViewController *)overlay {
     BOOL notched = (CGRectGetHeight(UIScreen.mainScreen.bounds) >= 800.0);
-    if (notched) return;
+    if (notched && !gEditModeActive) return;
     if (!overlay || !overlay.view) return;
 
     UIWindow *window = overlay.view.window;
@@ -352,6 +352,18 @@ BOOL gPACCRevealAll = NO;
         }
     }
     if (!statusBar) return;
+    {
+        static void *kSBHiddenByEditKey = &kSBHiddenByEditKey;
+        BOOL hid = [objc_getAssociatedObject(statusBar, kSBHiddenByEditKey) boolValue];
+        if (gEditModeActive && !hid) {
+            objc_setAssociatedObject(statusBar, kSBHiddenByEditKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [UIView animateWithDuration:0.2 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ statusBar.alpha = 0.0; } completion:nil];
+        } else if (!gEditModeActive && hid) {
+            objc_setAssociatedObject(statusBar, kSBHiddenByEditKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [UIView animateWithDuration:0.2 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ statusBar.alpha = 1.0; } completion:nil];
+        }
+    }
+    if (notched) return;
 
     BOOL land = PACCLandscapeNow();
     static void *kStatusBarBasePortraitKey = &kStatusBarBasePortraitKey;
@@ -449,7 +461,7 @@ BOOL gPACCRevealAll = NO;
     CGFloat top = [self topInsetForOverlay:overlay];
     if (!PACCLandscapeNow() && CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0) top = MAX(0.0, top - 34.0);
     host.frame = CGRectMake(0, top, CGRectGetWidth(overlay.view.bounds), 44);
-    host.hidden = !gQuickAccessButtonsEnabled;
+    host.hidden = !gQuickAccessButtonsEnabled || gEditModeActive;
 
     UIButton *plus = [host viewWithTag:181001];
     if (!plus) {
