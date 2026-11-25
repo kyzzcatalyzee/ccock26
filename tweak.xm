@@ -222,6 +222,46 @@ static void PACCInstallProviderHook(void) {
     method_setImplementation(m, (IMP)PACCSlideTransformHook);
 }
 
+// Diagnostics for the hold-to-expand / close animation position: log what the stock frame
+// providers return (only installed if the return type is really a CGRect and there are no args).
+#define PACC_RECT_LOG_HOOK(NAME, CLS, SELNAME) \
+static CGRect (*PACCOrig_##NAME)(id, SEL) = NULL; \
+static NSUInteger gPACCCnt_##NAME = 0; \
+static CGRect PACCHook_##NAME(id self, SEL _cmd) { \
+    CGRect r = PACCOrig_##NAME(self, _cmd); \
+    if (gPACCCnt_##NAME < 24) { gPACCCnt_##NAME++; \
+        PACCSizeLog([NSString stringWithFormat:@"rect " SELNAME " %@ cls %@", NSStringFromCGRect(r), NSStringFromClass([self class])]); } \
+    return r; \
+}
+PACC_RECT_LOG_HOOK(cfe, 0, "_containerFrameForExpandedState")
+PACC_RECT_LOG_HOOK(pfe, 0, "_presentationFrameForExpandedState")
+PACC_RECT_LOG_HOOK(contfe, 0, "_contentFrameForExpandedState")
+PACC_RECT_LOG_HOOK(cfr, 0, "_contentFrameForRestState")
+PACC_RECT_LOG_HOOK(cro, 0, "contentRestOverrideFrame")
+
+static void PACCInstallRectLog(const char *cls, const char *sel, IMP hook, IMP *orig) {
+    Class c = objc_getClass(cls);
+    Method m = c ? class_getInstanceMethod(c, sel_registerName(sel)) : NULL;
+    if (!m) { PACCSizeLog([NSString stringWithFormat:@"rectlog %s: not found", sel]); return; }
+    char *rt = method_copyReturnType(m);
+    BOOL ok = rt && strncmp(rt, "{CGRect", 7) == 0 && method_getNumberOfArguments(m) == 2;
+    free(rt);
+    if (!ok) { PACCSizeLog([NSString stringWithFormat:@"rectlog %s: type mismatch %s", sel, method_getTypeEncoding(m)]); return; }
+    *orig = method_getImplementation(m);
+    method_setImplementation(m, hook);
+}
+
+static void PACCInstallRectLogs(void) {
+    static BOOL done = NO;
+    if (done) return;
+    done = YES;
+    PACCInstallRectLog("CCUIContentModuleContainerViewController", "_containerFrameForExpandedState", (IMP)PACCHook_cfe, (IMP *)&PACCOrig_cfe);
+    PACCInstallRectLog("CCUIContentModuleContainerViewController", "_presentationFrameForExpandedState", (IMP)PACCHook_pfe, (IMP *)&PACCOrig_pfe);
+    PACCInstallRectLog("CCUIContentModuleContainerViewController", "_contentFrameForExpandedState", (IMP)PACCHook_contfe, (IMP *)&PACCOrig_contfe);
+    PACCInstallRectLog("CCUIContentModuleContainerViewController", "_contentFrameForRestState", (IMP)PACCHook_cfr, (IMP *)&PACCOrig_cfr);
+    PACCInstallRectLog("CCUIContentModuleContainerTransition", "contentRestOverrideFrame", (IMP)PACCHook_cro, (IMP *)&PACCOrig_cro);
+}
+
 static CGFloat gPACCCloseExtra = 0.0;
 static CGFloat gPACCCloseBase = 0.0;
 static CFTimeInterval gPACCCloseRelease = 0.0;
@@ -354,6 +394,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     gPACCPState = state;
     PACCDumpOverlayMethods();
     PACCInstallProviderHook();
+    PACCInstallRectLogs();
 
     BOOL notched = (CGRectGetHeight(UIScreen.mainScreen.bounds) >= 800.0);
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[overlay.view viewWithTag:kMediaPlayerTag];
