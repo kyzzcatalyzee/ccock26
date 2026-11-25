@@ -159,8 +159,8 @@ static CFTimeInterval gPACCCloseRelease = 0.0;
 static CFTimeInterval gPACCCloseStart = 0.0;
 static CADisplayLink *gPACCCloseLink = nil;
 static __weak UIViewController *gPACCCloseOverlay = nil;
-#define kPACCCloseLandGain 2.5
-#define kPACCCloseLandMax 260.0
+#define kPACCCloseLandGain 7.0
+#define kPACCCloseLandMax 900.0
 
 static void PACCStopCloseTicker(void) {
     [gPACCCloseLink invalidate];
@@ -216,12 +216,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
         { CGFloat d = PACCSampleCloseDirection(o); if (fabs(d) > 3.0) gPACCDismissDir = d; }
         if (el >= 0.3 && !PACCPanActive(o)) {
             gPACCDismissing = YES;
-            PACCFadeOutClones(o);
-            PACCSizeLog([NSString stringWithFormat:@"close direction %.1f extra %.1f", gPACCDismissDir, gPACCCloseExtra]);
-            [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
-                o.view.alpha = 0.0;
-            } completion:nil];
-            PACCSizeLog([NSString stringWithFormat:@"dismiss fade started after %.2fs", el]);
+            PACCSizeLog([NSString stringWithFormat:@"close landing: direction %.1f extra %.1f after %.2fs", gPACCDismissDir, gPACCCloseExtra, el]);
             return;
         }
         if (el < 2.5) PACCPollDismiss(o, token, el);
