@@ -153,6 +153,57 @@ static BOOL PACCPanActive(UIViewController *ov) {
     return NO;
 }
 
+static CGFloat gPACCCloseExtra = 0.0;
+static CGFloat gPACCCloseBase = 0.0;
+static CFTimeInterval gPACCCloseRelease = 0.0;
+static CFTimeInterval gPACCCloseStart = 0.0;
+static CADisplayLink *gPACCCloseLink = nil;
+static __weak UIViewController *gPACCCloseOverlay = nil;
+#define kPACCCloseLandGain 2.5
+#define kPACCCloseLandMax 260.0
+
+static void PACCStopCloseTicker(void) {
+    [gPACCCloseLink invalidate];
+    gPACCCloseLink = nil;
+}
+
+@interface PACCCloseTicker : NSObject
++ (void)tick:(CADisplayLink *)l;
+@end
+@implementation PACCCloseTicker
+// Amplifies the stock close motion so it lands lower: after the finger is released the grid
+// is pushed down by (gain-1) x the stock displacement, latched so it never springs back.
++ (void)tick:(CADisplayLink *)l {
+    UIViewController *o = gPACCCloseOverlay;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (!o || gPACCPState != 3 || now - gPACCCloseStart > 3.0) { PACCStopCloseTicker(); return; }
+    CGFloat d = PACCSampleCloseDirection(o);
+    if (fabs(d) > 3.0) gPACCDismissDir = d;
+    if (PACCPanActive(o)) { gPACCCloseRelease = 0.0; return; }
+    if (gPACCCloseRelease == 0.0) gPACCCloseRelease = now;
+    BOOL down = (gPACCDismissDir > 0.0);
+    if (!down) return;
+    CGFloat ramp = MIN(1.0, (now - gPACCCloseRelease) / 0.15);
+    CGFloat want = MIN(kPACCCloseLandMax, (kPACCCloseLandGain - 1.0) * MAX(d, 0.0)) * ramp;
+    if (want > gPACCCloseExtra) {
+        gPACCCloseExtra = want;
+        gPACCExpandShift = gPACCCloseBase + gPACCCloseExtra;
+        PACCApplyExpandShiftEx(NO);
+    }
+}
+@end
+
+static void PACCStartCloseTicker(UIViewController *ov) {
+    PACCStopCloseTicker();
+    gPACCCloseOverlay = ov;
+    gPACCCloseBase = gPACCExpandShift;
+    gPACCCloseExtra = 0.0;
+    gPACCCloseRelease = 0.0;
+    gPACCCloseStart = CACurrentMediaTime();
+    gPACCCloseLink = [CADisplayLink displayLinkWithTarget:PACCCloseTicker.class selector:@selector(tick:)];
+    [gPACCCloseLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+}
+
 // Fade the overlay leftovers only once the close is really happening: the
 // presentation state is still 3 and no finger is dragging any more. A pull that
 // is cancelled (state back to 1) bumps the token and nothing fades.
@@ -166,12 +217,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
         if (el >= 0.3 && !PACCPanActive(o)) {
             gPACCDismissing = YES;
             PACCFadeOutClones(o);
-            BOOL down = (gPACCDismissDir > 0.0) || (gPACCDismissDir == 0.0 && PACCHomeButtonDevice());
-            PACCSizeLog([NSString stringWithFormat:@"close direction %.1f -> %@", gPACCDismissDir, down ? @"down (land lower)" : @"up/none"]);
-            if (down) {
-                gPACCExpandShift += kPACCCloseLandDrop;
-                PACCApplyExpandShiftEx(YES);
-            }
+            PACCSizeLog([NSString stringWithFormat:@"close direction %.1f extra %.1f", gPACCDismissDir, gPACCCloseExtra]);
             [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
                 o.view.alpha = 0.0;
             } completion:nil];
@@ -236,6 +282,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
 
     if (state == 1) {
         gPACCDismissToken++;
+        PACCStopCloseTicker();
         if (fabs(gPACCExpandShift) > 0.01 && !gCCAModuleExpanded) { gPACCExpandShift = 0.0; PACCApplyExpandShiftEx(NO); }
         if (gPACCDismissing) { gPACCDismissing = NO; PACCResetClonesAfterDismiss(overlay); }
         if (overlay.view.alpha < 0.999) {
@@ -288,7 +335,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
             if (notched && gCurrentPage == PACCMediaPageIndex()) [player fadeIn];
         }
     } else if (state == 3) {
-        if (closing) { gPACCDismissDir = 0.0; PACCPollDismiss(overlay, ++gPACCDismissToken, 0.0); }
+        if (closing) { gPACCDismissDir = 0.0; PACCStartCloseTicker(overlay); PACCPollDismiss(overlay, ++gPACCDismissToken, 0.0); }
         [PACC.shared animateElementsOutForOverlay:overlay];
 
         if (player && stateChanged && gCurrentPage == PACCMediaPageIndex() && notched) {
