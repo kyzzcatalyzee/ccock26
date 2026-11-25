@@ -148,7 +148,11 @@ BOOL gPagerScrubbing = NO;
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[overlay.view viewWithTag:kMediaPlayerTag];
 
     if (state == 1) {
-        gPACCDismissing = NO;
+        if (gPACCDismissing) { gPACCDismissing = NO; PACCResetClonesAfterDismiss(overlay); }
+        if (overlay.view.alpha < 0.999) {
+            [overlay.view.layer removeAnimationForKey:@"opacity"];
+            [UIView performWithoutAnimation:^{ overlay.view.alpha = 1.0; }];
+        }
         if (stateChanged && gCurrentPage != 0 && !gEditModeActive && gPagingEnabled && !PACCLandscapeNow()) {
             UIView *rind = [overlay.view viewWithTag:kPageIndicatorTag];
             UIViewController *rcol = ModuleCollection(overlay);
@@ -197,6 +201,9 @@ BOOL gPagerScrubbing = NO;
     } else if (state == 3) {
         gPACCDismissing = YES;
         PACCFadeOutClones(overlay);
+        [UIView animateWithDuration:0.22 delay:0.08 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
+            overlay.view.alpha = 0.0;
+        } completion:nil];
         [PACC.shared animateElementsOutForOverlay:overlay];
 
         if (player && stateChanged && gCurrentPage == PACCMediaPageIndex() && notched) {
