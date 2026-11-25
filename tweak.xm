@@ -173,6 +173,55 @@ static void PACCDumpOverlayMethods(void) {
     free(all);
 }
 
+static NSInteger gPACCLastStable = 0;
+static BOOL gPACCClosingNow = NO;
+#define kPACCLandExtra 420.0
+
+static CGAffineTransform (*PACCOrigSlideTransform)(id, SEL, id, CGFloat) = NULL;
+static NSUInteger gPACCTfLogCount = 0;
+
+// Real hook: CCUIOverlaySlideUpPresentationProvider (the bottom-up Control Center) computes the
+// container transform from the transition state. While the CC is closing we add extra downward
+// translation proportional to (1 - presentationProgress), so the stock animation itself lands lower.
+static CGAffineTransform PACCSlideTransformHook(id self, SEL _cmd, id state, CGFloat h) {
+    CGAffineTransform t = PACCOrigSlideTransform(self, _cmd, state, h);
+    if (!gEnabled || !gPACCClosingNow || PACCLandscapeNow()) return t;
+    double p = 1.0;
+    SEL ps = NSSelectorFromString(@"presentationProgress");
+    if (state && [state respondsToSelector:ps]) p = ((double (*)(id, SEL))objc_msgSend)(state, ps);
+    if (p >= 0.999) return t;
+    if (p < 0.0) p = 0.0;
+    CGFloat extra = (CGFloat)((1.0 - p) * kPACCLandExtra);
+    if (gPACCTfLogCount < 40) {
+        gPACCTfLogCount++;
+        PACCSizeLog([NSString stringWithFormat:@"slideTransform p %.2f ty %.1f + %.1f", p, t.ty, extra]);
+    }
+    t.ty += extra;
+    return t;
+}
+
+static void PACCInstallProviderHook(void) {
+    static BOOL done = NO;
+    if (done) return;
+    done = YES;
+    Class c = NSClassFromString(@"CCUIOverlaySlideUpPresentationProvider");
+    SEL sel = NSSelectorFromString(@"_transformForTransitionState:rubberBandingHeight:");
+    Method m = c ? class_getInstanceMethod(c, sel) : NULL;
+    if (!m) { PACCSizeLog(@"provider hook: method not found"); return; }
+    char *rt = method_copyReturnType(m);
+    BOOL okRet = rt && strncmp(rt, "{CGAffineTransform", 18) == 0;
+    NSString *rts = rt ? [NSString stringWithUTF8String:rt] : @"?";
+    free(rt);
+    char *a3 = method_copyArgumentType(m, 3);
+    BOOL okArg = method_getNumberOfArguments(m) == 4 && a3 && (a3[0] == 'd' || a3[0] == 'f');
+    NSString *a3s = a3 ? [NSString stringWithUTF8String:a3] : @"?";
+    free(a3);
+    PACCSizeLog([NSString stringWithFormat:@"provider hook: ret %@ arg3 %@ enc %s ok %d", rts, a3s, method_getTypeEncoding(m), (int)(okRet && okArg)]);
+    if (!(okRet && okArg)) return;
+    PACCOrigSlideTransform = (CGAffineTransform (*)(id, SEL, id, CGFloat))method_getImplementation(m);
+    method_setImplementation(m, (IMP)PACCSlideTransformHook);
+}
+
 static CGFloat gPACCCloseExtra = 0.0;
 static CGFloat gPACCCloseBase = 0.0;
 static CFTimeInterval gPACCCloseRelease = 0.0;
@@ -223,7 +272,7 @@ static void PACCStopCloseTicker(void) {
 }
 @end
 
-static void PACCStartCloseTicker(UIViewController *ov) {
+__attribute__((unused)) static void PACCStartCloseTicker(UIViewController *ov) {
     PACCStopCloseTicker();
     gPACCCloseOverlay = ov;
     gPACCCloseBase = gPACCExpandShift;
@@ -299,9 +348,12 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     BOOL stateChanged = !lastState || lastState.integerValue != state;
     objc_setAssociatedObject(overlay, kLastPresentationStateKey, @(state), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (stateChanged) PACCSizeLog([NSString stringWithFormat:@"pstate %ld -> %ld alpha %.2f", (long)(lastState ? lastState.integerValue : -1), (long)state, overlay.view.alpha]);
-    BOOL closing = (lastState && lastState.integerValue == 1);
+    BOOL closing = (state == 3 && gPACCLastStable == 1 && !(lastState && lastState.integerValue == 3));
+    gPACCClosingNow = ((state == 2 || state == 3) && gPACCLastStable == 1);
+    if (state == 0 || state == 1) { gPACCLastStable = state; gPACCClosingNow = NO; gPACCTfLogCount = 0; }
     gPACCPState = state;
     PACCDumpOverlayMethods();
+    PACCInstallProviderHook();
 
     BOOL notched = (CGRectGetHeight(UIScreen.mainScreen.bounds) >= 800.0);
     CCAMediaPlayerView *player = (CCAMediaPlayerView *)[overlay.view viewWithTag:kMediaPlayerTag];
@@ -362,7 +414,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
         }
     } else if (state == 3) {
         PACCSizeLog([NSString stringWithFormat:@"state3 closing %d last %ld", (int)closing, (long)(lastState ? lastState.integerValue : -1)]);
-        if (closing) { gPACCDismissDir = 0.0; PACCStartCloseTicker(overlay); PACCPollDismiss(overlay, ++gPACCDismissToken, 0.0); }
+        if (closing) { gPACCDismissDir = 0.0; PACCPollDismiss(overlay, ++gPACCDismissToken, 0.0); }
         [PACC.shared animateElementsOutForOverlay:overlay];
 
         if (player && stateChanged && gCurrentPage == PACCMediaPageIndex() && notched) {
