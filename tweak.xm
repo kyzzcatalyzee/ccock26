@@ -1,4 +1,5 @@
 #import "PACC.h"
+#import <sys/utsname.h>
 
 void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov);
 void PACCLogCloseSamples(id module, UIViewController *ov);
@@ -99,8 +100,48 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+#define kPACCCloseLandDrop 170.0
+
+// Home-button iPhones: Control Center opens from the bottom edge and closes downwards.
+// Decided from the hardware model, not the screen height (the fullscreen resolution hack
+// makes a home-button phone look like a notched one).
+static BOOL PACCHomeButtonDevice(void) {
+    static BOOL cached = NO, value = NO;
+    if (cached) return value;
+    struct utsname u; uname(&u);
+    NSString *m = [NSString stringWithUTF8String:u.machine];
+    int major = 0, minor = 0;
+    if ([m hasPrefix:@"iPhone"] && sscanf(m.UTF8String, "iPhone%d,%d", &major, &minor) == 2) {
+        if (major < 10) value = YES;
+        else if (major == 10) value = (minor == 1 || minor == 2 || minor == 4 || minor == 5);
+        else if (major == 12) value = (minor == 8);
+        else if (major == 14) value = (minor == 6);
+    }
+    cached = YES;
+    return value;
+}
+static void PACCApplyExpandShiftEx(BOOL animated);
 static NSUInteger gPACCDismissToken = 0;
 static NSInteger gPACCPState = -1;
+static CGFloat gPACCDismissDir = 0.0;
+
+// Which way is the overlay content moving right now? > 0 = down, < 0 = up. Compares a module
+// container's on-screen (presentation) position with its model position, so it follows the real
+// gesture (also with tweaks that bring Control Center in from the top).
+static CGFloat PACCSampleCloseDirection(UIViewController *ov) {
+    UIViewController *col = ov ? ModuleCollection(ov) : nil;
+    Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
+    if (!col.view || !cc) return 0.0;
+    for (UIView *v in col.view.subviews) {
+        if (![v isKindOfClass:cc] || v.hidden || !v.window) continue;
+        CALayer *pl = v.layer.presentationLayer;
+        if (!pl) continue;
+        CGRect pr = [pl convertRect:pl.bounds toLayer:nil];
+        CGRect mr = [v convertRect:v.bounds toView:nil];
+        return CGRectGetMidY(pr) - CGRectGetMidY(mr);
+    }
+    return 0.0;
+}
 
 static BOOL PACCPanActive(UIViewController *ov) {
     for (UIView *v = ov.view; v; v = v.superview) {
@@ -121,10 +162,17 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
         UIViewController *o = wov;
         if (!o || token != gPACCDismissToken || gPACCPState != 3) return;
         double el = elapsed + 0.05;
+        { CGFloat d = PACCSampleCloseDirection(o); if (fabs(d) > 3.0) gPACCDismissDir = d; }
         if (el >= 0.3 && !PACCPanActive(o)) {
             gPACCDismissing = YES;
             PACCFadeOutClones(o);
-            [UIView animateWithDuration:0.22 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
+            BOOL down = (gPACCDismissDir > 0.0) || (gPACCDismissDir == 0.0 && PACCHomeButtonDevice());
+            PACCSizeLog([NSString stringWithFormat:@"close direction %.1f -> %@", gPACCDismissDir, down ? @"down (land lower)" : @"up/none"]);
+            if (down) {
+                gPACCExpandShift += kPACCCloseLandDrop;
+                PACCApplyExpandShiftEx(YES);
+            }
+            [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
                 o.view.alpha = 0.0;
             } completion:nil];
             PACCSizeLog([NSString stringWithFormat:@"dismiss fade started after %.2fs", el]);
@@ -188,6 +236,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
 
     if (state == 1) {
         gPACCDismissToken++;
+        if (fabs(gPACCExpandShift) > 0.01 && !gCCAModuleExpanded) { gPACCExpandShift = 0.0; PACCApplyExpandShiftEx(NO); }
         if (gPACCDismissing) { gPACCDismissing = NO; PACCResetClonesAfterDismiss(overlay); }
         if (overlay.view.alpha < 0.999) {
             [overlay.view.layer removeAnimationForKey:@"opacity"];
@@ -239,7 +288,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
             if (notched && gCurrentPage == PACCMediaPageIndex()) [player fadeIn];
         }
     } else if (state == 3) {
-        if (closing) PACCPollDismiss(overlay, ++gPACCDismissToken, 0.0);
+        if (closing) { gPACCDismissDir = 0.0; PACCPollDismiss(overlay, ++gPACCDismissToken, 0.0); }
         [PACC.shared animateElementsOutForOverlay:overlay];
 
         if (player && stateChanged && gCurrentPage == PACCMediaPageIndex() && notched) {
@@ -596,17 +645,25 @@ static void PACCTrackExpansion(UIViewController *vc) {
     }
 }
 
-static void PACCApplyExpandShift(void) {
+static void PACCApplyExpandShiftEx(BOOL animated) {
     UIViewController *ovc = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
     UIViewController *col = ovc ? ModuleCollection(ovc) : nil;
     if (!col.view) return;
     CATransform3D t = col.view.layer.sublayerTransform;
     CATransform3D w = PACCDesiredTransform(t, col.view, PACCLandShiftNow(), -(CGFloat)gCurrentPage * PageSpan());
     if (PACCTransformClose(t, w)) return;
-    [UIView animateWithDuration:0.28 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionAllowUserInteraction animations:^{
+    if (!animated) {
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        col.view.layer.sublayerTransform = w;
+        [CATransaction commit];
+        return;
+    }
+    [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn | UIViewAnimationOptionAllowUserInteraction animations:^{
         col.view.layer.sublayerTransform = w;
     } completion:nil];
 }
+static void PACCApplyExpandShift(void) { PACCApplyExpandShiftEx(YES); }
 
 // On tall (notched / fullscreen) resolutions the stock layout parks the expanded
 // card off-position (Music hit the bottom edge). Align its top with the first row.

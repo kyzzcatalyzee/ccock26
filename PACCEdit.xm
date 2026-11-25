@@ -2783,7 +2783,7 @@ void PACCFadeOutClones(UIViewController *ov) {
         UIView *bv = m.view ? [m.view viewWithTag:182100] : nil;
         if (!bv || bv.hidden || bv.alpha < 0.01) continue;
         [UIView animateWithDuration:0.26 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn animations:^{
-            bv.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(0.92, 0.92), CGAffineTransformMakeTranslation(0, 150.0));
+            bv.transform = CGAffineTransformMakeScale(0.92, 0.92);
             bv.alpha = 0.0;
         } completion:nil];
     }
@@ -2791,7 +2791,7 @@ void PACCFadeOutClones(UIViewController *ov) {
         if (sv.tag != kPACCloneTag || sv.hidden || sv.alpha < 0.01) continue;
         for (NSString *k in [sv.layer.animationKeys copy]) if ([k hasPrefix:@"PACMir_"]) [sv.layer removeAnimationForKey:k];
         [UIView animateWithDuration:0.26 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn animations:^{
-            sv.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(0.92, 0.92), CGAffineTransformMakeTranslation(0, 150.0));
+            sv.transform = CGAffineTransformMakeScale(0.92, 0.92);
             sv.alpha = 0.0;
         } completion:nil];
     }
