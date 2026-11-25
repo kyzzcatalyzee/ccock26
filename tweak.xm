@@ -104,6 +104,7 @@ BOOL gPagerScrubbing = NO;
     PACCNoteExpandedModule(module, YES, nil);
     gCCAModuleExpanded = YES;
     UIViewController *overlay = (UIViewController *)(id)self;
+    if (gPACCExpandTop < 0.0 && !PACCLandscapeNow()) gPACCExpandTop = PACCGridTopY(overlay) - gPACCExpandShift;
     UIView *indicator = [overlay.view viewWithTag:kPageIndicatorTag];
     [UIView animateWithDuration:0.2 animations:^{
         indicator.alpha = 0.0;
@@ -560,6 +561,56 @@ static void PACCTrackExpansion(UIViewController *vc) {
     }
 }
 
+static void PACCApplyExpandShift(void) {
+    UIViewController *ovc = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+    UIViewController *col = ovc ? ModuleCollection(ovc) : nil;
+    if (!col.view) return;
+    CATransform3D t = col.view.layer.sublayerTransform;
+    CATransform3D w = PACCDesiredTransform(t, col.view, PACCLandShiftNow(), -(CGFloat)gCurrentPage * PageSpan());
+    if (PACCTransformClose(t, w)) return;
+    [UIView animateWithDuration:0.28 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionAllowUserInteraction animations:^{
+        col.view.layer.sublayerTransform = w;
+    } completion:nil];
+}
+
+// On tall (notched / fullscreen) resolutions the stock layout parks the expanded
+// card off-position (Music hit the bottom edge). Align its top with the first row.
+static void PACCCenterExpanded(UIViewController *vc, int attempt) {
+    if (!gEnabled || !vc || !vc.view.window) return;
+    if (CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0 || PACCLandscapeNow()) return;
+    SEL es = NSSelectorFromString(@"isExpanded");
+    BOOL ex = [vc respondsToSelector:es] ? ((BOOL (*)(id, SEL))objc_msgSend)(vc, es) : NO;
+    if (ex) {
+        UIViewController *content = nil;
+        SEL cs = NSSelectorFromString(@"contentViewController");
+        if ([vc respondsToSelector:cs]) content = ((id (*)(id, SEL))objc_msgSend)(vc, cs);
+        UIView *wrap = content.view.superview;
+        if (wrap && wrap.window) {
+            CGRect r = [wrap convertRect:wrap.bounds toView:nil];
+            if (r.size.height > 300.0) {
+                if (gPACCExpandTop < 0.0) {
+                    UIViewController *ov0 = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+                    gPACCExpandTop = PACCGridTopY(ov0) - gPACCExpandShift;
+                }
+                CGFloat top0 = gPACCExpandTop;
+                if (top0 < 20.0 || top0 > CGRectGetHeight(wrap.window.bounds) * 0.5) return;
+                CGFloat dy = top0 - CGRectGetMinY(r);
+                if (fabs(dy) > 1.0) {
+                    gPACCExpandShift += dy;
+                    PACCSizeLog([NSString stringWithFormat:@"center expanded dy %.1f total %.1f rect %@", dy, gPACCExpandShift, NSStringFromCGRect(r)]);
+                    PACCApplyExpandShift();
+                }
+            }
+        }
+    }
+    if (attempt < 4) {
+        __weak UIViewController *wv = vc;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            PACCCenterExpanded(wv, attempt + 1);
+        });
+    }
+}
+
 %hook CCUIContentModuleContainerViewController
 - (void)viewDidLayoutSubviews {
     %orig;
@@ -574,6 +625,7 @@ static void PACCTrackExpansion(UIViewController *vc) {
             gCCAModuleExpanded = YES;
             PACCSizeLog(@"expanded module opened (container layout)");
             PACCTrackExpansion(vc0);
+            PACCCenterExpanded(vc0, 0);
         } else if (!exp0 && sExpandedVC == vc0) {
             sExpandedVC = nil;
             gCCAModuleExpanded = NO;
@@ -581,6 +633,8 @@ static void PACCTrackExpansion(UIViewController *vc) {
             UIViewController *ovc = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
             PACCNoteExpandedModule(vc0, NO, ovc);
             PACCSizeLog(@"expanded module closed (container layout)");
+            gPACCExpandTop = -1.0;
+            if (fabs(gPACCExpandShift) > 0.01) { gPACCExpandShift = 0.0; PACCApplyExpandShift(); }
         }
     } @catch (__unused NSException *e) {}
     @try {

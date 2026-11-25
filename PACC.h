@@ -48,6 +48,9 @@ extern NSInteger gCurrentPage;
 extern NSString *const kReloadNotification;
 extern BOOL gEditModeEnabled;
 extern BOOL gEditModeActive;
+extern CGFloat gPACCExpandShift;
+extern CGFloat gPACCExpandTop;
+CGFloat PACCGridTopY(UIViewController *ov);
 extern CGFloat gPACCPortScale;
 extern BOOL gCircularModulesEnabled;
 extern BOOL gPromoPageEnabled;
@@ -295,7 +298,7 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     cur.m11 = 1.0;
     cur.m22 = 1.0;
     cur.m41 = 0.0;
-    cur.m42 = shift + offset - (gEditModeActive ? kPACCEditRaise : 0.0);
+    cur.m42 = shift + offset - (gEditModeActive ? kPACCEditRaise : 0.0) + gPACCExpandShift;
     cur.m43 = 0.0;
     gPACCPortScale = 1.0;
     if (!cv || !cv.window || !kPACPortScaleOn) return cur;
@@ -308,7 +311,7 @@ static inline CATransform3D PACCPortTransform(CATransform3D cur, UIView *cv, CGF
     cur.m11 = sc;
     cur.m22 = sc;
     cur.m41 = (1.0 - sc) * (mc - cx);
-    cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + sc * offset + gPACCPortFix - (gEditModeActive ? kPACCEditRaise : 0.0);
+    cur.m42 = shift + (1.0 - sc) * (top - cy) + raise + sc * offset + gPACCPortFix - (gEditModeActive ? kPACCEditRaise : 0.0) + gPACCExpandShift;
     return cur;
 }
 #define PACSS() (PACCLandscapeNow() ? 1.0 : gPACCPortScale)

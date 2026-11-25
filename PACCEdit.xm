@@ -777,6 +777,10 @@ static UIViewController *PACModuleAtPoint(CGPoint pt, UIViewController *overlay)
     return best;
 }
 
+CGFloat PACCGridTopY(UIViewController *ov) {
+    return ov ? PACGridBase(ov).y : 0.0;
+}
+
 static CGPoint PACGridBase(UIViewController *overlay) {
     PACRefreshGridConstants();
     PACEnsureStore();
