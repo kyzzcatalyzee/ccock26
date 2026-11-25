@@ -236,8 +236,45 @@ static CGRect PACCHook_##NAME(id self, SEL _cmd) { \
 PACC_RECT_LOG_HOOK(cfe, 0, "_containerFrameForExpandedState")
 PACC_RECT_LOG_HOOK(pfe, 0, "_presentationFrameForExpandedState")
 PACC_RECT_LOG_HOOK(contfe, 0, "_contentFrameForExpandedState")
-PACC_RECT_LOG_HOOK(cfr, 0, "_contentFrameForRestState")
-PACC_RECT_LOG_HOOK(cro, 0, "contentRestOverrideFrame")
+
+// The stock expand/collapse animation starts from / lands on the module's RAW rest frame, but on
+// home-button phones the module grid is shown scaled (0.91) and shifted by cv.layer.sublayerTransform,
+// so the animation ended ~15pt/33pt away from the visible tile. Map the raw rect through that transform.
+static CGRect PACCVisualRect(CGRect R) {
+    if (!gEnabled || CGRectIsEmpty(R) || CGRectIsNull(R)) return R;
+    UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+    UIView *cv = ov ? ModuleCollection(ov).view : nil;
+    if (!cv) return R;
+    CGAffineTransform at = CATransform3DGetAffineTransform(cv.layer.sublayerTransform);
+    if (CGAffineTransformIsIdentity(at)) return R;
+    CGRect Rc = [cv convertRect:R fromView:nil];
+    CGFloat cx = CGRectGetMidX(cv.bounds), cy = CGRectGetMidY(cv.bounds);
+    CGFloat xs[2] = { CGRectGetMinX(Rc), CGRectGetMaxX(Rc) }, ys[2] = { CGRectGetMinY(Rc), CGRectGetMaxY(Rc) };
+    CGFloat minX = CGFLOAT_MAX, minY = CGFLOAT_MAX, maxX = -CGFLOAT_MAX, maxY = -CGFLOAT_MAX;
+    for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) {
+        CGFloat dx = xs[i] - cx, dy = ys[j] - cy;
+        CGFloat px = cx + at.a * dx + at.c * dy + at.tx;
+        CGFloat py = cy + at.b * dx + at.d * dy + at.ty;
+        minX = MIN(minX, px); maxX = MAX(maxX, px); minY = MIN(minY, py); maxY = MAX(maxY, py);
+    }
+    return [cv convertRect:CGRectMake(minX, minY, maxX - minX, maxY - minY) toView:nil];
+}
+
+static CGRect (*PACCOrig_cfr)(id, SEL) = NULL;
+static CGRect (*PACCOrig_cro)(id, SEL) = NULL;
+static NSUInteger gPACCCnt_restfix = 0;
+static CGRect PACCHook_cfr(id self, SEL _cmd) {
+    CGRect r = PACCOrig_cfr(self, _cmd);
+    CGRect f = PACCVisualRect(r);
+    if (gPACCCnt_restfix < 30) { gPACCCnt_restfix++; PACCSizeLog([NSString stringWithFormat:@"restfix _contentFrameForRestState %@ -> %@", NSStringFromCGRect(r), NSStringFromCGRect(f)]); }
+    return f;
+}
+static CGRect PACCHook_cro(id self, SEL _cmd) {
+    CGRect r = PACCOrig_cro(self, _cmd);
+    CGRect f = PACCVisualRect(r);
+    if (gPACCCnt_restfix < 30 && !CGRectIsEmpty(r)) { gPACCCnt_restfix++; PACCSizeLog([NSString stringWithFormat:@"restfix contentRestOverrideFrame %@ -> %@", NSStringFromCGRect(r), NSStringFromCGRect(f)]); }
+    return f;
+}
 
 static void PACCInstallRectLog(const char *cls, const char *sel, IMP hook, IMP *orig) {
     Class c = objc_getClass(cls);
