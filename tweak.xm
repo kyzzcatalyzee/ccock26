@@ -176,10 +176,20 @@ static void PACCStopCloseTicker(void) {
 + (void)tick:(CADisplayLink *)l {
     UIViewController *o = gPACCCloseOverlay;
     CFTimeInterval now = CACurrentMediaTime();
-    if (!o || gPACCPState != 3 || now - gPACCCloseStart > 3.0) { PACCStopCloseTicker(); return; }
+    if (!o || gPACCPState != 3 || now - gPACCCloseStart > 3.0) {
+        PACCSizeLog([NSString stringWithFormat:@"closetick stop state %ld t %.2f extra %.1f dir %.1f", (long)gPACCPState, now - gPACCCloseStart, gPACCCloseExtra, gPACCDismissDir]);
+        PACCStopCloseTicker();
+        return;
+    }
     CGFloat d = PACCSampleCloseDirection(o);
     if (fabs(d) > 3.0) gPACCDismissDir = d;
-    if (PACCPanActive(o)) { gPACCCloseRelease = 0.0; return; }
+    BOOL pan = PACCPanActive(o);
+    static CFTimeInterval lastLog = 0;
+    if (now - lastLog > 0.08) {
+        lastLog = now;
+        PACCSizeLog([NSString stringWithFormat:@"closetick t %.2f d %.1f dir %.1f pan %d extra %.1f", now - gPACCCloseStart, d, gPACCDismissDir, (int)pan, gPACCCloseExtra]);
+    }
+    if (pan) { gPACCCloseRelease = 0.0; return; }
     if (gPACCCloseRelease == 0.0) gPACCCloseRelease = now;
     BOOL down = (gPACCDismissDir > 0.0);
     if (!down) return;
@@ -330,6 +340,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
             if (notched && gCurrentPage == PACCMediaPageIndex()) [player fadeIn];
         }
     } else if (state == 3) {
+        PACCSizeLog([NSString stringWithFormat:@"state3 closing %d last %ld", (int)closing, (long)(lastState ? lastState.integerValue : -1)]);
         if (closing) { gPACCDismissDir = 0.0; PACCStartCloseTicker(overlay); PACCPollDismiss(overlay, ++gPACCDismissToken, 0.0); }
         [PACC.shared animateElementsOutForOverlay:overlay];
 
