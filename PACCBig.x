@@ -1619,6 +1619,7 @@ static UIView *PACBigMakeRoutePicker(void) {
     double _elapsedSec, _duration, _rate;
     NSDate *_stamp;
     BOOL _playing;
+    NSString *_trackKey;
     CFTimeInterval _holdUntil;
 }
 - (instancetype)initWithFrame:(CGRect)f {
@@ -2058,11 +2059,25 @@ static UIView *PACBigMakeRoutePicker(void) {
         s->_rate = [ra respondsToSelector:@selector(doubleValue)] ? [ra doubleValue] : 0;
         BOOL playing = has && s->_rate > 0;
         if (playing != s->_playing) { s->_playing = playing; [s setNeedsLayout]; }
-        if ([art isKindOfClass:NSData.class]) {
+        // v0.8.70: a new track whose artwork is not delivered yet must not keep showing the previous artwork.
+        id alb = d[@"kMRMediaRemoteNowPlayingInfoAlbum"];
+        NSString *key = has ? [NSString stringWithFormat:@"%@|%@|%@|%.0f", title, [artist isKindOfClass:NSString.class] ? artist : @"",
+                               [alb isKindOfClass:NSString.class] ? alb : @"", s->_duration] : @"";
+        BOOL trackChanged = ![key isEqualToString:s->_trackKey ?: @""];
+        s->_trackKey = key;
+        if ([art isKindOfClass:NSData.class] && art.length) {
             UIImage *img = [UIImage imageWithData:art];
             if (img) { s->_art.image = img; s->_art.contentMode = UIViewContentModeScaleAspectFill; }
-        } else if (!has) {
+            else if (trackChanged) s->_art.image = nil;
+        } else if (!has || trackChanged) {
             s->_art.image = nil;
+            if (trackChanged && has) {
+                // artwork usually arrives a moment after the title: look again shortly
+                for (NSNumber *dly in @[@0.4, @1.0, @2.2]) {
+                    __weak typeof(s) w2 = s;
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)([dly doubleValue] * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [w2 refresh]; });
+                }
+            }
         }
         [s updateTimes];
     });

@@ -1365,9 +1365,15 @@ static void PACCReleaseStretch(UIView *slider) {
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
     return YES;
 }
+// v0.8.70: the stretch effect is off while a module is held/expanded (it competed with the hold gesture),
+// and comes back as soon as the module is closed.
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g {
+    return gEnabled && gSliderBounceEnabled && !gCCAModuleExpanded;
+}
 - (void)pan:(UIPanGestureRecognizer *)g {
     UIView *v = g.view;
     if (!v || !v.superview || !gEnabled || !gSliderBounceEnabled) return;
+    if (gCCAModuleExpanded) { PACCReleaseStretch(v); return; }
     CGFloat H = v.bounds.size.height;
     if (H < 1) return;
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {

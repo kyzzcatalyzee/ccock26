@@ -20,6 +20,34 @@ static NSString *PACCDesignModuleIdentifier(UIResponder *responder) {
     return nil;
 }
 
+// v0.8.70: the white fill of the Brightness/Volume sliders did not follow the module's rounded shape
+// (square top edge, different corner radius). Take the radius of the nearest rounded ancestor (the glass
+// background) and apply it to the slider and its full-width layers, clipped, so the white matches the background.
+static void PACCDesignFixSliderRadius(UIView *slider) {
+    CGSize S = slider.bounds.size;
+    if (S.width < 20.0 || S.height < 20.0) return;
+    CGFloat r = 0.0;
+    UIView *anc = slider.superview;
+    for (int d = 0; anc && d < 8; d++, anc = anc.superview) {
+        if (anc.layer.cornerRadius > 1.0) { r = anc.layer.cornerRadius; break; }
+    }
+    if (r <= 1.0) return;
+    r = MIN(r, MIN(S.width, S.height) * 0.5);
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:slider];
+    NSUInteger visited = 0;
+    while (queue.count && visited++ < 30) {
+        UIView *v = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        if (v.tag == PACCDesignTagSliderGlyph) continue;
+        BOOL big = (v == slider) || (v.bounds.size.width >= S.width * 0.9 && v.bounds.size.height >= 8.0);
+        if (!big) continue;
+        if (fabs(v.layer.cornerRadius - r) > 0.5) v.layer.cornerRadius = r;
+        v.layer.cornerCurve = kCACornerCurveContinuous;
+        v.layer.masksToBounds = YES;
+        [queue addObjectsFromArray:v.subviews];
+    }
+}
+
 static void PACCDesignColorSliderGlyph(UIView *slider, float value, BOOL animate) {
     NSMutableString *identity = [NSMutableString string];
     UIView *ancestor = slider;
@@ -35,6 +63,7 @@ static void PACCDesignColorSliderGlyph(UIView *slider, float value, BOOL animate
                    || [identifier containsString:@"controlcenter.audio"]
                    || [identifier containsString:@"volumemodule"];
     if (!brightness && !volume) return;
+    PACCDesignFixSliderRadius(slider);
 
     for (NSString *key in @[@"_activeGlyphView", @"_glyphImageView", @"_glyphPackageView", @"_compensatingGlyphView"]) {
         @try {
