@@ -176,6 +176,7 @@ static void PACCDumpOverlayMethods(void) {
 static NSInteger gPACCLastStable = 0;
 static BOOL gPACCClosingNow = NO;
 #define kPACCLandExtra 420.0
+#define kPACCLandExtraLandscape 140.0 // landscape screen is only ~375pt tall, so a smaller extra drop is enough
 
 static CGAffineTransform (*PACCOrigSlideTransform)(id, SEL, id, CGFloat) = NULL;
 static NSUInteger gPACCTfLogCount = 0;
@@ -185,16 +186,17 @@ static NSUInteger gPACCTfLogCount = 0;
 // translation proportional to (1 - presentationProgress), so the stock animation itself lands lower.
 static CGAffineTransform PACCSlideTransformHook(id self, SEL _cmd, id state, CGFloat h) {
     CGAffineTransform t = PACCOrigSlideTransform(self, _cmd, state, h);
-    if (!gEnabled || !gPACCClosingNow || PACCLandscapeNow()) return t;
+    if (!gEnabled || !gPACCClosingNow) return t;
+    BOOL land = PACCLandscapeNow();
     double p = 1.0;
     SEL ps = NSSelectorFromString(@"presentationProgress");
     if (state && [state respondsToSelector:ps]) p = ((double (*)(id, SEL))objc_msgSend)(state, ps);
     if (p >= 0.999) return t;
     if (p < 0.0) p = 0.0;
-    CGFloat extra = (CGFloat)((1.0 - p) * kPACCLandExtra);
+    CGFloat extra = (CGFloat)((1.0 - p) * (land ? kPACCLandExtraLandscape : kPACCLandExtra));
     if (gPACCTfLogCount < 40) {
         gPACCTfLogCount++;
-        PACCSizeLog([NSString stringWithFormat:@"slideTransform p %.2f ty %.1f + %.1f", p, t.ty, extra]);
+        PACCSizeLog([NSString stringWithFormat:@"slideTransform%@ p %.2f ty %.1f + %.1f", land ? @"(land)" : @"", p, t.ty, extra]);
     }
     t.ty += extra;
     return t;
