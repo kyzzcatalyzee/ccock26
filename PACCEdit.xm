@@ -2835,6 +2835,26 @@ void PACCSyncClones(UIViewController *ov, BOOL animated) {
             CFPreferencesAppSynchronize(CFSTR("pawxed.ccock26.preferences"));
         }
     }
+    // v0.8.70: the Connectivity/Music seed pages were stored with a stride one row larger than the real
+    // page span (e.g. a = 9, 18 on a stride of 8), so page N landed N rows too low. Put them back on row 0
+    // of their page (once; later drags are kept).
+    if (gPACClones.count && gPACMetricsAuth && !PACIsLandscape() && !PACFlagIsSet(CFSTR("SeedRowHeal1"))) {
+        PACRefreshGridConstants();
+        BOOL healed = NO;
+        for (NSMutableDictionary *cd in gPACClones) {
+            NSString *hid = cd[@"id"];
+            if (![hid isEqualToString:@"seedconn"] && ![hid isEqualToString:@"seedmusic"]) continue;
+            NSUInteger ha = [cd[@"a"] unsignedIntegerValue];
+            NSUInteger hp = ha / kPACStride, hr = ha % kPACStride;
+            if (hp >= 1 && hr == hp) {
+                cd[@"a"] = @(hp * kPACStride);
+                healed = YES;
+                PACCSizeLog([NSString stringWithFormat:@"seed row heal %@ a %lu -> %lu (stride %lu)", hid, (unsigned long)ha, (unsigned long)(hp * kPACStride), (unsigned long)kPACStride]);
+            }
+        }
+        if (healed) PACSaveClones();
+        PACSetFlag(CFSTR("SeedRowHeal1"));
+    }
     if (!gPACClones.count) {
         for (UIView *sv in [cv.subviews copy]) if (sv.tag == kPACCloneTag) { PACRemoveCloneChrome(sv); [sv removeFromSuperview]; }
         return;
@@ -6319,7 +6339,8 @@ void PACCLandBeginPass(UIView *cv) {
 }
 
 void PACCLandEndPass(UIView *cv) {
-    if (!kPACLandFrameScale || !gEnabled || !PACCLandscapeNow() || !cv || !cv.window) return;
+    // Measured in both modes: with kPACLandFrameScale 0 the same fit is applied via sublayerTransform.
+    if (!gEnabled || !PACCLandscapeNow() || !cv || !cv.window) return;
     if (gCCAModuleExpanded || CACurrentMediaTime() < gPACCExpandQuietUntil) return;
     if (gPACAccMn > gPACAccMx) return;
     CGFloat W = cv.window.bounds.size.width;
@@ -6343,7 +6364,7 @@ void PACCLandEndPass(UIView *cv) {
 %hook CCUIModuleCollectionView
 - (CGRect)frameForLayoutRect:(CCUILayoutRect)rect {
     CGRect f = %orig;
-    if (!kPACLandFrameScale || !gEnabled || !PACCLandscapeNow()) return f;
+    if (!gEnabled || !PACCLandscapeNow()) return f;
     UIView *cv = (UIView *)(id)self;
     if (!cv.window) return f;
     if (CGRectGetWidth(f) >= 2.0 && CGRectGetWidth(f) <= 360.0 && CGRectGetMinY(f) < PageSpan() * 0.9) {
@@ -6351,7 +6372,7 @@ void PACCLandEndPass(UIView *cv) {
         gPACAccMx = MAX(gPACAccMx, CGRectGetMaxX(f));
         gPACAccTop = MIN(gPACAccTop, CGRectGetMinY(f));
     }
-    if (!gPACLandHave) return f;
+    if (!kPACLandFrameScale || !gPACLandHave) return f;
     CGFloat W = cv.window.bounds.size.width;
     CGRect b = cv.bounds;
     CGFloat cx = b.origin.x + b.size.width * 0.5;
