@@ -281,9 +281,10 @@ static NSUInteger gPACCCnt_restfix = 0;
 // ---------------------------------------------------------------------------------------------
 static const void *kPACCRawRestKey = &kPACCRawRestKey;
 static const void *kPACCFixedKey = &kPACCFixedKey;
+static const void *kPACCBigHiddenKey = &kPACCBigHiddenKey;
 static CFTimeInterval gPACCFixUntil = 0.0;
 static NSHashTable<UIViewController *> *gPACCSeenVCs;
-static NSInteger gPACCFixLog = 80;
+static NSInteger gPACCFixLog = 160;
 
 static UIView *PACCFindWrapper(UIView *root) {
     static Class wc;
@@ -304,6 +305,25 @@ static BOOL PACCInTransitionView(UIView *v) {
     return NO;
 }
 
+static void PACCResetRestFixOn(UIView *wr) {
+    [CATransaction begin]; [CATransaction setDisableActions:YES];
+    wr.layer.transform = CATransform3DIdentity;
+    [CATransaction commit];
+    objc_setAssociatedObject(wr, kPACCFixedKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+// Drop every landing transform we may still hold (CC dismissed / re-presented, module closed). A stale
+// transform left on a module's content wrapper shifted Focus / Flashlight / Mirroring content down and
+// clipped it (screenshot IMG_3945) because the display link had paused before the module left the
+// transition view.
+void PACCResetRestFixAll(void) {
+    for (UIViewController *m in [gPACCSeenVCs allObjects]) {
+        if (!m.view) continue;
+        UIView *wr = PACCFindWrapper(m.view);
+        if (wr && objc_getAssociatedObject(wr, kPACCFixedKey)) PACCResetRestFixOn(wr);
+    }
+}
+
 @interface PACCRestFixer : NSObject
 @property (nonatomic, strong) CADisplayLink *link;
 - (void)tick:(CADisplayLink *)l;
@@ -318,18 +338,43 @@ static PACCRestFixer *sPACCFixer;
         // iterate the module VCs seen by the rest-frame hook instead of walking the overlay.
         for (UIViewController *m in [gPACCSeenVCs allObjects]) {
             UIView *view = m.view;
-            if (!view || !view.window) continue;
+            if (!view) continue;
             NSValue *rawV = objc_getAssociatedObject(m, kPACCRawRestKey);
             UIView *wr = rawV ? PACCFindWrapper(view) : nil;
             if (!wr) continue;
             BOOL ours = objc_getAssociatedObject(wr, kPACCFixedKey) != nil;
+            if (!view.window) {
+                if (ours) PACCResetRestFixOn(wr);
+                continue;
+            }
             if (!PACCInTransitionView(view)) {
-                if (ours) {
-                    [CATransaction begin]; [CATransaction setDisableActions:YES];
-                    wr.layer.transform = CATransform3DIdentity;
-                    [CATransaction commit];
-                    objc_setAssociatedObject(wr, kPACCFixedKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                // Right after the module is put back into the grid, the container view's presentation
+                // layer still has the full expanded size (log: pwin {378,671} vs model {152,70}) and
+                // shrinks to the tile for ~0.3s. Our tall "big module" material (tag 182100) is a child of
+                // that container, so it showed as a huge blob collapsing onto the tile. Hide it meanwhile.
+                UIView *bigv = [view viewWithTag:182100];
+                if (bigv) {
+                    CALayer *vp = view.layer.presentationLayer;
+                    BOOL mism = vp && (fabs(vp.bounds.size.width - view.bounds.size.width) > 2.0 ||
+                                       fabs(vp.bounds.size.height - view.bounds.size.height) > 2.0);
+                    BOOL hid = objc_getAssociatedObject(bigv, kPACCBigHiddenKey) != nil;
+                    if (mism) {
+                        active = YES;
+                        if (!hid) {
+                            [CATransaction begin]; [CATransaction setDisableActions:YES];
+                            bigv.layer.opacity = 0.0;
+                            [CATransaction commit];
+                            objc_setAssociatedObject(bigv, kPACCBigHiddenKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                            PACCSizeLog([NSString stringWithFormat:@"landfix hide big material (container presentation %@ vs model %@)", NSStringFromCGSize(vp.bounds.size), NSStringFromCGSize(view.bounds.size)]);
+                        }
+                    } else if (hid) {
+                        [CATransaction begin]; [CATransaction setDisableActions:YES];
+                        bigv.layer.opacity = 1.0;
+                        [CATransaction commit];
+                        objc_setAssociatedObject(bigv, kPACCBigHiddenKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                    }
                 }
+                if (ours) PACCResetRestFixOn(wr);
                 continue;
             }
             active = YES;
@@ -353,7 +398,7 @@ static PACCRestFixer *sPACCFixer;
             wr.layer.transform = T;
             [CATransaction commit];
             objc_setAssociatedObject(wr, kPACCFixedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            if (gPACCFixLog > 0) {
+            if (gPACCFixLog > 0 && p > 0.005 && !(p > 0.995 && fabs(w - R.size.width) < 0.3)) {
                 gPACCFixLog--;
                 PACCSizeLog([NSString stringWithFormat:@"landfix w %.1f pos %@ p %.2f A %.3f d %.1f,%.1f raw %@ vis %@", w, NSStringFromCGPoint(C), p, A, dx, dy, NSStringFromCGRect(R), NSStringFromCGRect(V)]);
             }
@@ -519,6 +564,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     %orig;
     gCCAModuleExpanded = NO;
     gPACCExpandQuietUntil = CACurrentMediaTime() + 1.5;
+    PACCKickRestFixer();
     UIViewController *overlay = (UIViewController *)(id)self;
     PACCNoteExpandedModule(module, NO, overlay);
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -547,6 +593,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     if (stateChanged) PACCSizeLog([NSString stringWithFormat:@"pstate %ld -> %ld alpha %.2f", (long)(lastState ? lastState.integerValue : -1), (long)state, overlay.view.alpha]);
     BOOL closing = (state == 3 && gPACCLastStable == 1 && !(lastState && lastState.integerValue == 3));
     gPACCClosingNow = ((state == 2 || state == 3) && gPACCLastStable == 1);
+    if (state == 0 || state == 1) PACCResetRestFixAll();
     if (state == 0 || state == 1) { gPACCLastStable = state; gPACCClosingNow = NO; gPACCTfLogCount = 0; }
     gPACCPState = state;
     PACCDumpOverlayMethods();
