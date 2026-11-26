@@ -235,12 +235,14 @@ static CGRect PACCHook_##NAME(id self, SEL _cmd) { \
 }
 PACC_RECT_LOG_HOOK(cfe, 0, "_containerFrameForExpandedState")
 PACC_RECT_LOG_HOOK(pfe, 0, "_presentationFrameForExpandedState")
+static char kPACCExpRectKeyStorage;
 static CGRect (*PACCOrig_contfe)(id, SEL) = NULL;
 static NSUInteger gPACCCnt_contfe = 0;
 static CGFloat gPACCExpW = 414.0;
 static CGRect PACCHook_contfe(id self, SEL _cmd) {
     CGRect r = PACCOrig_contfe(self, _cmd);
     if (r.size.width > 200.0) gPACCExpW = r.size.width;
+    if (!CGRectIsEmpty(r)) objc_setAssociatedObject(self, &kPACCExpRectKeyStorage, [NSValue valueWithCGRect:r], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (gPACCCnt_contfe < 24) { gPACCCnt_contfe++; PACCSizeLog([NSString stringWithFormat:@"rect _contentFrameForExpandedState %@ cls %@", NSStringFromCGRect(r), NSStringFromClass([self class])]); }
     return r;
 }
@@ -388,9 +390,19 @@ static PACCRestFixer *sPACCFixer;
             if (CGRectIsEmpty(R) || CGRectIsEmpty(V) || R.size.width < 1.0) continue;
             CALayer *pl = wr.layer.presentationLayer ?: wr.layer;
             CGFloat w = pl.bounds.size.width;
-            CGFloat span = gPACCExpW - R.size.width;
+            // Expanded size differs per module (Focus/Connectivity: full screen 414x736, Flashlight:
+            // {146,390}); using one global width left p at ~0.8 for narrow modules, i.e. the expanded
+            // content stayed shifted/scaled ("sometimes the position is off").
+            NSValue *ev = objc_getAssociatedObject(m, &kPACCExpRectKeyStorage);
+            CGSize E = ev ? ev.CGRectValue.size : CGSizeMake(gPACCExpW, 736.0);
+            CGFloat h = pl.bounds.size.height;
+            CGFloat spanW = E.width - R.size.width, spanH = E.height - R.size.height;
+            CGFloat cur, exp0, rest0, span;
+            if (spanW >= spanH || spanW > 30.0) { cur = w; exp0 = E.width; rest0 = R.size.width; span = spanW; }
+            else { cur = h; exp0 = E.height; rest0 = R.size.height; span = spanH; }
             if (span < 1.0) continue;
-            CGFloat p = MAX(0.0, MIN(1.0, (gPACCExpW - w) / span));
+            CGFloat p = MAX(0.0, MIN(1.0, (exp0 - cur) / span));
+            (void)rest0;
             CGFloat s = V.size.width / R.size.width;
             CGFloat A = 1.0 + (s - 1.0) * p;
             CGPoint Rc = CGPointMake(CGRectGetMidX(R), CGRectGetMidY(R));
