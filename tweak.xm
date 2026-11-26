@@ -305,7 +305,12 @@ static BOOL PACCInTransitionView(UIView *v) {
     return NO;
 }
 
+// The landing correction is applied as a PRESENTATION-ONLY animation (from == to), never as
+// layer.transform: a real transform changes view.frame, stock reads that frame while the module is in
+// transition, and the Focus list grew +16pt / its round button sank ~4pt every cycle (log 38bbb1df).
+static NSString *const kPACCLandAnimKey = @"PACLandFix";
 static void PACCResetRestFixOn(UIView *wr) {
+    [wr.layer removeAnimationForKey:kPACCLandAnimKey];
     [CATransaction begin]; [CATransaction setDisableActions:YES];
     wr.layer.transform = CATransform3DIdentity;
     [CATransaction commit];
@@ -394,9 +399,15 @@ static PACCRestFixer *sPACCFixer;
             CGPoint C = pl.position;
             CGFloat dx = (A - 1.0) * C.x + tx, dy = (A - 1.0) * C.y + ty;
             CATransform3D T = CATransform3DScale(CATransform3DMakeTranslation(dx, dy, 0.0), A, A, 1.0);
-            [CATransaction begin]; [CATransaction setDisableActions:YES];
-            wr.layer.transform = T;
-            [CATransaction commit];
+            {
+                CABasicAnimation *la = [CABasicAnimation animationWithKeyPath:@"transform"];
+                NSValue *tv = [NSValue valueWithCATransform3D:T];
+                la.fromValue = tv; la.toValue = tv;
+                la.duration = 1.0; la.removedOnCompletion = NO; la.fillMode = kCAFillModeBoth;
+                [CATransaction begin]; [CATransaction setDisableActions:YES];
+                [wr.layer addAnimation:la forKey:kPACCLandAnimKey];
+                [CATransaction commit];
+            }
             objc_setAssociatedObject(wr, kPACCFixedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             if (gPACCFixLog > 0 && p > 0.005 && !(p > 0.995 && fabs(w - R.size.width) < 0.3)) {
                 gPACCFixLog--;
