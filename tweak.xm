@@ -274,12 +274,30 @@ static CGRect PACCHook_cfr(id self, SEL _cmd) {
     UIView *v = [(id)self isKindOfClass:UIViewController.class] ? ((UIViewController *)self).view : nil;
     NSString *sup = v.superview ? NSStringFromClass(v.superview.class) : @"-";
     BOOL inTrans = [sup containsString:@"TransitionView"];
-    CGRect f = inTrans ? PACCVisualRect(r) : r;
+    // 3 calls happen while the view sits in the transition view (close start x2, close end x1). The
+    // last one is the final placement: correcting it still made the Focus list grow +15pt per cycle
+    // (log v0.8.57), so only the first two are corrected.
+    static NSUInteger transCalls = 0;
+    if (!inTrans) transCalls = 0; else transCalls++;
+    BOOL fixIt = inTrans && transCalls <= 2;
+    CGRect f = fixIt ? PACCVisualRect(r) : r;
+    static NSInteger stackBudget = 6;
+    if (inTrans && stackBudget > 0) {
+        stackBudget--;
+        NSArray<NSString *> *cs = [NSThread callStackSymbols];
+        NSMutableString *ss = [NSMutableString string];
+        for (NSUInteger i = 1; i < MIN(cs.count, (NSUInteger)9); i++) {
+            NSString *l = cs[i];
+            NSRange rg = [l rangeOfString:@"0x"];
+            [ss appendFormat:@" | %@", rg.location != NSNotFound ? [l substringFromIndex:rg.location] : l];
+        }
+        PACCSizeLog([NSString stringWithFormat:@"restfix callers #%lu%@", (unsigned long)transCalls, ss]);
+    }
     if (gPACCCnt_restfix < 200) {
         gPACCCnt_restfix++;
         NSString *mid = nil;
         @try { mid = [(id)[(id)self valueForKey:@"moduleIdentifier"] description]; } @catch (__unused NSException *e) {}
-        PACCSizeLog([NSString stringWithFormat:@"restfix #%lu %@ super %@ fix %d orig %@ -> %@", (unsigned long)gPACCRestCycle++, mid ?: NSStringFromClass([self class]), sup, (int)inTrans, NSStringFromCGRect(r), NSStringFromCGRect(f)]);
+        PACCSizeLog([NSString stringWithFormat:@"restfix #%lu %@ super %@ fix %d orig %@ -> %@", (unsigned long)gPACCRestCycle++, mid ?: NSStringFromClass([self class]), sup, (int)fixIt, NSStringFromCGRect(r), NSStringFromCGRect(f)]);
     }
     return f;
 }
