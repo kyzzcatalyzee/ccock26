@@ -6111,6 +6111,25 @@ void PACCLogCloseSamples(id module, UIViewController *ov) {
     }
 }
 
+static void PACCLogGlyphTree(UIViewController *m, double t) {
+    static NSInteger budget = 40;
+    if (budget <= 0) return;
+    budget--;
+    UIView *bv = PACModuleButtonView(m.view);
+    NSMutableString *o = [NSMutableString stringWithFormat:@"focusglyph t+%.2f bv %@ frame %@ |", t, NSStringFromClass(bv.class), NSStringFromCGRect(bv.frame)];
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:bv];
+    NSUInteger n = 0;
+    while (q.count && n < 14) {
+        UIView *v = q.firstObject; [q removeObjectAtIndex:0]; n++;
+        CATransform3D st = v.layer.sublayerTransform;
+        [o appendFormat:@" [%@ tag%ld f%@ c%@ a%.2f t%.2f,%.2f,%.2f s%.2f,%.2f al%.2f%@]", NSStringFromClass(v.class), (long)v.tag,
+         NSStringFromCGRect(v.frame), NSStringFromCGPoint(v.center), v.alpha,
+         v.transform.a, v.transform.d, v.transform.ty, st.m11, st.m22, v.layer.anchorPoint.y, v.layer.animationKeys.count ? @" anim" : @""];
+        [q addObjectsFromArray:v.subviews];
+    }
+    PACCSizeLog(o);
+}
+
 void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov) {
     if (open) {
         NSString *mid = nil;
@@ -6134,8 +6153,9 @@ void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov) {
         }];
     }
     // The stock collapse re-parents the module into the scaled grid with a transient frame
-    // (log: {139,64} for a moment, then {152,70}). The glyph pin above runs on that transient bounds
-    // and the Focus badge was left low. Re-pin icon + labels once the collapse has settled.
+    // (log: {139,64} for a moment, then {152,70}). Re-run the normal per-module refresh once it settled.
+    // (Only PACRefreshPresentationImpl: it filters eligible modules. Calling PACLayoutModuleIcon directly
+    // on every module scrambled the glyphs of Connectivity / media in v0.8.55.)
     __weak UIViewController *wov = ov;
     for (NSNumber *d in @[@0.25, @0.6, @1.1, @1.8]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -6146,10 +6166,10 @@ void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov) {
                 [UIView performWithoutAnimation:^{
                     [CATransaction begin];
                     [CATransaction setDisableActions:YES];
-                    PACLayoutModuleIcon(m);
                     PACRefreshPresentationImpl(m, o);
                     [CATransaction commit];
                 }];
+                if ([PACMid(m).lowercaseString containsString:@"focus"]) PACCLogGlyphTree(m, d.doubleValue);
             }
         });
     }
