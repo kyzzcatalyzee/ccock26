@@ -41,7 +41,7 @@ extern CFTimeInterval gPACCExpandQuietUntil;
 extern CGFloat gPACLandSc, gPACLandMc, gPACLandTop;
 extern BOOL gPACLandHave;
 extern CGFloat gPACLandOy0;
-#define kPACLandFrameScale 1
+#define kPACLandFrameScale 0 // 0 = landscape scale/shift via sublayerTransform like portrait (v0.8.67); 1 = baked into module frames
 void PACCLandBeginPass(UIView *cv);
 void PACCLandEndPass(UIView *cv);
 extern NSInteger gCurrentPage;
