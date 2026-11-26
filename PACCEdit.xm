@@ -6133,6 +6133,26 @@ void PACCNoteExpandedModule(id module, BOOL open, UIViewController *ov) {
             [CATransaction commit];
         }];
     }
+    // The stock collapse re-parents the module into the scaled grid with a transient frame
+    // (log: {139,64} for a moment, then {152,70}). The glyph pin above runs on that transient bounds
+    // and the Focus badge was left low. Re-pin icon + labels once the collapse has settled.
+    __weak UIViewController *wov = ov;
+    for (NSNumber *d in @[@0.25, @0.6, @1.1, @1.8]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(d.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIViewController *o = wov;
+            if (!o || gCCAModuleExpanded || gEditModeActive) return;
+            for (UIViewController *m in ModuleControllers(o)) {
+                if (!m.view || !PACMid(m).length) continue;
+                [UIView performWithoutAnimation:^{
+                    [CATransaction begin];
+                    [CATransaction setDisableActions:YES];
+                    PACLayoutModuleIcon(m);
+                    PACRefreshPresentationImpl(m, o);
+                    [CATransaction commit];
+                }];
+            }
+        });
+    }
 }
 
 static void PACApplyChrome(UIViewController *m, UIViewController *ov) {
