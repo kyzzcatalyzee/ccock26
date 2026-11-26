@@ -340,7 +340,7 @@ static PACCRestFixer *sPACCFixer;
 @implementation PACCRestFixer
 - (void)tick:(CADisplayLink *)l {
     BOOL active = NO;
-    if (gEnabled && !PACCLandscapeNow()) {
+    if (gEnabled) { // portrait AND landscape: the rect is mapped through the collection view's own sublayerTransform
         // The expanded module is no longer in the overlay's child tree during the transition, so
         // iterate the module VCs seen by the rest-frame hook instead of walking the overlay.
         for (UIViewController *m in [gPACCSeenVCs allObjects]) {
@@ -394,7 +394,7 @@ static PACCRestFixer *sPACCFixer;
             // {146,390}); using one global width left p at ~0.8 for narrow modules, i.e. the expanded
             // content stayed shifted/scaled ("sometimes the position is off").
             NSValue *ev = objc_getAssociatedObject(m, &kPACCExpRectKeyStorage);
-            CGSize E = ev ? ev.CGRectValue.size : CGSizeMake(gPACCExpW, 736.0);
+            CGSize E = ev ? ev.CGRectValue.size : (view.window ? view.window.bounds.size : CGSizeMake(gPACCExpW, 736.0));
             CGFloat h = pl.bounds.size.height;
             CGFloat spanW = E.width - R.size.width, spanH = E.height - R.size.height;
             CGFloat cur, exp0, rest0, span;
