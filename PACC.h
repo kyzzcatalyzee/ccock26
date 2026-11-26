@@ -182,7 +182,9 @@ static inline void PACCLandCollect(UIView *v, int depth, CGPoint off, CGFloat li
     }
 }
 static inline BOOL PACCLandMeasure(UIView *cv, CGFloat *outSc, CGFloat *outMc, CGFloat *outTop) {
-    if (kPACLandFrameScale) {
+    // Fit measured from the layout rects the collection asks for (frameForLayoutRect:), the same numbers
+    // the frame-baked mode used; falls back to measuring subview frames until the first pass completed.
+    if (kPACLandFrameScale || gPACLandHave) {
         *outSc = gPACLandSc; *outMc = gPACLandMc; *outTop = gPACLandTop;
         return gPACLandHave;
     }
