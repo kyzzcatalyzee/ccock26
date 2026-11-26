@@ -282,6 +282,7 @@ static NSUInteger gPACCCnt_restfix = 0;
 static const void *kPACCRawRestKey = &kPACCRawRestKey;
 static const void *kPACCFixedKey = &kPACCFixedKey;
 static CFTimeInterval gPACCFixUntil = 0.0;
+static NSHashTable<UIViewController *> *gPACCSeenVCs;
 static NSInteger gPACCFixLog = 80;
 
 static UIView *PACCFindWrapper(UIView *root) {
@@ -311,10 +312,11 @@ static PACCRestFixer *sPACCFixer;
 
 @implementation PACCRestFixer
 - (void)tick:(CADisplayLink *)l {
-    UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
     BOOL active = NO;
-    if (ov && gEnabled && !PACCLandscapeNow()) {
-        for (UIViewController *m in ModuleControllers(ov)) {
+    if (gEnabled && !PACCLandscapeNow()) {
+        // The expanded module is no longer in the overlay's child tree during the transition, so
+        // iterate the module VCs seen by the rest-frame hook instead of walking the overlay.
+        for (UIViewController *m in [gPACCSeenVCs allObjects]) {
             UIView *view = m.view;
             if (!view || !view.window) continue;
             NSValue *rawV = objc_getAssociatedObject(m, kPACCRawRestKey);
@@ -375,6 +377,10 @@ static NSUInteger gPACCRestCycle = 0;
 // _contentFrameForRestState / contentRestOverrideFrame are only OBSERVED now (raw rect stored per module).
 static CGRect PACCHook_cfr(id self, SEL _cmd) {
     CGRect r = PACCOrig_cfr(self, _cmd);
+    if ([(id)self isKindOfClass:UIViewController.class] && !CGRectIsEmpty(r)) {
+        if (!gPACCSeenVCs) gPACCSeenVCs = [NSHashTable weakObjectsHashTable];
+        [gPACCSeenVCs addObject:(UIViewController *)self];
+    }
     if ([(id)self isKindOfClass:UIViewController.class] && !CGRectIsEmpty(r))
         objc_setAssociatedObject(self, kPACCRawRestKey, [NSValue valueWithCGRect:r], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     PACCKickRestFixer();
