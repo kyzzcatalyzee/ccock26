@@ -1004,9 +1004,23 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
 }
 %end
 
+// Drop the landing animation the instant the module leaves the transition view. The display link only
+// noticed on its next tick, so for a few frames the (window-space) correction was still applied to a
+// module that was already back in the scaled grid: it flashed ~28pt too high / low (log 005b571c).
+static void PACCDropLandFixIfLeft(UIView *container) {
+    if (!container || PACCInTransitionView(container)) return;
+    UIView *wr = PACCFindWrapper(container);
+    if (wr && objc_getAssociatedObject(wr, kPACCFixedKey)) PACCResetRestFixOn(wr);
+}
+
 %hook CCUIContentModuleContainerView
+- (void)didMoveToSuperview {
+    %orig;
+    PACCDropLandFixIfLeft((UIView *)self);
+}
 - (void)layoutSubviews {
     %orig;
+    PACCDropLandFixIfLeft((UIView *)self);
     if (gEnabled) PACCBigStripContainer((UIView *)self);
 }
 %end
