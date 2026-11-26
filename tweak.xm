@@ -235,7 +235,15 @@ static CGRect PACCHook_##NAME(id self, SEL _cmd) { \
 }
 PACC_RECT_LOG_HOOK(cfe, 0, "_containerFrameForExpandedState")
 PACC_RECT_LOG_HOOK(pfe, 0, "_presentationFrameForExpandedState")
-PACC_RECT_LOG_HOOK(contfe, 0, "_contentFrameForExpandedState")
+static CGRect (*PACCOrig_contfe)(id, SEL) = NULL;
+static NSUInteger gPACCCnt_contfe = 0;
+static CGFloat gPACCExpW = 414.0;
+static CGRect PACCHook_contfe(id self, SEL _cmd) {
+    CGRect r = PACCOrig_contfe(self, _cmd);
+    if (r.size.width > 200.0) gPACCExpW = r.size.width;
+    if (gPACCCnt_contfe < 24) { gPACCCnt_contfe++; PACCSizeLog([NSString stringWithFormat:@"rect _contentFrameForExpandedState %@ cls %@", NSStringFromCGRect(r), NSStringFromClass([self class])]); }
+    return r;
+}
 
 // The stock expand/collapse animation starts from / lands on the module's RAW rest frame, but on
 // home-button phones the module grid is shown scaled (0.91) and shifted by cv.layer.sublayerTransform,
@@ -263,51 +271,123 @@ static CGRect PACCVisualRect(CGRect R) {
 static CGRect (*PACCOrig_cfr)(id, SEL) = NULL;
 static CGRect (*PACCOrig_cro)(id, SEL) = NULL;
 static NSUInteger gPACCCnt_restfix = 0;
+// ---------------------------------------------------------------------------------------------
+// Hold-to-expand / close landing on the visible (scaled) tile WITHOUT touching the rects stock reads.
+// (Returning a corrected _contentFrameForRestState made FCUIActivityListContentView of Focus grow
+// +15pt and its round button sink 3.5pt on every cycle - log v0.8.57/58.) Stock animates the content
+// wrapper between the raw rest rect and the expanded rect (full screen). Instead we leave stock alone
+// and, every frame, give that wrapper a layer transform that maps raw -> visual rect, blended by the
+// animation progress p = (expandedW - w) / (expandedW - restW): p = 1 at rest, 0 when expanded.
+// ---------------------------------------------------------------------------------------------
+static const void *kPACCRawRestKey = &kPACCRawRestKey;
+static const void *kPACCFixedKey = &kPACCFixedKey;
+static CFTimeInterval gPACCFixUntil = 0.0;
+static NSInteger gPACCFixLog = 80;
+
+static UIView *PACCFindWrapper(UIView *root) {
+    static Class wc;
+    if (!wc) wc = NSClassFromString(@"CCUIContentModuleContentContainerView");
+    if (!wc) return nil;
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
+    NSUInteger n = 0;
+    while (q.count && n < 40) {
+        UIView *v = q.firstObject; [q removeObjectAtIndex:0]; n++;
+        if ([v isKindOfClass:wc]) return v;
+        [q addObjectsFromArray:v.subviews];
+    }
+    return nil;
+}
+
+static BOOL PACCInTransitionView(UIView *v) {
+    for (UIView *a = v; a; a = a.superview) if ([NSStringFromClass(a.class) containsString:@"TransitionView"]) return YES;
+    return NO;
+}
+
+@interface PACCRestFixer : NSObject
+@property (nonatomic, strong) CADisplayLink *link;
+- (void)tick:(CADisplayLink *)l;
+@end
+static PACCRestFixer *sPACCFixer;
+
+@implementation PACCRestFixer
+- (void)tick:(CADisplayLink *)l {
+    UIViewController *ov = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
+    BOOL active = NO;
+    if (ov && gEnabled && !PACCLandscapeNow()) {
+        for (UIViewController *m in ModuleControllers(ov)) {
+            UIView *view = m.view;
+            if (!view || !view.window) continue;
+            NSValue *rawV = objc_getAssociatedObject(m, kPACCRawRestKey);
+            UIView *wr = rawV ? PACCFindWrapper(view) : nil;
+            if (!wr) continue;
+            BOOL ours = objc_getAssociatedObject(wr, kPACCFixedKey) != nil;
+            if (!PACCInTransitionView(view)) {
+                if (ours) {
+                    [CATransaction begin]; [CATransaction setDisableActions:YES];
+                    wr.layer.transform = CATransform3DIdentity;
+                    [CATransaction commit];
+                    objc_setAssociatedObject(wr, kPACCFixedKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                }
+                continue;
+            }
+            active = YES;
+            CGRect R = rawV.CGRectValue;
+            CGRect V = PACCVisualRect(R);
+            if (CGRectIsEmpty(R) || CGRectIsEmpty(V) || R.size.width < 1.0) continue;
+            CALayer *pl = wr.layer.presentationLayer ?: wr.layer;
+            CGFloat w = pl.bounds.size.width;
+            CGFloat span = gPACCExpW - R.size.width;
+            if (span < 1.0) continue;
+            CGFloat p = MAX(0.0, MIN(1.0, (gPACCExpW - w) / span));
+            CGFloat s = V.size.width / R.size.width;
+            CGFloat A = 1.0 + (s - 1.0) * p;
+            CGPoint Rc = CGPointMake(CGRectGetMidX(R), CGRectGetMidY(R));
+            CGPoint Vc = CGPointMake(CGRectGetMidX(V), CGRectGetMidY(V));
+            CGFloat tx = (Vc.x - s * Rc.x) * p, ty = (Vc.y - s * Rc.y) * p;
+            CGPoint C = pl.position;
+            CGFloat dx = (A - 1.0) * C.x + tx, dy = (A - 1.0) * C.y + ty;
+            CATransform3D T = CATransform3DScale(CATransform3DMakeTranslation(dx, dy, 0.0), A, A, 1.0);
+            [CATransaction begin]; [CATransaction setDisableActions:YES];
+            wr.layer.transform = T;
+            [CATransaction commit];
+            objc_setAssociatedObject(wr, kPACCFixedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            if (gPACCFixLog > 0) {
+                gPACCFixLog--;
+                PACCSizeLog([NSString stringWithFormat:@"landfix w %.1f pos %@ p %.2f A %.3f d %.1f,%.1f raw %@ vis %@", w, NSStringFromCGPoint(C), p, A, dx, dy, NSStringFromCGRect(R), NSStringFromCGRect(V)]);
+            }
+        }
+    }
+    if (!active && CACurrentMediaTime() > gPACCFixUntil) l.paused = YES;
+}
+@end
+
+static void PACCKickRestFixer(void) {
+    gPACCFixUntil = CACurrentMediaTime() + 2.5;
+    if (!sPACCFixer) {
+        sPACCFixer = [PACCRestFixer new];
+        sPACCFixer.link = [CADisplayLink displayLinkWithTarget:sPACCFixer selector:@selector(tick:)];
+        [sPACCFixer.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    }
+    sPACCFixer.link.paused = NO;
+}
+
 static NSUInteger gPACCRestCycle = 0;
-// _contentFrameForRestState is asked 4x per hold/close cycle (log): once at hold start, twice at close
-// start (module lives in the window-space UITransitionView -> needs the VISUAL tile rect) and once at the
-// very end, when the module is placed back INTO the scaled grid. Returning the visual rect there put the
-// module at {139,64} (=152*0.91) and fed the Focus list view a wrong size that grew +15pt per cycle (the
-// badge slid down). So correct only while the module's view sits in a UITransitionView.
+// _contentFrameForRestState / contentRestOverrideFrame are only OBSERVED now (raw rect stored per module).
 static CGRect PACCHook_cfr(id self, SEL _cmd) {
     CGRect r = PACCOrig_cfr(self, _cmd);
-    UIView *v = [(id)self isKindOfClass:UIViewController.class] ? ((UIViewController *)self).view : nil;
-    NSString *sup = v.superview ? NSStringFromClass(v.superview.class) : @"-";
-    BOOL inTrans = [sup containsString:@"TransitionView"];
-    // 3 calls happen while the view sits in the transition view (close start x2, close end x1). The
-    // last one is the final placement: correcting it still made the Focus list grow +15pt per cycle
-    // (log v0.8.57), so only the first two are corrected.
-    static NSUInteger transCalls = 0;
-    if (!inTrans) transCalls = 0; else transCalls++;
-    BOOL fixIt = inTrans && transCalls <= 2;
-    CGRect f = fixIt ? PACCVisualRect(r) : r;
-    static NSInteger stackBudget = 6;
-    if (inTrans && stackBudget > 0) {
-        stackBudget--;
-        NSArray<NSString *> *cs = [NSThread callStackSymbols];
-        NSMutableString *ss = [NSMutableString string];
-        for (NSUInteger i = 1; i < MIN(cs.count, (NSUInteger)9); i++) {
-            NSString *l = cs[i];
-            NSRange rg = [l rangeOfString:@"0x"];
-            [ss appendFormat:@" | %@", rg.location != NSNotFound ? [l substringFromIndex:rg.location] : l];
-        }
-        PACCSizeLog([NSString stringWithFormat:@"restfix callers #%lu%@", (unsigned long)transCalls, ss]);
-    }
-    if (gPACCCnt_restfix < 200) {
+    if ([(id)self isKindOfClass:UIViewController.class] && !CGRectIsEmpty(r))
+        objc_setAssociatedObject(self, kPACCRawRestKey, [NSValue valueWithCGRect:r], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    PACCKickRestFixer();
+    if (gPACCCnt_restfix < 40) {
         gPACCCnt_restfix++;
-        NSString *mid = nil;
-        @try { mid = [(id)[(id)self valueForKey:@"moduleIdentifier"] description]; } @catch (__unused NSException *e) {}
-        PACCSizeLog([NSString stringWithFormat:@"restfix #%lu %@ super %@ fix %d orig %@ -> %@", (unsigned long)gPACCRestCycle++, mid ?: NSStringFromClass([self class]), sup, (int)fixIt, NSStringFromCGRect(r), NSStringFromCGRect(f)]);
+        PACCSizeLog([NSString stringWithFormat:@"restfix #%lu rest %@ (observed)", (unsigned long)gPACCRestCycle++, NSStringFromCGRect(r)]);
     }
-    return f;
+    return r;
 }
-// contentRestOverrideFrame is only used for the hold-to-open start; it is derived from the (raw, now
-// uncorrected) rest frame, so correct it once here.
 static CGRect PACCHook_cro(id self, SEL _cmd) {
     CGRect r = PACCOrig_cro(self, _cmd);
-    CGRect f = PACCVisualRect(r);
-    if (gPACCCnt_restfix < 200 && !CGRectIsEmpty(r)) { gPACCCnt_restfix++; PACCSizeLog([NSString stringWithFormat:@"restfix contentRestOverrideFrame %@ -> %@", NSStringFromCGRect(r), NSStringFromCGRect(f)]); }
-    return f;
+    PACCKickRestFixer();
+    return r;
 }
 
 static void PACCInstallRectLog(const char *cls, const char *sel, IMP hook, IMP *orig) {
