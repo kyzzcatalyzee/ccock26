@@ -264,24 +264,32 @@ static CGRect (*PACCOrig_cfr)(id, SEL) = NULL;
 static CGRect (*PACCOrig_cro)(id, SEL) = NULL;
 static NSUInteger gPACCCnt_restfix = 0;
 static NSUInteger gPACCRestCycle = 0;
+// _contentFrameForRestState is asked 4x per hold/close cycle (log): once at hold start, twice at close
+// start (module lives in the window-space UITransitionView -> needs the VISUAL tile rect) and once at the
+// very end, when the module is placed back INTO the scaled grid. Returning the visual rect there put the
+// module at {139,64} (=152*0.91) and fed the Focus list view a wrong size that grew +15pt per cycle (the
+// badge slid down). So correct only while the module's view sits in a UITransitionView.
 static CGRect PACCHook_cfr(id self, SEL _cmd) {
     CGRect r = PACCOrig_cfr(self, _cmd);
-    CGRect f = PACCVisualRect(r);
+    UIView *v = [(id)self isKindOfClass:UIViewController.class] ? ((UIViewController *)self).view : nil;
+    NSString *sup = v.superview ? NSStringFromClass(v.superview.class) : @"-";
+    BOOL inTrans = [sup containsString:@"TransitionView"];
+    CGRect f = inTrans ? PACCVisualRect(r) : r;
     if (gPACCCnt_restfix < 200) {
         gPACCCnt_restfix++;
         NSString *mid = nil;
         @try { mid = [(id)[(id)self valueForKey:@"moduleIdentifier"] description]; } @catch (__unused NSException *e) {}
-        PACCSizeLog([NSString stringWithFormat:@"restfix #%lu %@ orig %@ -> %@", (unsigned long)gPACCRestCycle++, mid ?: NSStringFromClass([self class]), NSStringFromCGRect(r), NSStringFromCGRect(f)]);
+        PACCSizeLog([NSString stringWithFormat:@"restfix #%lu %@ super %@ fix %d orig %@ -> %@", (unsigned long)gPACCRestCycle++, mid ?: NSStringFromClass([self class]), sup, (int)inTrans, NSStringFromCGRect(r), NSStringFromCGRect(f)]);
     }
     return f;
 }
-// contentRestOverrideFrame is fed by _contentFrameForRestState (already corrected above); correcting it
-// again mapped the rect twice (logged {49.6,327.7,151x69} -> {63.7,305.6,137x63}), shrinking/shifting the
-// landing a second time. Only log it.
+// contentRestOverrideFrame is only used for the hold-to-open start; it is derived from the (raw, now
+// uncorrected) rest frame, so correct it once here.
 static CGRect PACCHook_cro(id self, SEL _cmd) {
     CGRect r = PACCOrig_cro(self, _cmd);
-    if (gPACCCnt_restfix < 200 && !CGRectIsEmpty(r)) { gPACCCnt_restfix++; PACCSizeLog([NSString stringWithFormat:@"restfix contentRestOverrideFrame (pass-through) %@", NSStringFromCGRect(r)]); }
-    return r;
+    CGRect f = PACCVisualRect(r);
+    if (gPACCCnt_restfix < 200 && !CGRectIsEmpty(r)) { gPACCCnt_restfix++; PACCSizeLog([NSString stringWithFormat:@"restfix contentRestOverrideFrame %@ -> %@", NSStringFromCGRect(r), NSStringFromCGRect(f)]); }
+    return f;
 }
 
 static void PACCInstallRectLog(const char *cls, const char *sel, IMP hook, IMP *orig) {
