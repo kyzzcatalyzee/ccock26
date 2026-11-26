@@ -263,16 +263,40 @@ static CGRect PACCVisualRect(CGRect R) {
 static CGRect (*PACCOrig_cfr)(id, SEL) = NULL;
 static CGRect (*PACCOrig_cro)(id, SEL) = NULL;
 static NSUInteger gPACCCnt_restfix = 0;
+// Raw rest rect is cached per module container for one grid "generation". If the stock value were
+// ever derived from a frame we already shifted, repeated hold/close cycles would drift (Focus icon
+// sliding down each time); the cache keeps every cycle on the first, clean value. The generation bumps
+// when the CC (re)opens from dismissed, and when edit mode toggles, so moved/resized tiles refresh.
+static NSUInteger gPACCRestGen = 1;
+static const void *kPACCRestRawKey = &kPACCRestRawKey;
+static const void *kPACCRestGenKey = &kPACCRestGenKey;
+static NSUInteger gPACCRestCycle = 0;
 static CGRect PACCHook_cfr(id self, SEL _cmd) {
     CGRect r = PACCOrig_cfr(self, _cmd);
-    CGRect f = PACCVisualRect(r);
-    if (gPACCCnt_restfix < 30) { gPACCCnt_restfix++; PACCSizeLog([NSString stringWithFormat:@"restfix _contentFrameForRestState %@ -> %@", NSStringFromCGRect(r), NSStringFromCGRect(f)]); }
+    static BOOL lastEdit = NO;
+    if (lastEdit != gEditModeActive) { lastEdit = gEditModeActive; gPACCRestGen++; }
+    CGRect raw = r;
+    NSNumber *gn = objc_getAssociatedObject(self, kPACCRestGenKey);
+    NSValue *rv = objc_getAssociatedObject(self, kPACCRestRawKey);
+    BOOL cached = (gn && gn.unsignedIntegerValue == gPACCRestGen && rv);
+    if (cached) raw = rv.CGRectValue;
+    else if (!CGRectIsEmpty(r)) {
+        objc_setAssociatedObject(self, kPACCRestRawKey, [NSValue valueWithCGRect:r], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(self, kPACCRestGenKey, @(gPACCRestGen), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGRect f = PACCVisualRect(raw);
+    if (gPACCCnt_restfix < 200) {
+        gPACCCnt_restfix++;
+        NSString *mid = nil;
+        @try { mid = [(id)[(id)self valueForKey:@"moduleIdentifier"] description]; } @catch (__unused NSException *e) {}
+        PACCSizeLog([NSString stringWithFormat:@"restfix #%lu %@ gen %lu cached %d orig %@ raw %@ -> %@", (unsigned long)gPACCRestCycle++, mid ?: NSStringFromClass([self class]), (unsigned long)gPACCRestGen, (int)cached, NSStringFromCGRect(r), NSStringFromCGRect(raw), NSStringFromCGRect(f)]);
+    }
     return f;
 }
 static CGRect PACCHook_cro(id self, SEL _cmd) {
     CGRect r = PACCOrig_cro(self, _cmd);
     CGRect f = PACCVisualRect(r);
-    if (gPACCCnt_restfix < 30 && !CGRectIsEmpty(r)) { gPACCCnt_restfix++; PACCSizeLog([NSString stringWithFormat:@"restfix contentRestOverrideFrame %@ -> %@", NSStringFromCGRect(r), NSStringFromCGRect(f)]); }
+    if (gPACCCnt_restfix < 200 && !CGRectIsEmpty(r)) { gPACCCnt_restfix++; PACCSizeLog([NSString stringWithFormat:@"restfix contentRestOverrideFrame %@ -> %@", NSStringFromCGRect(r), NSStringFromCGRect(f)]); }
     return f;
 }
 
@@ -427,6 +451,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     if (stateChanged) PACCSizeLog([NSString stringWithFormat:@"pstate %ld -> %ld alpha %.2f", (long)(lastState ? lastState.integerValue : -1), (long)state, overlay.view.alpha]);
     BOOL closing = (state == 3 && gPACCLastStable == 1 && !(lastState && lastState.integerValue == 3));
     gPACCClosingNow = ((state == 2 || state == 3) && gPACCLastStable == 1);
+    if (state == 0 && gPACCLastStable != 0) gPACCRestGen++;
     if (state == 0 || state == 1) { gPACCLastStable = state; gPACCClosingNow = NO; gPACCTfLogCount = 0; }
     gPACCPState = state;
     PACCDumpOverlayMethods();
