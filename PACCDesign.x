@@ -30,7 +30,11 @@ static void PACCDesignFixSliderRadius(UIView *slider) {
     CALayer *cur = slider.layer.mask;
     BOOL ours = cur && [cur.name isEqualToString:kPACCSliderCoverName];
     if (S.width < 100.0 || S.height < 250.0) {
-        if (ours) slider.layer.mask = nil;
+        if (ours) {
+            slider.layer.mask = nil;
+            NSMutableArray<UIView *> *q = [NSMutableArray arrayWithArray:slider.subviews];
+            while (q.count) { UIView *u = q.lastObject; [q removeLastObject]; if (u.hidden && u.tag != PACCDesignTagSliderGlyph && u.layer.cornerRadius > 20.0) u.hidden = NO; [q addObjectsFromArray:u.subviews]; }
+        }
         return;
     }
     UIView *wrap = nil;
@@ -54,6 +58,25 @@ static void PACCDesignFixSliderRadius(UIView *slider) {
     mk.fillColor = UIColor.blackColor.CGColor;
     mk.path = [UIBezierPath bezierPathWithRoundedRect:cover cornerRadius:r].CGPath;
     if (!ours) slider.layer.mask = mk;
+    // v0.8.76: besides the outer white there is an inner pill (inset a few points, bigger radius than the
+    // background). Cover it: hide that one layer so only the white clipped by the background shape remains,
+    // like the collapsed slider. Everything is logged ("sliderinner ...").
+    static CFTimeInterval lastTree = 0;
+    BOOL tree = CACurrentMediaTime() - lastTree > 3.0;
+    if (tree) lastTree = CACurrentMediaTime();
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithArray:slider.subviews];
+    NSUInteger visited = 0;
+    while (queue.count && visited++ < 30) {
+        UIView *v = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        if (v.tag == PACCDesignTagSliderGlyph) continue;
+        CGRect f = v.frame;
+        BOOL inner = f.origin.x >= 1.0 && f.origin.x <= 8.0 && fabs(f.size.width - (S.width - 2.0 * f.origin.x)) < 2.0 &&
+                     f.size.height >= S.height * 0.85 && v.layer.cornerRadius > r + 4.0;
+        if (tree) PACCSizeLog([NSString stringWithFormat:@"sliderinner %@ %@ cr %.1f a %.2f hidden %d inner %d", NSStringFromClass(v.class), NSStringFromCGRect(f), v.layer.cornerRadius, v.alpha, (int)v.hidden, (int)inner]);
+        if (inner) v.hidden = YES;
+        [queue addObjectsFromArray:v.subviews];
+    }
     static CFTimeInterval lastLog = 0;
     if (CACurrentMediaTime() - lastLog > 3.0) {
         lastLog = CACurrentMediaTime();
