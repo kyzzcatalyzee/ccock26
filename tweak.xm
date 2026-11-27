@@ -1,4 +1,5 @@
 #import "PACC.h"
+#import <UIKit/UIGestureRecognizerSubclass.h>
 #import <sys/utsname.h>
 #import <objc/runtime.h>
 
@@ -1351,42 +1352,41 @@ static void PACCReleaseStretch(UIView *slider) {
     PACCWakeSpring(s);
 }
 
-@interface PACCBouncer : NSObject <UIGestureRecognizerDelegate>
-+ (instancetype)shared;
+// v0.8.71b: the stretch effect used to be a UIPanGestureRecognizer on every Brightness/Volume slider, and it
+// could compete with the hold-to-expand gesture (one of the two modules sometimes could not be held).
+// It is now a passive observer: it never recognizes (stays Possible), so it cannot steal or delay the hold,
+// and it only reads touch positions. Off while a module is held/expanded, on again after it closes.
+@interface PACCStretchObserver : UIGestureRecognizer <UIGestureRecognizerDelegate>
 @end
 
-@implementation PACCBouncer
-+ (instancetype)shared {
-    static PACCBouncer *b;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ b = [PACCBouncer new]; });
-    return b;
-}
-- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b {
-    return YES;
-}
-// v0.8.70: the stretch effect is off while a module is held/expanded (it competed with the hold gesture),
-// and comes back as soon as the module is closed.
-- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g {
-    return gEnabled && gSliderBounceEnabled && !gCCAModuleExpanded;
-}
-- (void)pan:(UIPanGestureRecognizer *)g {
-    UIView *v = g.view;
-    if (!v || !v.superview || !gEnabled || !gSliderBounceEnabled) return;
+@implementation PACCStretchObserver
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b { return YES; }
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)b { return NO; }
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)b { return NO; }
+- (BOOL)canPreventGestureRecognizer:(UIGestureRecognizer *)other { return NO; }
+- (BOOL)canBePreventedByGestureRecognizer:(UIGestureRecognizer *)other { return NO; }
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    UIView *v = self.view;
+    UITouch *t = touches.anyObject;
+    if (!v || !v.superview || !t || !gEnabled || !gSliderBounceEnabled) return;
     if (gCCAModuleExpanded) { PACCReleaseStretch(v); return; }
     CGFloat H = v.bounds.size.height;
     if (H < 1) return;
-    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
-        CGFloat over = 0;
-        int dir = 0;
-        CGFloat top = v.center.y - H / 2, bottom = v.center.y + H / 2;
-        CGFloat y = [g locationInView:v.superview].y;
-        if (y < top) { over = top - y; dir = 1; }
-        else if (y > bottom) { over = y - bottom; dir = -1; }
-        PACCApplyStretch(v, over, dir);
-    } else if (g.state >= UIGestureRecognizerStateEnded) {
-        PACCReleaseStretch(v);
-    }
+    CGFloat over = 0;
+    int dir = 0;
+    CGFloat top = v.center.y - H / 2, bottom = v.center.y + H / 2;
+    CGFloat y = [t locationInView:v.superview].y;
+    if (y < top) { over = top - y; dir = 1; }
+    else if (y > bottom) { over = y - bottom; dir = -1; }
+    PACCApplyStretch(v, over, dir);
+}
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (self.view) PACCReleaseStretch(self.view);
+    self.state = UIGestureRecognizerStateFailed;
+}
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (self.view) PACCReleaseStretch(self.view);
+    self.state = UIGestureRecognizerStateFailed;
 }
 @end
 
@@ -1395,12 +1395,12 @@ static const void *kPACCPanAdded = &kPACCPanAdded;
 static void PACCAddBounce(UIView *slider) {
     if (objc_getAssociatedObject(slider, kPACCPanAdded)) return;
     objc_setAssociatedObject(slider, kPACCPanAdded, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:[PACCBouncer shared] action:@selector(pan:)];
-    pan.delegate = [PACCBouncer shared];
-    pan.cancelsTouchesInView = NO;
-    pan.delaysTouchesBegan = NO;
-    pan.delaysTouchesEnded = NO;
-    [slider addGestureRecognizer:pan];
+    PACCStretchObserver *obs = [[PACCStretchObserver alloc] initWithTarget:nil action:NULL];
+    obs.delegate = obs;
+    obs.cancelsTouchesInView = NO;
+    obs.delaysTouchesBegan = NO;
+    obs.delaysTouchesEnded = NO;
+    [slider addGestureRecognizer:obs];
 }
 
 %hook CCUIBaseSliderView

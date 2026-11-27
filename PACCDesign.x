@@ -20,25 +20,37 @@ static NSString *PACCDesignModuleIdentifier(UIResponder *responder) {
     return nil;
 }
 
-// v0.8.70: the white fill of the Brightness/Volume sliders did not follow the module's rounded shape
-// (square top edge, different corner radius). Take the radius of the nearest rounded ancestor (the glass
-// background) and apply it to the slider and its full-width layers, clipped, so the white matches the background.
+// v0.8.71b: only the EXPANDED Brightness/Volume slider is re-rounded (the collapsed one is left alone: rounding
+// its fill made Brightness look different from Volume). Radius = the stock expanded radius of the module's
+// content container (the same value the background uses); the slider and its full-width layers are clipped to it.
 static void PACCDesignFixSliderRadius(UIView *slider) {
     CGSize S = slider.bounds.size;
-    if (S.width < 20.0 || S.height < 20.0) return;
+    if (S.width < 100.0 || S.height < 250.0) return;
     CGFloat r = 0.0;
     UIView *anc = slider.superview;
     for (int d = 0; anc && d < 8; d++, anc = anc.superview) {
+        SEL es = NSSelectorFromString(@"expandedContinuousCornerRadius");
+        if ([anc respondsToSelector:es]) {
+            r = ((CGFloat (*)(id, SEL))objc_msgSend)(anc, es);
+            if (r > 1.0) break;
+        }
         if (anc.layer.cornerRadius > 1.0) { r = anc.layer.cornerRadius; break; }
     }
-    if (r <= 1.0) return;
+    if (r <= 1.0) r = 22.0;
+    // Same rule as the background (Circular Modules setting): calculatedRadius() is what the glass material
+    // uses, so the white follows it exactly (circular on: min(w,h)/2, capped at 38 for big modules).
+    r = calculatedRadius(CGRectMake(0.0, 0.0, S.width, S.height), r);
     r = MIN(r, MIN(S.width, S.height) * 0.5);
+    static CFTimeInterval lastLog = 0;
+    BOOL doLog = CACurrentMediaTime() - lastLog > 3.0;
+    if (doLog) lastLog = CACurrentMediaTime();
     NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:slider];
     NSUInteger visited = 0;
     while (queue.count && visited++ < 30) {
         UIView *v = queue.firstObject;
         [queue removeObjectAtIndex:0];
         if (v.tag == PACCDesignTagSliderGlyph) continue;
+        if (doLog) PACCSizeLog([NSString stringWithFormat:@"slidertree r %.1f %@ %@ cr %.1f clip %d", r, NSStringFromClass(v.class), NSStringFromCGRect(v.frame), v.layer.cornerRadius, (int)v.layer.masksToBounds]);
         BOOL big = (v == slider) || (v.bounds.size.width >= S.width * 0.9 && v.bounds.size.height >= 8.0);
         if (!big) continue;
         if (fabs(v.layer.cornerRadius - r) > 0.5) v.layer.cornerRadius = r;
