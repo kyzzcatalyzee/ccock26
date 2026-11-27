@@ -1318,7 +1318,9 @@ void PACBigRefreshLG(UIView *root) {
 }
 
 extern BOOL gPACCMusic42Open;
+BOOL gPACCMusic42Seen = NO;   // a 2x4 Music card exists in this session (set by the card), so the glass can be matched before the card is re-added after a close
 static BOOL PACGlassNearMusic42(UIView *g) {
+    if (gPACCMusic42Seen) return YES;
     Class mc = NSClassFromString(@"PACBigMusic");
     if (!mc) return NO;
     int up = 0;
@@ -1336,7 +1338,7 @@ static void PACFixGlassRadius(UIView *g) {
         if (z0.width > 300.0 && z0.width < 370.0) {
             CGFloat want = 0.0;
             if (z0.height > 140.0 && z0.height < 200.0 && PACGlassNearMusic42(g)) want = 30.0;
-            else if (z0.height > 500.0 && gPACCMusic42Open) want = 30.0;
+            else if (z0.height >= 200.0 && gPACCMusic42Open) want = 30.0;
             if (want > 0.0) { PACBigFixLGRadius(g, want); return; }
         }
     }
@@ -1449,6 +1451,8 @@ static void PACInstallGlassFix(void) {
     if (!glass) return;
     done = YES;
     PACSwizzleAfter(glass, @selector(layoutSubviews), ^(UIView *v) { PACFixGlassRadius(v); });
+    PACSwizzleAfter(glass, @selector(didMoveToSuperview), ^(UIView *v) { PACFixGlassRadius(v); });
+    PACSwizzleAfter(glass, @selector(didMoveToWindow), ^(UIView *v) { PACFixGlassRadius(v); });
     PACSwizzleAfter(glass, NSSelectorFromString(@"updateSpecular"), ^(UIView *v) { PACFixGlassRadius(v); });
     for (NSString *cn in @[@"CCUIContentModuleContentContainerView", @"CCUIContentModuleContentContainer"]) {
         Class c = NSClassFromString(cn);

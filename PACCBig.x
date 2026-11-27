@@ -1772,6 +1772,8 @@ static UIView *PACBigMakeRoutePicker(void) {
             }
         }
     }
+    extern BOOL gPACCMusic42Seen;
+    if (wide42 && !self.standalone) gPACCMusic42Seen = YES;
     if (wide42 && !self.standalone) {
         // fix any LiquidAss glass around this card right now instead of waiting for its own next layout
         int up2 = 0;
