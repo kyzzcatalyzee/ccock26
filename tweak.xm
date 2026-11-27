@@ -38,6 +38,7 @@ static void PACCMusic42Settle(UIView *root, double until) {
     [NSTimer scheduledTimerWithTimeInterval:0.03 repeats:YES block:^(NSTimer *t) {
         UIView *r = wr;
         if (!r || CACurrentMediaTime() > until) { [t invalidate]; return; }
+        NSMutableString *found = [NSMutableString string];
         NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:r];
         NSUInteger n = 0;
         while (q.count && n++ < 600) {
@@ -46,8 +47,20 @@ static void PACCMusic42Settle(UIView *root, double until) {
             CGSize z = v.bounds.size;
             if (z.width < 300.0 || z.width > 370.0 || z.height < 140.0 || z.height > 200.0) continue;
             NSString *cn = NSStringFromClass(v.class);
-            if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"] && v.layer.cornerRadius > 31.0) PACBigFixLGRadius(v, 30.0);
+            if ([v isKindOfClass:NSClassFromString(@"PACBigMusic")]) continue;
+            if (v.layer.cornerRadius > 31.0) {
+                [found appendFormat:@" %@ r%.1f", cn, v.layer.cornerRadius];
+                if ([cn hasPrefix:@"LG"]) PACBigFixLGRadius(v, 30.0);
+                else { v.layer.cornerRadius = 30.0; v.layer.cornerCurve = kCACornerCurveContinuous; }
+            }
+            for (CALayer *sl in v.layer.sublayers) {
+                if (sl.cornerRadius > 31.0 && fabs(sl.bounds.size.width - z.width) < 4.0 && fabs(sl.bounds.size.height - z.height) < 4.0) {
+                    [found appendFormat:@" layer(%@ in %@) r%.1f", NSStringFromClass(sl.class), cn, sl.cornerRadius];
+                    sl.cornerRadius = 30.0; sl.cornerCurve = kCACornerCurveContinuous;
+                }
+            }
         }
+        if (found.length) { static NSString *lastF; if (![found isEqualToString:lastF]) { lastF = [found copy]; PACCSizeLog([NSString stringWithFormat:@"music2x4 settle fixed:%@", found]); } }
     }];
 }
 
