@@ -91,10 +91,15 @@ jobs:
             SCHEME_FLAG="THEOS_PACKAGE_SCHEME=roothide"
           fi
           make clean
+          # Build the .deb with dpkg-deb (Theos' default dm.pl shells out to macOS BSD ar, which can write
+          # archive member headers that apt/dpkg on the device reject: "Invalid archive member header").
+          command -v dpkg-deb
           make package \
             ARCHS="arm64 arm64e" \
             TARGET="$DEVICE_TARGET" \
             FINALPACKAGE=1 \
+            _THEOS_PLATFORM_DPKG_DEB=dpkg-deb \
+            THEOS_PLATFORM_DEB_COMPRESSION_TYPE=xz \
             $SCHEME_FLAG
 
       - name: verify package (${{ matrix.scheme }})
@@ -106,12 +111,25 @@ jobs:
             python3 - "$f" <<'PY'
           import sys
           d = open(sys.argv[1], 'rb').read()
+          if d[:8] != b'!<arch>\n':
+              sys.exit("not an ar archive")
           p = 8
+          names = []
           while p < len(d):
-              n = int(d[p + 48:p + 58])
+              hdr = d[p:p + 60]
+              if len(hdr) < 60 or hdr[58:60] != b'`\n':
+                  sys.exit("invalid archive member header at %d" % p)
+              name = hdr[:16].decode().strip()
+              if name.startswith('#1/') or name.startswith('__.SYMDEF') or name.startswith('/'):
+                  sys.exit("BSD/GNU extended ar member %r: apt/dpkg on the device cannot read this" % name)
+              n = int(hdr[48:58])
+              names.append(name)
               p += 60 + n + (n & 1)
           if p != len(d):
               sys.exit("trailing garbage: archive ends at %d but file is %d bytes" % (p, len(d)))
+          if not names or names[0] != 'debian-binary':
+              sys.exit("first member must be debian-binary, got %r" % names)
+          print("members", names)
           print("archive ok", len(d))
           PY
           done
