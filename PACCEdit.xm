@@ -1317,8 +1317,29 @@ void PACBigRefreshLG(UIView *root) {
     [root setNeedsLayout];
 }
 
+extern BOOL gPACCMusic42Open;
+static BOOL PACGlassNearMusic42(UIView *g) {
+    Class mc = NSClassFromString(@"PACBigMusic");
+    if (!mc) return NO;
+    int up = 0;
+    for (UIView *a = g.superview; a && up < 8; a = a.superview, up++) {
+        for (UIView *c in a.subviews) if ([c isKindOfClass:mc]) return YES;
+    }
+    return NO;
+}
+
 static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
+    // Music 2x4 glass (LiquidAss): it was coming out as a full stadium (r = h/2) over the 30pt card. Match by size, wherever it sits.
+    {
+        CGSize z0 = g.bounds.size;
+        if (z0.width > 300.0 && z0.width < 370.0) {
+            CGFloat want = 0.0;
+            if (z0.height > 140.0 && z0.height < 200.0 && PACGlassNearMusic42(g)) want = 30.0;
+            else if (z0.height > 500.0 && gPACCMusic42Open) want = 30.0;
+            if (want > 0.0) { PACBigFixLGRadius(g, want); return; }
+        }
+    }
     for (UIView *a = g.superview; a; a = a.superview) {
         NSString *an = NSStringFromClass(a.class);
         if ([an isEqualToString:@"PACBigCard"]) { PACBigFixLGRadius(g, a.layer.cornerRadius); return; }

@@ -14,7 +14,7 @@ BOOL gPagerScrubbing = NO;
 
 // Music 2x4 (346x166): the stock module glass (and the LiquidAss view that copies its radius, notably while held)
 // must use the same radius as the card, not the generic 25/38.
-static BOOL gPACCMusic42Open = NO;   // the expanded card came from the 2x4 Music module
+BOOL gPACCMusic42Open = NO;   // the expanded card came from the 2x4 Music module
 static void PACCMusic42Sweep(UIView *root) {
     if (!root) return;
     NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
@@ -25,9 +25,9 @@ static void PACCMusic42Sweep(UIView *root) {
         CGSize z = v.bounds.size;
         if (z.width < 300.0 || z.height < 500.0) continue;
         CGFloat cr = v.layer.cornerRadius;
-        if (cr < 1.0 || fabs(cr - 38.0) < 0.5) continue;
-        if ([NSStringFromClass(v.class) hasPrefix:@"LG"]) PACBigFixLGRadius(v, 38.0);
-        else { v.layer.cornerRadius = 38.0; v.layer.cornerCurve = kCACornerCurveContinuous; }
+        if (cr < 1.0 || fabs(cr - 30.0) < 0.5) continue;
+        if ([NSStringFromClass(v.class) hasPrefix:@"LG"]) PACBigFixLGRadius(v, 30.0);
+        else { v.layer.cornerRadius = 30.0; v.layer.cornerCurve = kCACornerCurveContinuous; }
     }
 }
 
@@ -71,7 +71,7 @@ static BOOL PACCLayerInMusic42(CALayer *layer) {
     if ([titles containsObject:self.recipeName]) {
         radius = calculatedRadius(self.visibleRect, radius);
         if (gEnabled && PACCLayerInMusic42(self)) radius = 30.0;
-        else if (gEnabled && gPACCMusic42Open && self.bounds.size.width > 300.0 && self.bounds.size.height > 500.0) radius = 38.0;
+        else if (gEnabled && gPACCMusic42Open && self.bounds.size.width > 300.0 && self.bounds.size.height > 500.0) radius = 30.0;
     }
     return radius;
 }
