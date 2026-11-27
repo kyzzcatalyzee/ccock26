@@ -31,6 +31,26 @@ static void PACCMusic42Sweep(UIView *root) {
     }
 }
 
+// After a close the glass of the 2x4 Music module comes back as a stadium for about a second; enforce 30 every frame meanwhile.
+static void PACCMusic42Settle(UIView *root, double until) {
+    if (!root) return;
+    __weak UIView *wr = root;
+    [NSTimer scheduledTimerWithTimeInterval:0.03 repeats:YES block:^(NSTimer *t) {
+        UIView *r = wr;
+        if (!r || CACurrentMediaTime() > until) { [t invalidate]; return; }
+        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:r];
+        NSUInteger n = 0;
+        while (q.count && n++ < 600) {
+            UIView *v = q.firstObject; [q removeObjectAtIndex:0];
+            [q addObjectsFromArray:v.subviews];
+            CGSize z = v.bounds.size;
+            if (z.width < 300.0 || z.width > 370.0 || z.height < 140.0 || z.height > 200.0) continue;
+            NSString *cn = NSStringFromClass(v.class);
+            if ([cn hasPrefix:@"LG"] && [cn containsString:@"Backdrop"] && v.layer.cornerRadius > 31.0) PACBigFixLGRadius(v, 30.0);
+        }
+    }];
+}
+
 static BOOL PACCLayerInMusic42(CALayer *layer) {
     CGSize z = layer.bounds.size;
     if (z.width < 300.0 || z.width > 370.0 || z.height < 140.0 || z.height > 200.0) return NO;
@@ -42,12 +62,15 @@ static BOOL PACCLayerInMusic42(CALayer *layer) {
     for (UIView *p = v; p; p = p.superview) if (cc && [p isKindOfClass:cc]) { mod = p; break; }
     if (!mod) return NO;
     Class mc = NSClassFromString(@"PACBigMusic");
+    Class np = NSClassFromString(@"MRUNowPlayingView");
     if (!mc) return NO;
+    extern BOOL gPACCMusic42Seen;
     NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:mod];
     NSUInteger n = 0;
     while (q.count && n++ < 40) {
         UIView *x = q.firstObject; [q removeObjectAtIndex:0];
         if ([x isKindOfClass:mc]) return YES;
+        if (gPACCMusic42Seen && np && [x isKindOfClass:np]) return YES;
         [q addObjectsFromArray:x.subviews];
     }
     return NO;
@@ -669,6 +692,7 @@ static void PACCMusicStockCover(id module, BOOL hide) {
 
 - (void)moduleCollectionViewController:(id)collection didCloseExpandedModule:(id)module {
     %orig;
+    if (gEnabled && gPACCMusic42Open) PACCMusic42Settle(((UIViewController *)(id)self).view, CACurrentMediaTime() + 2.5);
     { __strong id keep = module; dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ PACCMusicStockCover(keep, NO); }); }
     gCCAModuleExpanded = NO;
     gPACCMusic42Open = NO;
@@ -1228,6 +1252,7 @@ static void PACCCenterExpanded(UIViewController *vc, int attempt) {
             UIViewController *ovc = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
             PACCNoteExpandedModule(vc0, NO, ovc);
             PACCSizeLog(@"expanded module closed (container layout)");
+            if (gEnabled && gPACCMusic42Open) PACCMusic42Settle(UIApplication.sharedApplication.keyWindow, CACurrentMediaTime() + 2.5);
             gPACCExpandTop = -1.0;
             if (fabs(gPACCExpandShift) > 0.01) { gPACCExpandShift = 0.0; PACCApplyExpandShift(); }
         }
