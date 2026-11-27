@@ -12,6 +12,30 @@ extern CFTimeInterval gPACCExpandQuietUntil;
 
 BOOL gPagerScrubbing = NO;
 
+// Music 2x4 (346x166): the stock module glass (and the LiquidAss view that copies its radius, notably while held)
+// must use the same radius as the card, not the generic 25/38.
+static BOOL PACCLayerInMusic42(CALayer *layer) {
+    CGSize z = layer.bounds.size;
+    if (z.width < 300.0 || z.width > 370.0 || z.height < 140.0 || z.height > 200.0) return NO;
+    id d = layer.delegate;
+    UIView *v = [d isKindOfClass:UIView.class] ? (UIView *)d : nil;
+    if (!v) { CALayer *sl = layer.superlayer; while (sl && ![sl.delegate isKindOfClass:UIView.class]) sl = sl.superlayer; v = (UIView *)sl.delegate; }
+    UIView *mod = nil;
+    Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
+    for (UIView *p = v; p; p = p.superview) if (cc && [p isKindOfClass:cc]) { mod = p; break; }
+    if (!mod) return NO;
+    Class mc = NSClassFromString(@"PACBigMusic");
+    if (!mc) return NO;
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:mod];
+    NSUInteger n = 0;
+    while (q.count && n++ < 40) {
+        UIView *x = q.firstObject; [q removeObjectAtIndex:0];
+        if ([x isKindOfClass:mc]) return YES;
+        [q addObjectsFromArray:x.subviews];
+    }
+    return NO;
+}
+
 %hook CALayer
 - (CGFloat)cornerRadius {
     CGFloat radius = %orig;
@@ -29,6 +53,7 @@ BOOL gPagerScrubbing = NO;
     NSArray<NSString *> *titles = @[@"modules", @"moduleFill.highlight.generatedRecipe"];
     if ([titles containsObject:self.recipeName]) {
         radius = calculatedRadius(self.visibleRect, radius);
+        if (gEnabled && PACCLayerInMusic42(self)) radius = 30.0;
     }
     return radius;
 }
