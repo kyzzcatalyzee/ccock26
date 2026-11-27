@@ -1277,7 +1277,7 @@ static CGFloat PACRadiusForSize(NSUInteger w, NSUInteger h) {
 }
 
 static CGFloat PACRadiusForMid(NSString *mid, NSUInteger w, NSUInteger h) {
-    if (w == 4 && h == 2 && PACCBigKind(mid) == 2) return 25.0;
+    if (w == 4 && h == 2 && PACCBigKind(mid) == 2) return 30.0;
     return PACRadiusForSize(w, h);
 }
 
@@ -1344,7 +1344,7 @@ static void PACFixGlassRadius(UIView *g) {
         return;
     }
     CGFloat r = MIN(floor(kPACCell * 0.5), MIN(gs.width, gs.height) * 0.5);
-    // Music 2x4 (346x166) keeps the small 25 radius for the LiquidAss glass too, also while held
+    // Music 2x4 (346x166) keeps the 30 radius for the LiquidAss glass too, also while held
     if (module && ms.width > 300.0 && ms.width < 370.0 && ms.height > 140.0 && ms.height < 200.0) {
         Class mc = NSClassFromString(@"PACBigMusic");
         BOOL hasMusic = NO;
@@ -1355,7 +1355,28 @@ static void PACFixGlassRadius(UIView *g) {
             if ([mv isKindOfClass:mc]) { hasMusic = YES; break; }
             [mq addObjectsFromArray:mv.subviews];
         }
-        if (hasMusic) r = 25.0;
+        if (hasMusic) {
+            r = 30.0;
+            // sweep every same-size layer under the module (stock highlight, LiquidAss views) to 25 and log what was found
+            NSMutableString *dump = [NSMutableString string];
+            NSMutableArray<UIView *> *sq = [NSMutableArray arrayWithObject:module];
+            NSUInteger sn = 0;
+            while (sq.count && sn++ < 80) {
+                UIView *sv = sq.firstObject; [sq removeObjectAtIndex:0];
+                [sq addObjectsFromArray:sv.subviews];
+                if (sv == module || [sv isKindOfClass:mc]) continue;
+                CGSize z = sv.bounds.size;
+                if (fabs(z.width - ms.width) > 3.0 || fabs(z.height - ms.height) > 3.0) continue;
+                CGFloat cr = sv.layer.cornerRadius;
+                [dump appendFormat:@" %@ r%.1f", NSStringFromClass(sv.class), cr];
+                if (cr > 30.5 || (cr > 0.5 && cr < 29.5)) {
+                    if ([NSStringFromClass(sv.class) hasPrefix:@"LG"]) PACBigFixLGRadius(sv, 30.0);
+                    else { sv.layer.cornerRadius = 30.0; sv.layer.cornerCurve = kCACornerCurveContinuous; }
+                }
+            }
+            static NSString *lastDump;
+            if (![dump isEqualToString:lastDump]) { lastDump = [dump copy]; PACLog(@"music2x4 glass sweep %@ ms %@ |%@", NSStringFromClass(g.class), NSStringFromCGSize(ms), dump); }
+        }
     }
     BOOL changed = fabs(g.layer.cornerRadius - r) > 0.5;
     if (changed) g.layer.cornerRadius = r;

@@ -1747,7 +1747,7 @@ static UIView *PACBigMakeRoutePicker(void) {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width, h = self.bounds.size.height;
     BOOL wide42 = (self.compact && h >= 100.0 && h <= 220.0 && w >= h * 1.3);
-    self.layer.cornerRadius = wide42 ? 25.0 : MIN(34.0, h * 0.5);
+    self.layer.cornerRadius = wide42 ? 30.0 : MIN(34.0, h * 0.5);
     if (!_blur.superview) [self insertSubview:_blur atIndex:0];
     _blur.frame = self.bounds;
     _blur.layer.cornerRadius = self.layer.cornerRadius;
