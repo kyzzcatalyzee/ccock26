@@ -780,7 +780,16 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     %orig;
     if (!gEnabled) return;
     UIView *view = (UIView *)(id)self;
-    if (!PACCMediaMode(view)) return;
+    if (!PACCMediaMode(view)) {
+        // expanded (held) music card: artwork corner follows the card (concentric), not the 15pt left from the tile
+        UIView *np = PACCAncestor(view, @"MRUNowPlayingView");
+        if (np && PACCAncestor(np, @"CCUIContentModuleContentContainerView") && CGRectGetWidth(view.bounds) >= 60.0 && CGRectGetWidth(np.bounds) >= 230.0) {
+            CGFloat r = MIN(26.0, MAX(14.0, floor(CGRectGetWidth(view.bounds) * 0.2)));
+            view.layer.cornerRadius = r; view.layer.cornerCurve = kCACornerCurveContinuous; view.layer.masksToBounds = YES;
+            for (UIView *c in view.subviews) { c.layer.cornerRadius = r; c.layer.cornerCurve = kCACornerCurveContinuous; c.layer.masksToBounds = YES; }
+        }
+        return;
+    }
     CGFloat radius = view.layer.cornerRadius;
     for (UIView *child in view.subviews) {
         if (fabs(CGRectGetWidth(child.bounds) - CGRectGetWidth(view.bounds)) > 1.0 ||

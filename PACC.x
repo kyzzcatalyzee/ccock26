@@ -324,6 +324,13 @@ void PACCConfigureMedia(UIView *view) {
         header.frame = view.bounds;
         for (UIView *item in @[PACCViewIvar(wrapper, "_routingButton") ?: (id)NSNull.null, PACCViewIvar(wrapper, "_moreButton") ?: (id)NSNull.null]) if ((id)item != NSNull.null) item.hidden = YES;
         if (artwork) { artwork.frame = artworkFrame; artwork.hidden = NO; artwork.alpha = 1.0; artwork.backgroundColor = UIColor.clearColor; artwork.layer.cornerRadius = artworkRadius; artwork.layer.cornerCurve = kCACornerCurveContinuous; artwork.layer.masksToBounds = YES; }
+        // closing from the expanded card: drop leftover stock animations/transforms that squash the artwork and header into a band
+        for (UIView *u in @[artwork ?: (id)NSNull.null, header ?: (id)NSNull.null]) {
+            if ((id)u == NSNull.null) continue;
+            [u.layer removeAllAnimations]; u.transform = CGAffineTransformIdentity;
+            for (UIView *c in u.subviews) { [c.layer removeAllAnimations]; c.transform = CGAffineTransformIdentity; }
+        }
+        if (artwork) for (UIView *c in artwork.subviews) { c.frame = artwork.bounds; c.layer.cornerRadius = artworkRadius; c.layer.masksToBounds = YES; }
         transport.frame = CGRectMake(14, round(CGRectGetHeight(view.bounds) * 0.83) - 24.0, width - 28.0, 48); transport.hidden = NO; transport.alpha = 1.0;
         if (time) { time.hidden = YES; time.alpha = 0; }
         if (volume) { volume.hidden = YES; volume.alpha = 0; }
