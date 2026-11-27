@@ -52,7 +52,10 @@ static void PACCDesignFixSliderRadius(UIView *slider) {
             break;
         }
     }
-    CGRect cover = wrap ? [wrap convertRect:wrap.bounds toView:slider] : slider.bounds;
+    // v0.8.79: Volume's container is 346 wide (two sliders side by side), so the cover is always the slider's own
+    // bounds, never the container's.
+    (void)wrap;
+    CGRect cover = slider.bounds;
     // v0.8.77: the expanded slider glass is a full stadium (radius = half the width, see photos IMG_3962/3963),
     // not the 38 that calculatedRadius gives; cover with that exact shape so the white follows the glass.
     CGFloat r = MIN(cover.size.width, cover.size.height) * 0.5;
@@ -62,34 +65,8 @@ static void PACCDesignFixSliderRadius(UIView *slider) {
     mk.fillColor = UIColor.blackColor.CGColor;
     mk.path = [UIBezierPath bezierPathWithRoundedRect:cover cornerRadius:r].CGPath;
     if (!ours) slider.layer.mask = mk;
-    // v0.8.78: Volume (com.apple.mediaremote.controlcenter.audio) keeps an extra white backdrop with
-    // beveled corners OUTSIDE the slider view, so mask the module's content container with the same shape.
-    if (wrap) {
-        CALayer *wm = wrap.layer.mask;
-        BOOL wours = wm && [wm.name isEqualToString:kPACCSliderCoverName];
-        if (!wm || wours) {
-            CAShapeLayer *wk = wours ? (CAShapeLayer *)wm : [CAShapeLayer layer];
-            wk.name = kPACCSliderCoverName;
-            wk.frame = wrap.bounds;
-            wk.fillColor = UIColor.blackColor.CGColor;
-            CGFloat wr = MIN(wrap.bounds.size.width, wrap.bounds.size.height) * 0.5;
-            wk.path = [UIBezierPath bezierPathWithRoundedRect:wrap.bounds cornerRadius:wr].CGPath;
-            if (!wours) wrap.layer.mask = wk;
-        }
-        static CFTimeInterval lastWrap = 0;
-        if (CACurrentMediaTime() - lastWrap > 3.0) {
-            lastWrap = CACurrentMediaTime();
-            PACCSizeLog([NSString stringWithFormat:@"slidercover wrap %@ %@ mask %@", NSStringFromClass(wrap.class), NSStringFromCGRect(wrap.bounds), wm ? (wours ? @"ours" : @"stock") : @"none"]);
-            UIView *top = wrap.superview ?: wrap;
-            NSMutableArray<UIView *> *q2 = [NSMutableArray arrayWithObject:top];
-            NSUInteger n2 = 0;
-            while (q2.count && n2++ < 40) {
-                UIView *u = q2.firstObject; [q2 removeObjectAtIndex:0];
-                PACCSizeLog([NSString stringWithFormat:@"slidertree2 %@ %@ cr %.1f clip %d mask %d a %.2f", NSStringFromClass(u.class), NSStringFromCGRect(u.frame), u.layer.cornerRadius, (int)u.layer.masksToBounds, (int)(u.layer.mask != nil), u.alpha]);
-                [q2 addObjectsFromArray:u.subviews];
-            }
-        }
-    }
+    // v0.8.79: the container mask of v0.8.78 is gone; drop any left over from it.
+    if (wrap && wrap.layer.mask && [wrap.layer.mask.name isEqualToString:kPACCSliderCoverName]) wrap.layer.mask = nil;
     // v0.8.76: besides the outer white there is an inner pill (inset a few points, bigger radius than the
     // background). Cover it: hide that one layer so only the white clipped by the background shape remains,
     // like the collapsed slider. Everything is logged ("sliderinner ...").
