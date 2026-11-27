@@ -1772,6 +1772,17 @@ static UIView *PACBigMakeRoutePicker(void) {
             }
         }
     }
+    if (wide42 && !self.standalone) {
+        // fix any LiquidAss glass around this card right now instead of waiting for its own next layout
+        int up2 = 0;
+        for (UIView *p = self.superview; p && up2 < 6; p = p.superview, up2++) {
+            if ([NSStringFromClass(p.class) isEqualToString:@"CCUIContentModuleContainerView"]) { }
+            for (UIView *s in p.subviews) {
+                NSString *scn = NSStringFromClass(s.class);
+                if ([scn hasPrefix:@"LG"] && [scn containsString:@"Backdrop"] && fabs(s.bounds.size.width - w) < 4.0 && fabs(s.bounds.size.height - h) < 4.0) PACBigFixLGRadius(s, 30.0);
+            }
+        }
+    }
     CGFloat pad = 14.0;
     BOOL tile = (w < 260.0 && h >= 120.0);
     BOOL full = !self.compact && !tile;
