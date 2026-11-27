@@ -50,8 +50,9 @@ static void PACCDesignFixSliderRadius(UIView *slider) {
         }
     }
     CGRect cover = wrap ? [wrap convertRect:wrap.bounds toView:slider] : slider.bounds;
-    CGFloat r = calculatedRadius(CGRectMake(0.0, 0.0, cover.size.width, cover.size.height), stock);
-    r = MIN(r, MIN(cover.size.width, cover.size.height) * 0.5);
+    // v0.8.77: the expanded slider glass is a full stadium (radius = half the width, see photos IMG_3962/3963),
+    // not the 38 that calculatedRadius gives; cover with that exact shape so the white follows the glass.
+    CGFloat r = MIN(cover.size.width, cover.size.height) * 0.5;
     CAShapeLayer *mk = ours ? (CAShapeLayer *)cur : [CAShapeLayer layer];
     mk.name = kPACCSliderCoverName;
     mk.frame = slider.bounds;
