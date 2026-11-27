@@ -2186,6 +2186,12 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     }
     PACBigMask(host, bv, YES);
     if (host.subviews.lastObject != bv) [host bringSubviewToFront:bv];
+    // 2x4 Music held/opening: the host grows toward the expanded size. Keep the card at its rest size (and radius 25)
+    // instead of stretching it, which gave the odd inner radius; the stock expanded player takes over once it opens.
+    if (kind == 2 && h < 4 && existing && host.bounds.size.height > 220.0) {
+        bv.userInteractionEnabled = NO;
+        return;
+    }
     CGRect wantFrame = host.bounds;
     if ((kind == 1 || kind == 2) && h >= 6) {
         wantFrame = PACCBigOutset(kind, wantFrame);

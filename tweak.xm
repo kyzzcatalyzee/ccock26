@@ -570,8 +570,38 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     });
 }
 
+// Close of the expanded Music card: stock lays its big player out at every size on the way down, which squashes the
+// artwork into a band at the 4x2 size stock never ships. Fade the stock player out as the close starts, restore after.
+static void PACCMusicStockFind(UIView *v, NSMutableArray *out, int d) {
+    if (d > 12) return;
+    if ([NSStringFromClass(v.class) isEqualToString:@"MRUNowPlayingView"]) { [out addObject:v]; return; }
+    for (UIView *c in v.subviews) PACCMusicStockFind(c, out, d + 1);
+}
+static void PACCMusicStockCover(id module, BOOL hide) {
+    if (![module isKindOfClass:UIViewController.class]) return;
+    UIViewController *vc = (UIViewController *)module;
+    NSString *mid = nil;
+    @try { id v = [vc valueForKey:@"moduleIdentifier"]; if ([v isKindOfClass:NSString.class]) mid = v; } @catch (__unused NSException *e) {}
+    if (![mid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"] || !vc.isViewLoaded) return;
+    NSMutableArray *found = [NSMutableArray array];
+    PACCMusicStockFind(vc.view, found, 0);
+    for (UIView *np in found) {
+        if (hide) {
+            if (CGRectGetWidth(np.bounds) < 230.0) continue;
+            [UIView animateWithDuration:0.12 animations:^{ np.alpha = 0.0; }];
+        } else {
+            np.alpha = 1.0;
+        }
+    }
+}
+
 %hook CCUIModularControlCenterOverlayViewController
+- (void)moduleCollectionViewController:(id)collection willCloseExpandedModule:(id)module {
+    if (gEnabled) PACCMusicStockCover(module, YES);
+    %orig;
+}
 - (void)moduleCollectionViewController:(id)collection willOpenExpandedModule:(id)module {
+    PACCMusicStockCover(module, NO);
     PACCNoteExpandedModule(module, YES, nil);
     gCCAModuleExpanded = YES;
     UIViewController *overlay = (UIViewController *)(id)self;
@@ -588,6 +618,7 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
 
 - (void)moduleCollectionViewController:(id)collection didCloseExpandedModule:(id)module {
     %orig;
+    { __strong id keep = module; dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ PACCMusicStockCover(keep, NO); }); }
     gCCAModuleExpanded = NO;
     gPACCExpandQuietUntil = CACurrentMediaTime() + 1.5;
     PACCKickRestFixer();
