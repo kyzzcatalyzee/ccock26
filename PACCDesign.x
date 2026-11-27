@@ -51,7 +51,7 @@ static void PACCDesignFixSliderRadius(UIView *slider) {
         [queue removeObjectAtIndex:0];
         if (v.tag == PACCDesignTagSliderGlyph) continue;
         if (doLog) PACCSizeLog([NSString stringWithFormat:@"slidertree r %.1f %@ %@ cr %.1f clip %d", r, NSStringFromClass(v.class), NSStringFromCGRect(v.frame), v.layer.cornerRadius, (int)v.layer.masksToBounds]);
-        BOOL big = (v == slider) || (v.bounds.size.width >= S.width * 0.9 && v.bounds.size.height >= 8.0);
+        BOOL big = (v == slider) || (v.bounds.size.width >= S.width * 0.9 && v.bounds.size.height >= S.height * 0.9);
         if (!big) continue;
         if (fabs(v.layer.cornerRadius - r) > 0.5) v.layer.cornerRadius = r;
         v.layer.cornerCurve = kCACornerCurveContinuous;
