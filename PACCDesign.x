@@ -20,43 +20,44 @@ static NSString *PACCDesignModuleIdentifier(UIResponder *responder) {
     return nil;
 }
 
-// v0.8.71b: only the EXPANDED Brightness/Volume slider is re-rounded (the collapsed one is left alone: rounding
-// its fill made Brightness look different from Volume). Radius = the stock expanded radius of the module's
-// content container (the same value the background uses); the slider and its full-width layers are clipped to it.
+// v0.8.75: no radius is changed. The expanded Brightness/Volume slider is only COVERED (masked) by the shape of
+// the module background (rounded rect with the Circular Modules radius), so the white stops at the background's
+// corners while its own top stays flat, like the collapsed Volume slider. The mask is removed when collapsed.
+static NSString *const kPACCSliderCoverName = @"PACCSliderCover";
+
 static void PACCDesignFixSliderRadius(UIView *slider) {
     CGSize S = slider.bounds.size;
-    if (S.width < 100.0 || S.height < 250.0) return;
-    CGFloat r = 0.0;
+    CALayer *cur = slider.layer.mask;
+    BOOL ours = cur && [cur.name isEqualToString:kPACCSliderCoverName];
+    if (S.width < 100.0 || S.height < 250.0) {
+        if (ours) slider.layer.mask = nil;
+        return;
+    }
+    UIView *wrap = nil;
+    CGFloat stock = 22.0;
     UIView *anc = slider.superview;
     for (int d = 0; anc && d < 8; d++, anc = anc.superview) {
         SEL es = NSSelectorFromString(@"expandedContinuousCornerRadius");
         if ([anc respondsToSelector:es]) {
-            r = ((CGFloat (*)(id, SEL))objc_msgSend)(anc, es);
-            if (r > 1.0) break;
+            CGFloat rr = ((CGFloat (*)(id, SEL))objc_msgSend)(anc, es);
+            if (rr > 1.0) stock = rr;
+            wrap = anc;
+            break;
         }
-        if (anc.layer.cornerRadius > 1.0) { r = anc.layer.cornerRadius; break; }
     }
-    if (r <= 1.0) r = 22.0;
-    // Same rule as the background (Circular Modules setting): calculatedRadius() is what the glass material
-    // uses, so the white follows it exactly (circular on: min(w,h)/2, capped at 38 for big modules).
-    r = calculatedRadius(CGRectMake(0.0, 0.0, S.width, S.height), r);
-    r = MIN(r, MIN(S.width, S.height) * 0.5);
+    CGRect cover = wrap ? [wrap convertRect:wrap.bounds toView:slider] : slider.bounds;
+    CGFloat r = calculatedRadius(CGRectMake(0.0, 0.0, cover.size.width, cover.size.height), stock);
+    r = MIN(r, MIN(cover.size.width, cover.size.height) * 0.5);
+    CAShapeLayer *mk = ours ? (CAShapeLayer *)cur : [CAShapeLayer layer];
+    mk.name = kPACCSliderCoverName;
+    mk.frame = slider.bounds;
+    mk.fillColor = UIColor.blackColor.CGColor;
+    mk.path = [UIBezierPath bezierPathWithRoundedRect:cover cornerRadius:r].CGPath;
+    if (!ours) slider.layer.mask = mk;
     static CFTimeInterval lastLog = 0;
-    BOOL doLog = CACurrentMediaTime() - lastLog > 3.0;
-    if (doLog) lastLog = CACurrentMediaTime();
-    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:slider];
-    NSUInteger visited = 0;
-    while (queue.count && visited++ < 30) {
-        UIView *v = queue.firstObject;
-        [queue removeObjectAtIndex:0];
-        if (v.tag == PACCDesignTagSliderGlyph) continue;
-        if (doLog) PACCSizeLog([NSString stringWithFormat:@"slidertree r %.1f %@ %@ cr %.1f clip %d", r, NSStringFromClass(v.class), NSStringFromCGRect(v.frame), v.layer.cornerRadius, (int)v.layer.masksToBounds]);
-        BOOL big = (v == slider) || (v.bounds.size.width >= S.width * 0.9 && v.bounds.size.height >= S.height * 0.9);
-        if (!big) continue;
-        if (fabs(v.layer.cornerRadius - r) > 0.5) v.layer.cornerRadius = r;
-        v.layer.cornerCurve = kCACornerCurveContinuous;
-        v.layer.masksToBounds = YES;
-        [queue addObjectsFromArray:v.subviews];
+    if (CACurrentMediaTime() - lastLog > 3.0) {
+        lastLog = CACurrentMediaTime();
+        PACCSizeLog([NSString stringWithFormat:@"slidercover r %.1f stock %.1f cover %@ slider %@ wrap %@", r, stock, NSStringFromCGRect(cover), NSStringFromCGSize(S), wrap ? NSStringFromClass(wrap.class) : @"-"]);
     }
 }
 

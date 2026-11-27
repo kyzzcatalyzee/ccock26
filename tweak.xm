@@ -18,24 +18,6 @@ BOOL gPagerScrubbing = NO;
     if ([self.superlayer.delegate
          isKindOfClass:NSClassFromString(@"CCUIButtonModuleView")]) {
         radius = calculatedRadius(self.visibleRect, radius);
-    } else if (gEnabled && gCCAModuleExpanded) {
-        // v0.8.74: the white of the expanded Brightness/Volume slider uses the same Circular Modules rule
-        // as the background. Only layers as big as the slider itself (the fill when it is full); a partial
-        // fill keeps its flat top and is clipped by the background.
-        id dl = self.delegate;
-        if ([dl isKindOfClass:UIView.class]) {
-            static Class sliderCls; static dispatch_once_t once;
-            dispatch_once(&once, ^{ sliderCls = NSClassFromString(@"CCUIBaseSliderView"); });
-            UIView *v = (UIView *)dl, *sl = nil;
-            for (int i = 0; v && i < 4; i++, v = v.superview) {
-                if (sliderCls && [v isKindOfClass:sliderCls]) { sl = v; break; }
-            }
-            if (sl) {
-                CGSize S = sl.bounds.size, L = self.bounds.size;
-                if (S.height >= 250.0 && S.width >= 100.0 && fabs(L.width - S.width) < 3.0 && fabs(L.height - S.height) < 3.0)
-                    radius = calculatedRadius(CGRectMake(0.0, 0.0, S.width, S.height), radius);
-            }
-        }
     }
     return radius;
 }
