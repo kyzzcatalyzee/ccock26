@@ -14,6 +14,23 @@ BOOL gPagerScrubbing = NO;
 
 // Music 2x4 (346x166): the stock module glass (and the LiquidAss view that copies its radius, notably while held)
 // must use the same radius as the card, not the generic 25/38.
+static BOOL gPACCMusic42Open = NO;   // the expanded card came from the 2x4 Music module
+static void PACCMusic42Sweep(UIView *root) {
+    if (!root) return;
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
+    NSUInteger n = 0;
+    while (q.count && n++ < 120) {
+        UIView *v = q.firstObject; [q removeObjectAtIndex:0];
+        [q addObjectsFromArray:v.subviews];
+        CGSize z = v.bounds.size;
+        if (z.width < 300.0 || z.height < 500.0) continue;
+        CGFloat cr = v.layer.cornerRadius;
+        if (cr < 1.0 || fabs(cr - 38.0) < 0.5) continue;
+        if ([NSStringFromClass(v.class) hasPrefix:@"LG"]) PACBigFixLGRadius(v, 38.0);
+        else { v.layer.cornerRadius = 38.0; v.layer.cornerCurve = kCACornerCurveContinuous; }
+    }
+}
+
 static BOOL PACCLayerInMusic42(CALayer *layer) {
     CGSize z = layer.bounds.size;
     if (z.width < 300.0 || z.width > 370.0 || z.height < 140.0 || z.height > 200.0) return NO;
@@ -54,6 +71,7 @@ static BOOL PACCLayerInMusic42(CALayer *layer) {
     if ([titles containsObject:self.recipeName]) {
         radius = calculatedRadius(self.visibleRect, radius);
         if (gEnabled && PACCLayerInMusic42(self)) radius = 30.0;
+        else if (gEnabled && gPACCMusic42Open && self.bounds.size.width > 300.0 && self.bounds.size.height > 500.0) radius = 38.0;
     }
     return radius;
 }
@@ -627,6 +645,14 @@ static void PACCMusicStockCover(id module, BOOL hide) {
 }
 - (void)moduleCollectionViewController:(id)collection willOpenExpandedModule:(id)module {
     PACCMusicStockCover(module, NO);
+    gPACCMusic42Open = NO;
+    if ([module isKindOfClass:UIViewController.class]) {
+        UIViewController *mvc = (UIViewController *)module;
+        NSString *mmid = nil;
+        @try { id mv = [mvc valueForKey:@"moduleIdentifier"]; if ([mv isKindOfClass:NSString.class]) mmid = mv; } @catch (__unused NSException *e) {}
+        CGSize rz = mvc.isViewLoaded ? mvc.view.bounds.size : CGSizeZero;
+        if ([mmid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"] && rz.width > 300.0 && rz.width < 370.0 && rz.height > 140.0 && rz.height < 200.0) gPACCMusic42Open = YES;
+    }
     PACCNoteExpandedModule(module, YES, nil);
     gCCAModuleExpanded = YES;
     UIViewController *overlay = (UIViewController *)(id)self;
@@ -645,6 +671,7 @@ static void PACCMusicStockCover(id module, BOOL hide) {
     %orig;
     { __strong id keep = module; dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ PACCMusicStockCover(keep, NO); }); }
     gCCAModuleExpanded = NO;
+    gPACCMusic42Open = NO;
     gPACCExpandQuietUntil = CACurrentMediaTime() + 1.5;
     PACCKickRestFixer();
     UIViewController *overlay = (UIViewController *)(id)self;
@@ -1204,6 +1231,7 @@ static void PACCCenterExpanded(UIViewController *vc, int attempt) {
             gPACCExpandTop = -1.0;
             if (fabs(gPACCExpandShift) > 0.01) { gPACCExpandShift = 0.0; PACCApplyExpandShift(); }
         }
+        if (exp0 && gPACCMusic42Open && gEnabled) PACCMusic42Sweep(vc0.view);
     } @catch (__unused NSException *e) {}
     @try {
         UIViewController *me = (UIViewController *)self;
