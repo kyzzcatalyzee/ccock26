@@ -1344,6 +1344,19 @@ static void PACFixGlassRadius(UIView *g) {
         return;
     }
     CGFloat r = MIN(floor(kPACCell * 0.5), MIN(gs.width, gs.height) * 0.5);
+    // Music 2x4 (346x166) keeps the small 25 radius for the LiquidAss glass too, also while held
+    if (module && ms.width > 300.0 && ms.width < 370.0 && ms.height > 140.0 && ms.height < 200.0) {
+        Class mc = NSClassFromString(@"PACBigMusic");
+        BOOL hasMusic = NO;
+        NSMutableArray<UIView *> *mq = [NSMutableArray arrayWithObject:module];
+        NSUInteger mn = 0;
+        while (mq.count && mn++ < 40 && mc) {
+            UIView *mv = mq.firstObject; [mq removeObjectAtIndex:0];
+            if ([mv isKindOfClass:mc]) { hasMusic = YES; break; }
+            [mq addObjectsFromArray:mv.subviews];
+        }
+        if (hasMusic) r = 25.0;
+    }
     BOOL changed = fabs(g.layer.cornerRadius - r) > 0.5;
     if (changed) g.layer.cornerRadius = r;
     @try {
