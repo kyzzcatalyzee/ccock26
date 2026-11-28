@@ -1746,6 +1746,42 @@ static void PACRestoreModuleRadius(UIViewController *m) {
     }];
 }
 
+// Stock-size Focus (2x1 "Do Not Disturb / On"): smaller circle behind the glyph, text a little closer, and the up/down chevron beside the name.
+static void PACCFocusStockStyle(UIView *root, NSString *midLower) {
+    if (!([midLower containsString:@"donotdisturb"] || [midLower containsString:@"focus"])) return;
+    if (CGRectGetWidth(root.bounds) < 120.0 || CGRectGetHeight(root.bounds) > 100.0) return;
+    UIView *rb = nil;
+    NSMutableArray<UIView *> *labels = [NSMutableArray array];
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
+    NSUInteger n = 0;
+    while (q.count && n++ < 60) {
+        UIView *x = q.firstObject; [q removeObjectAtIndex:0];
+        if ([NSStringFromClass(x.class) isEqualToString:@"CCUILabeledRoundButton"]) { rb = x; continue; }
+        if ([x isKindOfClass:UILabel.class] && !x.hidden && x.alpha > 0.5 && ((UILabel *)x).text.length) [labels addObject:x];
+        [q addObjectsFromArray:x.subviews];
+    }
+    if (rb) rb.transform = CGAffineTransformMakeScale(0.82, 0.82);
+    [labels sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) { return a.frame.origin.y < b.frame.origin.y ? NSOrderedAscending : NSOrderedDescending; }];
+    static const void *kShiftKey = &kShiftKey;
+    for (NSUInteger i = 0; i < labels.count; i++) {
+        UILabel *l = (UILabel *)labels[i];
+        NSNumber *base = objc_getAssociatedObject(l, kShiftKey);
+        CGRect f = l.frame;
+        if (!base) { base = @(f.origin.x); objc_setAssociatedObject(l, kShiftKey, base, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+        if (fabs(f.origin.x - (base.doubleValue - 5.0)) > 0.5) { f.origin.x = base.doubleValue - 5.0; l.frame = f; }
+    }
+    UILabel *title = labels.firstObject ? (UILabel *)labels.firstObject : nil;
+    if (title && ![title.text isEqualToString:@"On"] && ![title.text isEqualToString:@"Off"]) {
+        NSTextAttachment *att = [[NSTextAttachment alloc] init];
+        UIImage *ci = [[UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:10 weight:UIImageSymbolWeightSemibold]] imageWithTintColor:[UIColor colorWithWhite:1 alpha:0.7] renderingMode:UIImageRenderingModeAlwaysOriginal];
+        att.image = ci; att.bounds = CGRectMake(0, -1.0, ci.size.width, ci.size.height);
+        NSMutableAttributedString *as = [[NSMutableAttributedString alloc] initWithString:[title.text stringByAppendingString:@"  "]
+            attributes:@{NSFontAttributeName: title.font, NSForegroundColorAttributeName: title.textColor ?: UIColor.whiteColor}];
+        [as appendAttributedString:[NSAttributedString attributedStringWithAttachment:att]];
+        title.attributedText = as;
+    }
+}
+
 static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov);
 
 static BOOL PACLandEligible(UIViewController *m) {
@@ -5952,6 +5988,7 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
         }
         objc_setAssociatedObject(m.view, kPACLastPresKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         PACRestoreModuleIcon(m);
+        PACCFocusStockStyle(buttonView, mid.lowercaseString);
         return;
     }
 

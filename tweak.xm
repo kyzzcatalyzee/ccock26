@@ -43,6 +43,84 @@ BOOL gPagerScrubbing = NO;
 }
 %end
 
+// Status bar items aligned to the grid: the left items start 6pt inside the left edge of the modules and the right items end 6pt
+// inside their right edge (measured live from the module containers in window coordinates, so the 0.91 grid scale is accounted for).
+static const CGFloat kPACCStatusInset = 6.0;
+static void PACCStatusLeafExtent(UIView *root, UIWindow *win, CGFloat *minX, CGFloat *maxX) {
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
+    NSUInteger n = 0;
+    while (q.count && n++ < 120) {
+        UIView *v = q.firstObject; [q removeObjectAtIndex:0];
+        if (v.hidden || v.alpha < 0.01) continue;
+        if (v.subviews.count == 0) {
+            CGRect b = v.bounds;
+            if (CGRectGetWidth(b) < 1.0) continue;
+            CGRect r = [v.layer convertRect:b toLayer:win.layer];
+            if (CGRectGetMinX(r) < *minX) *minX = CGRectGetMinX(r);
+            if (CGRectGetMaxX(r) > *maxX) *maxX = CGRectGetMaxX(r);
+            continue;
+        }
+        [q addObjectsFromArray:v.subviews];
+    }
+}
+static BOOL PACCGridEdges(UIWindow *win, CGFloat *left, CGFloat *right) {
+    CGFloat ww = CGRectGetWidth(win.bounds), lo = 1e9, hi = -1e9;
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:win];
+    NSUInteger n = 0;
+    while (q.count && n++ < 900) {
+        UIView *v = q.firstObject; [q removeObjectAtIndex:0];
+        if ([NSStringFromClass(v.class) containsString:@"ContentModuleContainerView"]) {
+            CGRect r = [v.layer convertRect:v.bounds toLayer:win.layer];
+            if (CGRectGetMinX(r) >= 0.0 && CGRectGetMaxX(r) <= ww && CGRectGetWidth(r) > 40.0) {
+                lo = MIN(lo, CGRectGetMinX(r)); hi = MAX(hi, CGRectGetMaxX(r));
+            }
+            continue;
+        }
+        [q addObjectsFromArray:v.subviews];
+    }
+    if (hi < lo) return NO;
+    *left = lo; *right = hi;
+    return YES;
+}
+%hook _UIStatusBarForegroundView
+- (void)layoutSubviews {
+    %orig;
+    UIView *me = (UIView *)self;
+    BOOL inCC = NO;
+    for (UIView *p = me.superview; p; p = p.superview) {
+        if ([NSStringFromClass(p.class) isEqualToString:@"CCUIStatusBar"]) { inCC = YES; break; }
+    }
+    UIWindow *win = me.window;
+    if (!inCC || !win) return;
+    BOOL on = gEnabled && !PACCLandscapeNow();
+    CGFloat w = CGRectGetWidth(me.bounds);
+    CGFloat gl = 0, gr = 0;
+    BOOL haveGrid = on && PACCGridEdges(win, &gl, &gr);
+    static NSString *lastDump;
+    NSMutableString *dump = [NSMutableString string];
+    for (UIView *r in me.subviews) {
+        CGFloat rw = CGRectGetWidth(r.bounds);
+        if (rw < 20.0 || rw > w * 0.8) { if (!CGAffineTransformIsIdentity(r.transform)) r.transform = CGAffineTransformIdentity; continue; }
+        BOOL leftSide = r.center.x < w * 0.5;
+        CGFloat dx = 0.0;
+        if (on) {
+            CGFloat mn = 1e9, mx = -1e9;
+            PACCStatusLeafExtent(r, win, &mn, &mx);
+            if (mx >= mn) {
+                CGFloat baseMin = mn - r.transform.tx, baseMax = mx - r.transform.tx;
+                if (haveGrid) dx = leftSide ? (gl + kPACCStatusInset - baseMin) : (gr - kPACCStatusInset - baseMax);
+                else dx = leftSide ? 34.0 : -34.0;
+                dx = MAX(-80.0, MIN(80.0, dx));
+                [dump appendFormat:@"%@ side%d content %.1f..%.1f grid %.1f..%.1f dx %.1f | ", NSStringFromClass(r.class), leftSide, baseMin, baseMax, haveGrid ? gl : -1, haveGrid ? gr : -1, dx];
+            }
+        }
+        CGAffineTransform t = CGAffineTransformMakeTranslation(dx, 0);
+        if (!CGAffineTransformEqualToTransform(r.transform, t)) r.transform = t;
+    }
+    if (dump.length && ![dump isEqualToString:lastDump]) { lastDump = [dump copy]; PACCSizeLog([@"statusbar fg: " stringByAppendingString:dump]); }
+}
+%end
+
 %hook CCUIModuleCollectionView
 - (void)setFrame:(CGRect)frame {
     if (gEnabled && kPACPortScaleOn && !PACCLandscapeNow() && CGRectGetHeight(UIScreen.mainScreen.bounds) < 800.0) {
@@ -1100,7 +1178,20 @@ static void PACCCenterExpanded(UIViewController *vc, int attempt) {
                 CGFloat top0 = gPACCExpandTop;
                 if (top0 < 20.0 || top0 > CGRectGetHeight(wrap.window.bounds) * 0.5) return;
                 CGFloat dy = top0 - CGRectGetMinY(r);
+                // A card that does not move with the grid shift (log: rect {{27,226},{321,360}} stayed put, dy -101 twice = grid pushed up
+                // by 202): if the last shift changed nothing, take it back and stop for this expansion.
+                static CGFloat sPrevMinY = -1e9, sApplied = 0.0;
+                static BOOL sGaveUp = NO;
+                if (attempt == 0 && sPrevMinY > -1e8 && fabs(gPACCExpandShift) < 0.01) { sPrevMinY = -1e9; sApplied = 0.0; sGaveUp = NO; }
+                if (sGaveUp) return;
+                if (sPrevMinY > -1e8 && fabs(sApplied) > 1.0 && fabs(CGRectGetMinY(r) - sPrevMinY) < 1.0) {
+                    gPACCExpandShift -= sApplied; sApplied = 0.0; sGaveUp = YES;
+                    PACCSizeLog([NSString stringWithFormat:@"center expanded: shift had no effect, undone (total %.1f)", gPACCExpandShift]);
+                    PACCApplyExpandShift();
+                    return;
+                }
                 if (fabs(dy) > 1.0 && fabs(gPACCExpandShift + dy) < 300.0) {
+                    sPrevMinY = CGRectGetMinY(r); sApplied += dy;
                     gPACCExpandShift += dy;
                     PACCSizeLog([NSString stringWithFormat:@"center expanded dy %.1f total %.1f rect %@", dy, gPACCExpandShift, NSStringFromCGRect(r)]);
                     PACCApplyExpandShift();
