@@ -42,8 +42,18 @@ static UIImage *PACCModGlyph(CGFloat pt) {
 #if PACC_KIND == 0
     UIImage *i = [UIImage systemImageNamed:@"wifi" withConfiguration:cfg];
 #elif PACC_KIND == 1
-    UIImage *i = PACCModPNG(@"cellularbars") ?: [UIImage systemImageNamed:@"cellularbars" withConfiguration:cfg] ?:
-                 [UIImage systemImageNamed:@"antenna.radiowaves.left.and.right" withConfiguration:cfg];
+    UIImage *i = PACCModPNG(@"cellularbars");
+    if (i) {
+        // the bundled bars glyph looked too small in the Cellular Data module: draw it 35% bigger
+        const CGFloat k = 1.35;
+        CGSize sz = CGSizeMake(i.size.width * k, i.size.height * k);
+        UIImage *src = [i imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
+        i = [[[UIGraphicsImageRenderer alloc] initWithSize:sz] imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+            [src drawInRect:CGRectMake(0, 0, sz.width, sz.height)];
+        }];
+    }
+    if (!i) i = [UIImage systemImageNamed:@"cellularbars" withConfiguration:cfg] ?:
+                [UIImage systemImageNamed:@"antenna.radiowaves.left.and.right" withConfiguration:cfg];
 #elif PACC_KIND == 3
     UIImage *i = PACCModPNG(@"personalhotspot");
 #else
@@ -84,7 +94,7 @@ static UIColor *PACCModOnColor(void) {
 #if PACC_KIND == 1 || PACC_KIND == 3
     return [UIColor colorWithRed:0.2 green:0.78 blue:0.35 alpha:1];
 #else
-    return [UIColor colorWithRed:0.04 green:0.52 blue:1.0 alpha:1];
+    return [UIColor colorWithRed:0.25 green:0.74 blue:1.0 alpha:1];   // same blue as the Volume glyph
 #endif
 }
 
