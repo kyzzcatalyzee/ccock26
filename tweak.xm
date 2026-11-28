@@ -1090,7 +1090,9 @@ static void PACCCenterExpanded(UIViewController *vc, int attempt) {
         UIView *wrap = content.view.superview;
         if (wrap && wrap.window) {
             CGRect r = [wrap convertRect:wrap.bounds toView:nil];
-            if (r.size.height > 300.0) {
+            // A full-height expanded card (Focus / Brightness on the 375x812 fullscreen: rect {{0,0},{375,812}}) cannot be moved by
+            // the grid shift, so dy stayed 125 on every retry and piled up to 625 (grid pushed off-screen until the close ended).
+            if (r.size.height > 300.0 && r.size.height < CGRectGetHeight(wrap.window.bounds) - 2.0) {
                 if (gPACCExpandTop < 0.0) {
                     UIViewController *ov0 = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
                     gPACCExpandTop = PACCGridTopY(ov0) - gPACCExpandShift;
@@ -1098,7 +1100,7 @@ static void PACCCenterExpanded(UIViewController *vc, int attempt) {
                 CGFloat top0 = gPACCExpandTop;
                 if (top0 < 20.0 || top0 > CGRectGetHeight(wrap.window.bounds) * 0.5) return;
                 CGFloat dy = top0 - CGRectGetMinY(r);
-                if (fabs(dy) > 1.0) {
+                if (fabs(dy) > 1.0 && fabs(gPACCExpandShift + dy) < 300.0) {
                     gPACCExpandShift += dy;
                     PACCSizeLog([NSString stringWithFormat:@"center expanded dy %.1f total %.1f rect %@", dy, gPACCExpandShift, NSStringFromCGRect(r)]);
                     PACCApplyExpandShift();
