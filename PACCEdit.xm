@@ -6036,14 +6036,30 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
 
     titleLabel.text = newText;
     if (wideRow && isFocus) {
+        // up/down chevron right beside the "Focus" name, like the custom Connectivity cards
         NSTextAttachment *att = [[NSTextAttachment alloc] init];
-        att.image = [[UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:11 weight:UIImageSymbolWeightSemibold]] imageWithTintColor:[UIColor colorWithWhite:1 alpha:0.7] renderingMode:UIImageRenderingModeAlwaysOriginal];
-        NSMutableAttributedString *as = [[NSMutableAttributedString alloc] initWithString:[newText stringByAppendingString:@"  "]
-            attributes:@{NSFontAttributeName: titleLabel.font, NSForegroundColorAttributeName: UIColor.whiteColor}];
+        UIColor *chevCol = (isSel && hasState) ? [UIColor colorWithWhite:0 alpha:0.5] : [UIColor colorWithWhite:1 alpha:0.7];
+        UIImage *ci = [[UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:10 weight:UIImageSymbolWeightSemibold]] imageWithTintColor:chevCol renderingMode:UIImageRenderingModeAlwaysOriginal];
+        att.image = ci;
+        att.bounds = CGRectMake(0, -1.0, ci.size.width, ci.size.height);
+        NSMutableAttributedString *as = [[NSMutableAttributedString alloc] initWithString:[titleLabel.text stringByAppendingString:@"  "]
+            attributes:@{NSFontAttributeName: titleLabel.font, NSForegroundColorAttributeName: titleLabel.textColor}];
         [as appendAttributedString:[NSAttributedString attributedStringWithAttachment:att]];
         titleLabel.attributedText = as;
     }
 
+    // Focus: a slightly smaller circle behind the glyph
+    if (isFocus) {
+        UIView *rb = nil;
+        NSMutableArray<UIView *> *rq = [NSMutableArray arrayWithObject:buttonView];
+        NSUInteger rn = 0;
+        while (rq.count && rn++ < 30) {
+            UIView *x = rq.firstObject; [rq removeObjectAtIndex:0];
+            if ([NSStringFromClass(x.class) isEqualToString:@"CCUILabeledRoundButton"]) { rb = x; break; }
+            [rq addObjectsFromArray:x.subviews];
+        }
+        if (rb) rb.transform = (wideRow ? CGAffineTransformMakeScale(0.82, 0.82) : CGAffineTransformIdentity);
+    }
 
     CGFloat W = CGRectGetWidth(pres.bounds);
     CGFloat H = CGRectGetHeight(pres.bounds);
@@ -6051,7 +6067,7 @@ static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov
     CGFloat textW;
     CGFloat textX;
     if (curW > 1 && curH == 1) {
-        textX = round(H * 0.93);
+        textX = round(H * 0.93) - (isFocus ? 6.0 : 0.0);
         textW = MAX(0.0, W - textX - round(H * 0.14));
     } else {
         textX = curW > 1 ? 21.0 : 10.0;
