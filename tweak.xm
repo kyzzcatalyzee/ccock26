@@ -32,6 +32,20 @@ static void PACCMusic42Sweep(UIView *root) {
 }
 
 // After a close the glass of the 2x4 Music module comes back as a stadium for about a second; enforce 30 every frame meanwhile.
+static BOOL PACCModuleHas42Music(UIViewController *vc) {
+    if (!vc.isViewLoaded) return NO;
+    Class mc = NSClassFromString(@"PACBigMusic");
+    if (!mc) return NO;
+    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:vc.view];
+    NSUInteger n = 0;
+    while (q.count && n++ < 60) {
+        UIView *x = q.firstObject; [q removeObjectAtIndex:0];
+        if ([x isKindOfClass:mc]) { CGSize z = x.bounds.size; return (z.width > 300.0 && z.height > 140.0 && z.height < 220.0); }
+        [q addObjectsFromArray:x.subviews];
+    }
+    return NO;
+}
+
 static void PACCMusic42Settle(UIView *root, double until) {
     if (!root) return;
     __weak UIView *wr = root;
@@ -686,8 +700,8 @@ static void PACCMusicStockCover(id module, BOOL hide) {
         UIViewController *mvc = (UIViewController *)module;
         NSString *mmid = nil;
         @try { id mv = [mvc valueForKey:@"moduleIdentifier"]; if ([mv isKindOfClass:NSString.class]) mmid = mv; } @catch (__unused NSException *e) {}
-        CGSize rz = mvc.isViewLoaded ? mvc.view.bounds.size : CGSizeZero;
-        if ([mmid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"] && rz.width > 300.0 && rz.width < 370.0 && rz.height > 140.0 && rz.height < 200.0) gPACCMusic42Open = YES;
+        if ([mmid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"] && PACCModuleHas42Music(mvc)) gPACCMusic42Open = YES;
+        PACCSizeLog([NSString stringWithFormat:@"music42 open flag (willOpen) %d mid %@", (int)gPACCMusic42Open, mmid]);
     }
     PACCNoteExpandedModule(module, YES, nil);
     gCCAModuleExpanded = YES;
@@ -1255,7 +1269,8 @@ static void PACCCenterExpanded(UIViewController *vc, int attempt) {
             sExpandedVC = vc0;
             PACCNoteExpandedModule(vc0, YES, nil);
             gCCAModuleExpanded = YES;
-            PACCSizeLog(@"expanded module opened (container layout)");
+            if (!gPACCMusic42Open && PACCModuleHas42Music(vc0)) gPACCMusic42Open = YES;
+            PACCSizeLog([NSString stringWithFormat:@"expanded module opened (container layout) music42 %d", (int)gPACCMusic42Open]);
             PACCTrackExpansion(vc0);
             PACCCenterExpanded(vc0, 0);
         } else if (!exp0 && sExpandedVC == vc0) {
