@@ -235,7 +235,7 @@ static UIColor *PACBigOnColor(NSString *key) {
     if ([key isEqualToString:@"air"]) return [UIColor colorWithRed:1.0 green:0.62 blue:0.04 alpha:1];
     if ([key isEqualToString:@"ringeroff"]) return [UIColor colorWithRed:1.0 green:0.62 blue:0.04 alpha:1];
     if ([key isEqualToString:@"cell"] || [key isEqualToString:@"hotspot"]) return [UIColor colorWithRed:0.2 green:0.78 blue:0.35 alpha:1];
-    return [UIColor colorWithRed:0.04 green:0.52 blue:1.0 alpha:1];
+    return [UIColor colorWithRed:0.25 green:0.74 blue:1.0 alpha:1];   // same blue as the Volume glyph
 }
 
 static NSString *PACBigKey(NSString *title) {
@@ -294,7 +294,19 @@ static UIImage *PACBigIconForKey(NSString *key, CGFloat pt) {
     if ([key isEqualToString:@"ringeroff"]) return PACBigSymbol(@[@"bell.slash.fill"], pt);
     if ([key isEqualToString:@"air"])     return PACBigSymbol(@[@"airplane"], pt);
     if ([key isEqualToString:@"wifi"])    return PACBigSymbol(@[@"wifi"], pt);
-    if ([key isEqualToString:@"cell"])    return PACCGlyphPNG(@"cellularbars") ?: PACBigSymbol(@[@"cellularbars", @"antenna.radiowaves.left.and.right"], pt);
+    if ([key isEqualToString:@"cell"]) {
+        UIImage *png = PACCGlyphPNG(@"cellularbars");
+        if (png) {
+            const CGFloat k = 1.35;   // the bundled bars glyph looked too small inside its circle
+            CGSize sz = CGSizeMake(png.size.width * k, png.size.height * k);
+            UIGraphicsImageRendererFormat *fmt = [UIGraphicsImageRendererFormat preferredFormat];
+            UIImage *big = [[[UIGraphicsImageRenderer alloc] initWithSize:sz format:fmt] imageWithActions:^(UIGraphicsImageRendererContext *c) {
+                [[png imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal] drawInRect:CGRectMake(0, 0, sz.width, sz.height)];
+            }];
+            return [big imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        }
+        return PACBigSymbol(@[@"cellularbars", @"antenna.radiowaves.left.and.right"], pt);
+    }
     if ([key isEqualToString:@"bt"])      return PACBigDrawn(@"bt", pt);
     if ([key isEqualToString:@"airdrop"]) return PACBigSymbol(@[@"airdrop"], pt) ?: PACBigDrawn(@"airdrop", pt);
     if ([key isEqualToString:@"vpn"]) {
@@ -1861,7 +1873,7 @@ static UIView *PACBigMakeRoutePicker(void) {
         CGFloat wp = 14.0 * sc;
         CGFloat a = h - wp * 2.0;
         _art.frame = CGRectMake(wp, wp, a, a);
-        _art.layer.cornerRadius = 14.0 * sc;
+        _art.layer.cornerRadius = 14.0 * sc + 5.0;
         CGFloat x = wp + a + wp, tw = w - x - wp;
         CGFloat d = round(38.0 * sc);
         _airBg.frame = CGRectMake(w - wp - d, wp, d, d);
