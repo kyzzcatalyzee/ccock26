@@ -1287,6 +1287,12 @@ static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 void PACBigFixLGRadius(UIView *g, CGFloat r) {
     BOOL changed = fabs(g.layer.cornerRadius - r) > 0.5;
     if (changed) g.layer.cornerRadius = r;
+    // the full-size CABackdropLayer inside the glass keeps its own (stadium) radius; make it follow
+    for (CALayer *sl in g.layer.sublayers) {
+        if (fabs(sl.cornerRadius - r) > 0.5 && sl.cornerRadius > 0.5 && fabs(sl.bounds.size.width - g.bounds.size.width) < 4.0 && fabs(sl.bounds.size.height - g.bounds.size.height) < 4.0) {
+            sl.cornerRadius = r; sl.cornerCurve = kCACornerCurveContinuous;
+        }
+    }
     @try {
         CGRect sr = [[g valueForKey:@"lgShapeRect"] CGRectValue];
         if (!CGRectIsEmpty(sr) && fabs([[g valueForKey:@"lgShapeCornerRadius"] doubleValue] - r) > 0.5) {
