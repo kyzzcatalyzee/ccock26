@@ -1747,6 +1747,26 @@ static void PACRestoreModuleRadius(UIViewController *m) {
 }
 
 // Stock-size Focus (2x1 "Do Not Disturb / On"): smaller circle behind the glyph, text a little closer, and the up/down chevron beside the name.
+// The stock code resets the label text/frame after every open/close, so the labels are flagged and the UILabel hooks below re-apply the chevron/shift.
+static const void *kPACFocusLabelKey = &kPACFocusLabelKey;
+static BOOL gPACFocusInStyle = NO;
+static BOOL PACCIsFocusLabel(UILabel *l) { return [objc_getAssociatedObject(l, kPACFocusLabelKey) boolValue]; }
+static void PACCFocusAppendChevron(UILabel *title) {
+    NSAttributedString *cur = title.attributedText;
+    if (!cur.length || [cur.string containsString:@"\uFFFC"]) return;
+    NSString *t = cur.string;
+    if ([t isEqualToString:@"On"] || [t isEqualToString:@"Off"]) return;
+    NSTextAttachment *att = [[NSTextAttachment alloc] init];
+    UIImage *ci = [[UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:10 weight:UIImageSymbolWeightSemibold]] imageWithTintColor:[UIColor colorWithWhite:1 alpha:0.7] renderingMode:UIImageRenderingModeAlwaysOriginal];
+    if (!ci) return;
+    att.image = ci; att.bounds = CGRectMake(0, -1.0, ci.size.width, ci.size.height);
+    NSMutableAttributedString *as = [[NSMutableAttributedString alloc] initWithAttributedString:cur];
+    [as appendAttributedString:[[NSAttributedString alloc] initWithString:@"  " attributes:@{NSFontAttributeName: title.font}]];
+    [as appendAttributedString:[NSAttributedString attributedStringWithAttachment:att]];
+    gPACFocusInStyle = YES;
+    title.attributedText = as;
+    gPACFocusInStyle = NO;
+}
 static void PACCFocusStockStyle(UIView *root, NSString *midLower) {
     if (!([midLower containsString:@"donotdisturb"] || [midLower containsString:@"focus"])) return;
     if (CGRectGetWidth(root.bounds) < 120.0 || CGRectGetHeight(root.bounds) > 100.0) return;
@@ -1760,27 +1780,44 @@ static void PACCFocusStockStyle(UIView *root, NSString *midLower) {
         if ([x isKindOfClass:UILabel.class] && !x.hidden && x.alpha > 0.5 && ((UILabel *)x).text.length) [labels addObject:x];
         [q addObjectsFromArray:x.subviews];
     }
-    if (rb) rb.transform = CGAffineTransformMakeScale(0.82, 0.82);
+    if (rb) {
+        // scale about its centre and keep the circle vertically centred in the pill
+        CGFloat ty = 0.0;
+        if (rb.superview) ty = CGRectGetHeight(rb.superview.bounds) * 0.5 - rb.center.y;
+        if (fabs(ty) > 6.0) ty = 0.0;
+        rb.transform = CGAffineTransformMake(0.82, 0, 0, 0.82, 0, ty);
+        static NSString *lastRB;
+        NSMutableString *d = [NSMutableString string];
+        for (UIView *sv in rb.subviews) [d appendFormat:@"%@ %@ | ", NSStringFromClass(sv.class), NSStringFromCGRect(sv.frame)];
+        NSString *line = [NSString stringWithFormat:@"focus stock rb f%@ super h%.1f ty %.1f subs %@", NSStringFromCGRect(rb.frame), rb.superview ? CGRectGetHeight(rb.superview.bounds) : 0.0, ty, d];
+        if (![line isEqualToString:lastRB]) { lastRB = line; PACCSizeLog(line); }
+    }
     [labels sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) { return a.frame.origin.y < b.frame.origin.y ? NSOrderedAscending : NSOrderedDescending; }];
-    static const void *kShiftKey = &kShiftKey;
     for (NSUInteger i = 0; i < labels.count; i++) {
         UILabel *l = (UILabel *)labels[i];
-        NSNumber *base = objc_getAssociatedObject(l, kShiftKey);
-        CGRect f = l.frame;
-        if (!base) { base = @(f.origin.x); objc_setAssociatedObject(l, kShiftKey, base, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-        if (fabs(f.origin.x - (base.doubleValue - 5.0)) > 0.5) { f.origin.x = base.doubleValue - 5.0; l.frame = f; }
+        if (!PACCIsFocusLabel(l)) {
+            objc_setAssociatedObject(l, kPACFocusLabelKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            CGRect f = l.frame; f.origin.x -= 5.0;
+            gPACFocusInStyle = YES; l.frame = f; gPACFocusInStyle = NO;
+        }
     }
-    UILabel *title = labels.firstObject ? (UILabel *)labels.firstObject : nil;
-    if (title && ![title.text isEqualToString:@"On"] && ![title.text isEqualToString:@"Off"]) {
-        NSTextAttachment *att = [[NSTextAttachment alloc] init];
-        UIImage *ci = [[UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:10 weight:UIImageSymbolWeightSemibold]] imageWithTintColor:[UIColor colorWithWhite:1 alpha:0.7] renderingMode:UIImageRenderingModeAlwaysOriginal];
-        att.image = ci; att.bounds = CGRectMake(0, -1.0, ci.size.width, ci.size.height);
-        NSMutableAttributedString *as = [[NSMutableAttributedString alloc] initWithString:[title.text stringByAppendingString:@"  "]
-            attributes:@{NSFontAttributeName: title.font, NSForegroundColorAttributeName: title.textColor ?: UIColor.whiteColor}];
-        [as appendAttributedString:[NSAttributedString attributedStringWithAttachment:att]];
-        title.attributedText = as;
-    }
+    if (labels.count) PACCFocusAppendChevron((UILabel *)labels.firstObject);
 }
+
+%hook UILabel
+- (void)setFrame:(CGRect)frame {
+    if (!gPACFocusInStyle && PACCIsFocusLabel(self)) frame.origin.x -= 5.0;
+    %orig(frame);
+}
+- (void)setText:(NSString *)text {
+    %orig;
+    if (!gPACFocusInStyle && PACCIsFocusLabel(self) && ![objc_getAssociatedObject(self, kPACFocusLabelKey) isEqual:@2]) PACCFocusAppendChevron(self);
+}
+- (void)setAttributedText:(NSAttributedString *)text {
+    %orig;
+    if (!gPACFocusInStyle && PACCIsFocusLabel(self)) PACCFocusAppendChevron(self);
+}
+%end
 
 static void PACRefreshPresentationImpl(UIViewController *m, UIViewController *ov);
 
