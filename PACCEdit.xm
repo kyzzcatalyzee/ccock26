@@ -1287,12 +1287,6 @@ static void PACLog(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 void PACBigFixLGRadius(UIView *g, CGFloat r) {
     BOOL changed = fabs(g.layer.cornerRadius - r) > 0.5;
     if (changed) g.layer.cornerRadius = r;
-    // the full-size CABackdropLayer inside the glass keeps its own (stadium) radius; make it follow
-    for (CALayer *sl in g.layer.sublayers) {
-        if (fabs(sl.cornerRadius - r) > 0.5 && sl.cornerRadius > 0.5 && fabs(sl.bounds.size.width - g.bounds.size.width) < 4.0 && fabs(sl.bounds.size.height - g.bounds.size.height) < 4.0) {
-            sl.cornerRadius = r; sl.cornerCurve = kCACornerCurveContinuous;
-        }
-    }
     @try {
         CGRect sr = [[g valueForKey:@"lgShapeRect"] CGRectValue];
         if (!CGRectIsEmpty(sr) && fabs([[g valueForKey:@"lgShapeCornerRadius"] doubleValue] - r) > 0.5) {
@@ -1323,31 +1317,8 @@ void PACBigRefreshLG(UIView *root) {
     [root setNeedsLayout];
 }
 
-extern BOOL gPACCMusic42Open;
-BOOL gPACCMusic42Seen = NO;   // a 2x4 Music card exists in this session (set by the card), so the glass can be matched before the card is re-added after a close
-static BOOL PACGlassNearMusic42(UIView *g) {
-    if (gPACCMusic42Seen) return YES;
-    Class mc = NSClassFromString(@"PACBigMusic");
-    if (!mc) return NO;
-    int up = 0;
-    for (UIView *a = g.superview; a && up < 8; a = a.superview, up++) {
-        for (UIView *c in a.subviews) if ([c isKindOfClass:mc]) return YES;
-    }
-    return NO;
-}
-
 static void PACFixGlassRadius(UIView *g) {
     if (!PACCLIQIsActive()) return;
-    // Music 2x4 glass (LiquidAss): it was coming out as a full stadium (r = h/2) over the 30pt card. Match by size, wherever it sits.
-    {
-        CGSize z0 = g.bounds.size;
-        if (z0.width > 300.0 && z0.width < 370.0) {
-            CGFloat want = 0.0;
-            if (z0.height > 140.0 && z0.height < 200.0 && PACGlassNearMusic42(g)) want = 30.0;
-            else if (z0.height >= 200.0 && gPACCMusic42Open) want = 30.0;
-            if (want > 0.0) { PACBigFixLGRadius(g, want); return; }
-        }
-    }
     for (UIView *a = g.superview; a; a = a.superview) {
         NSString *an = NSStringFromClass(a.class);
         if ([an isEqualToString:@"PACBigCard"]) { PACBigFixLGRadius(g, a.layer.cornerRadius); return; }
@@ -1373,40 +1344,6 @@ static void PACFixGlassRadius(UIView *g) {
         return;
     }
     CGFloat r = MIN(floor(kPACCell * 0.5), MIN(gs.width, gs.height) * 0.5);
-    // Music 2x4 (346x166) keeps the 30 radius for the LiquidAss glass too, also while held
-    if (module && ms.width > 300.0 && ms.width < 370.0 && ms.height > 140.0 && ms.height < 200.0) {
-        Class mc = NSClassFromString(@"PACBigMusic");
-        BOOL hasMusic = NO;
-        NSMutableArray<UIView *> *mq = [NSMutableArray arrayWithObject:module];
-        NSUInteger mn = 0;
-        while (mq.count && mn++ < 40 && mc) {
-            UIView *mv = mq.firstObject; [mq removeObjectAtIndex:0];
-            if ([mv isKindOfClass:mc]) { hasMusic = YES; break; }
-            [mq addObjectsFromArray:mv.subviews];
-        }
-        if (hasMusic) {
-            r = 30.0;
-            // sweep every same-size layer under the module (stock highlight, LiquidAss views) to 25 and log what was found
-            NSMutableString *dump = [NSMutableString string];
-            NSMutableArray<UIView *> *sq = [NSMutableArray arrayWithObject:module];
-            NSUInteger sn = 0;
-            while (sq.count && sn++ < 80) {
-                UIView *sv = sq.firstObject; [sq removeObjectAtIndex:0];
-                [sq addObjectsFromArray:sv.subviews];
-                if (sv == module || [sv isKindOfClass:mc]) continue;
-                CGSize z = sv.bounds.size;
-                if (fabs(z.width - ms.width) > 3.0 || fabs(z.height - ms.height) > 3.0) continue;
-                CGFloat cr = sv.layer.cornerRadius;
-                [dump appendFormat:@" %@ r%.1f", NSStringFromClass(sv.class), cr];
-                if (cr > 30.5 || (cr > 0.5 && cr < 29.5)) {
-                    if ([NSStringFromClass(sv.class) hasPrefix:@"LG"]) PACBigFixLGRadius(sv, 30.0);
-                    else { sv.layer.cornerRadius = 30.0; sv.layer.cornerCurve = kCACornerCurveContinuous; }
-                }
-            }
-            static NSString *lastDump;
-            if (![dump isEqualToString:lastDump]) { lastDump = [dump copy]; PACLog(@"music2x4 glass sweep %@ ms %@ |%@", NSStringFromClass(g.class), NSStringFromCGSize(ms), dump); }
-        }
-    }
     BOOL changed = fabs(g.layer.cornerRadius - r) > 0.5;
     if (changed) g.layer.cornerRadius = r;
     @try {
@@ -1457,8 +1394,6 @@ static void PACInstallGlassFix(void) {
     if (!glass) return;
     done = YES;
     PACSwizzleAfter(glass, @selector(layoutSubviews), ^(UIView *v) { PACFixGlassRadius(v); });
-    PACSwizzleAfter(glass, @selector(didMoveToSuperview), ^(UIView *v) { PACFixGlassRadius(v); });
-    PACSwizzleAfter(glass, @selector(didMoveToWindow), ^(UIView *v) { PACFixGlassRadius(v); });
     PACSwizzleAfter(glass, NSSelectorFromString(@"updateSpecular"), ^(UIView *v) { PACFixGlassRadius(v); });
     for (NSString *cn in @[@"CCUIContentModuleContentContainerView", @"CCUIContentModuleContentContainer"]) {
         Class c = NSClassFromString(cn);

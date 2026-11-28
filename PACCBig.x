@@ -1772,19 +1772,6 @@ static UIView *PACBigMakeRoutePicker(void) {
             }
         }
     }
-    extern BOOL gPACCMusic42Seen;
-    if (wide42 && !self.standalone) gPACCMusic42Seen = YES;
-    if (wide42 && !self.standalone) {
-        // fix any LiquidAss glass around this card right now instead of waiting for its own next layout
-        int up2 = 0;
-        for (UIView *p = self.superview; p && up2 < 6; p = p.superview, up2++) {
-            if ([NSStringFromClass(p.class) isEqualToString:@"CCUIContentModuleContainerView"]) { }
-            for (UIView *s in p.subviews) {
-                NSString *scn = NSStringFromClass(s.class);
-                if ([scn hasPrefix:@"LG"] && [scn containsString:@"Backdrop"] && fabs(s.bounds.size.width - w) < 4.0 && fabs(s.bounds.size.height - h) < 4.0) PACBigFixLGRadius(s, 30.0);
-            }
-        }
-    }
     CGFloat pad = 14.0;
     BOOL tile = (w < 260.0 && h >= 120.0);
     BOOL full = !self.compact && !tile;
@@ -2199,12 +2186,6 @@ void PACCBigStyle(UIViewController *m, NSString *mid, NSUInteger w, NSUInteger h
     }
     PACBigMask(host, bv, YES);
     if (host.subviews.lastObject != bv) [host bringSubviewToFront:bv];
-    // 2x4 Music held/opening: the host grows toward the expanded size. Keep the card at its rest size (and radius 25)
-    // instead of stretching it, which gave the odd inner radius; the stock expanded player takes over once it opens.
-    if (kind == 2 && h < 4 && existing && host.bounds.size.height > 220.0) {
-        bv.userInteractionEnabled = NO;
-        return;
-    }
     CGRect wantFrame = host.bounds;
     if ((kind == 1 || kind == 2) && h >= 6) {
         wantFrame = PACCBigOutset(kind, wantFrame);

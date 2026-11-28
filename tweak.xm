@@ -12,115 +12,6 @@ extern CFTimeInterval gPACCExpandQuietUntil;
 
 BOOL gPagerScrubbing = NO;
 
-// Music 2x4 (346x166): the stock module glass (and the LiquidAss view that copies its radius, notably while held)
-// must use the same radius as the card, not the generic 25/38.
-BOOL gPACCMusic42Open = NO;   // the expanded card came from the 2x4 Music module
-static void PACCMusic42Sweep(UIView *root) {
-    if (!root) return;
-    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:root];
-    NSUInteger n = 0;
-    while (q.count && n++ < 120) {
-        UIView *v = q.firstObject; [q removeObjectAtIndex:0];
-        [q addObjectsFromArray:v.subviews];
-        CGSize z = v.bounds.size;
-        if (z.width < 300.0 || z.height < 500.0) continue;
-        CGFloat cr = v.layer.cornerRadius;
-        if (cr < 1.0 || fabs(cr - 30.0) < 0.5) continue;
-        if ([NSStringFromClass(v.class) hasPrefix:@"LG"]) PACBigFixLGRadius(v, 30.0);
-        else { v.layer.cornerRadius = 30.0; v.layer.cornerCurve = kCACornerCurveContinuous; }
-    }
-}
-
-// After a close the glass of the 2x4 Music module comes back as a stadium for about a second; enforce 30 every frame meanwhile.
-static BOOL PACCModuleHas42Music(UIViewController *vc) {
-    if (!vc.isViewLoaded) return NO;
-    Class mc = NSClassFromString(@"PACBigMusic");
-    if (!mc) return NO;
-    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:vc.view];
-    NSUInteger n = 0;
-    while (q.count && n++ < 60) {
-        UIView *x = q.firstObject; [q removeObjectAtIndex:0];
-        if ([x isKindOfClass:mc]) { CGSize z = x.bounds.size; return (z.width > 300.0 && z.height > 140.0 && z.height < 220.0); }
-        [q addObjectsFromArray:x.subviews];
-    }
-    return NO;
-}
-
-static void PACCKillShapeAnims(CALayer *l) {
-    for (NSString *k in l.animationKeys) {
-        CAAnimation *a = [l animationForKey:k];
-        if ([a isKindOfClass:CAPropertyAnimation.class]) {
-            NSString *kp = ((CAPropertyAnimation *)a).keyPath;
-            if ([kp isEqualToString:@"cornerRadius"] || [kp isEqualToString:@"path"] || [kp isEqualToString:@"shadowPath"]) [l removeAnimationForKey:k];
-        }
-    }
-}
-static CGFloat PACCShownRadius(CALayer *l) {
-    CALayer *p = l.presentationLayer;
-    return MAX(l.cornerRadius, p ? p.cornerRadius : 0.0);
-}
-
-static void PACCMusic42Settle(UIView *root, double until) {
-    if (!root) return;
-    __weak UIView *wr = root;
-    [NSTimer scheduledTimerWithTimeInterval:0.03 repeats:YES block:^(NSTimer *t) {
-        UIView *r = wr;
-        if (!r || CACurrentMediaTime() > until) { [t invalidate]; return; }
-        NSMutableString *found = [NSMutableString string];
-        NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:r];
-        NSUInteger n = 0;
-        while (q.count && n++ < 600) {
-            UIView *v = q.firstObject; [q removeObjectAtIndex:0];
-            [q addObjectsFromArray:v.subviews];
-            CGSize z = v.bounds.size;
-            if (z.width < 300.0 || z.width > 370.0 || z.height < 140.0 || z.height > 200.0) continue;
-            NSString *cn = NSStringFromClass(v.class);
-            if ([v isKindOfClass:NSClassFromString(@"PACBigMusic")]) continue;
-            [CATransaction begin]; [CATransaction setDisableActions:YES];
-            if (PACCShownRadius(v.layer) > 31.0) {
-                [found appendFormat:@" %@ r%.1f", cn, PACCShownRadius(v.layer)];
-                if ([cn hasPrefix:@"LG"]) PACBigFixLGRadius(v, 30.0);
-                else { v.layer.cornerRadius = 30.0; v.layer.cornerCurve = kCACornerCurveContinuous; }
-                PACCKillShapeAnims(v.layer);
-            }
-            for (CALayer *sl in v.layer.sublayers) {
-                if (PACCShownRadius(sl) > 31.0 && fabs(sl.bounds.size.width - z.width) < 4.0 && fabs(sl.bounds.size.height - z.height) < 4.0) {
-                    [found appendFormat:@" layer(%@ in %@) r%.1f", NSStringFromClass(sl.class), cn, PACCShownRadius(sl)];
-                    sl.cornerRadius = 30.0; sl.cornerCurve = kCACornerCurveContinuous;
-                    PACCKillShapeAnims(sl);
-                }
-            }
-            [CATransaction commit];
-        }
-        if (found.length) { static NSString *lastF; if (![found isEqualToString:lastF]) { lastF = [found copy]; PACCSizeLog([NSString stringWithFormat:@"music2x4 settle fixed:%@", found]); } }
-    }];
-}
-
-static BOOL PACCLayerInMusic42(CALayer *layer) {
-    CGSize z = layer.bounds.size;
-    if (z.width < 300.0 || z.width > 370.0 || z.height < 140.0 || z.height > 200.0) return NO;
-    id d = layer.delegate;
-    UIView *v = [d isKindOfClass:UIView.class] ? (UIView *)d : nil;
-    if (!v) { CALayer *sl = layer.superlayer; while (sl && ![sl.delegate isKindOfClass:UIView.class]) sl = sl.superlayer; v = (UIView *)sl.delegate; }
-    UIView *mod = nil;
-    Class cc = NSClassFromString(@"CCUIContentModuleContainerView");
-    for (UIView *p = v; p; p = p.superview) if (cc && [p isKindOfClass:cc]) { mod = p; break; }
-    if (!mod) return NO;
-    Class mc = NSClassFromString(@"PACBigMusic");
-    Class np = NSClassFromString(@"MRUNowPlayingView");
-    if (!mc) return NO;
-    extern BOOL gPACCMusic42Seen;
-    NSMutableArray<UIView *> *q = [NSMutableArray arrayWithObject:mod];
-    NSUInteger n = 0;
-    while (q.count && n++ < 40) {
-        UIView *x = q.firstObject; [q removeObjectAtIndex:0];
-        if ([x isKindOfClass:mc]) return YES;
-        if (gPACCMusic42Seen && np && [x isKindOfClass:np]) return YES;
-        [q addObjectsFromArray:x.subviews];
-    }
-    return NO;
-}
-
 %hook CALayer
 - (CGFloat)cornerRadius {
     CGFloat radius = %orig;
@@ -138,8 +29,6 @@ static BOOL PACCLayerInMusic42(CALayer *layer) {
     NSArray<NSString *> *titles = @[@"modules", @"moduleFill.highlight.generatedRecipe"];
     if ([titles containsObject:self.recipeName]) {
         radius = calculatedRadius(self.visibleRect, radius);
-        if (gEnabled && PACCLayerInMusic42(self)) radius = 30.0;
-        else if (gEnabled && gPACCMusic42Open && self.bounds.size.width > 300.0 && self.bounds.size.height > 500.0) radius = 30.0;
     }
     return radius;
 }
@@ -681,46 +570,8 @@ static void PACCPollDismiss(UIViewController *ov, NSUInteger token, double elaps
     });
 }
 
-// Close of the expanded Music card: stock lays its big player out at every size on the way down, which squashes the
-// artwork into a band at the 4x2 size stock never ships. Fade the stock player out as the close starts, restore after.
-static void PACCMusicStockFind(UIView *v, NSMutableArray *out, int d) {
-    if (d > 12) return;
-    if ([NSStringFromClass(v.class) isEqualToString:@"MRUNowPlayingView"]) { [out addObject:v]; return; }
-    for (UIView *c in v.subviews) PACCMusicStockFind(c, out, d + 1);
-}
-static void PACCMusicStockCover(id module, BOOL hide) {
-    if (![module isKindOfClass:UIViewController.class]) return;
-    UIViewController *vc = (UIViewController *)module;
-    NSString *mid = nil;
-    @try { id v = [vc valueForKey:@"moduleIdentifier"]; if ([v isKindOfClass:NSString.class]) mid = v; } @catch (__unused NSException *e) {}
-    if (![mid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"] || !vc.isViewLoaded) return;
-    NSMutableArray *found = [NSMutableArray array];
-    PACCMusicStockFind(vc.view, found, 0);
-    for (UIView *np in found) {
-        if (hide) {
-            if (CGRectGetWidth(np.bounds) < 230.0) continue;
-            [UIView animateWithDuration:0.12 animations:^{ np.alpha = 0.0; }];
-        } else {
-            np.alpha = 1.0;
-        }
-    }
-}
-
 %hook CCUIModularControlCenterOverlayViewController
-- (void)moduleCollectionViewController:(id)collection willCloseExpandedModule:(id)module {
-    if (gEnabled) PACCMusicStockCover(module, YES);
-    %orig;
-}
 - (void)moduleCollectionViewController:(id)collection willOpenExpandedModule:(id)module {
-    PACCMusicStockCover(module, NO);
-    gPACCMusic42Open = NO;
-    if ([module isKindOfClass:UIViewController.class]) {
-        UIViewController *mvc = (UIViewController *)module;
-        NSString *mmid = nil;
-        @try { id mv = [mvc valueForKey:@"moduleIdentifier"]; if ([mv isKindOfClass:NSString.class]) mmid = mv; } @catch (__unused NSException *e) {}
-        if ([mmid isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"] && PACCModuleHas42Music(mvc)) gPACCMusic42Open = YES;
-        PACCSizeLog([NSString stringWithFormat:@"music42 open flag (willOpen) %d mid %@", (int)gPACCMusic42Open, mmid]);
-    }
     PACCNoteExpandedModule(module, YES, nil);
     gCCAModuleExpanded = YES;
     UIViewController *overlay = (UIViewController *)(id)self;
@@ -737,10 +588,7 @@ static void PACCMusicStockCover(id module, BOOL hide) {
 
 - (void)moduleCollectionViewController:(id)collection didCloseExpandedModule:(id)module {
     %orig;
-    if (gEnabled && gPACCMusic42Open) PACCMusic42Settle(((UIViewController *)(id)self).view, CACurrentMediaTime() + 2.5);
-    { __strong id keep = module; dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ PACCMusicStockCover(keep, NO); }); }
     gCCAModuleExpanded = NO;
-    gPACCMusic42Open = NO;
     gPACCExpandQuietUntil = CACurrentMediaTime() + 1.5;
     PACCKickRestFixer();
     UIViewController *overlay = (UIViewController *)(id)self;
@@ -932,16 +780,7 @@ static void PACCMusicStockCover(id module, BOOL hide) {
     %orig;
     if (!gEnabled) return;
     UIView *view = (UIView *)(id)self;
-    if (!PACCMediaMode(view)) {
-        // expanded (held) music card: artwork corner follows the card (concentric), not the 15pt left from the tile
-        UIView *np = PACCAncestor(view, @"MRUNowPlayingView");
-        if (np && PACCAncestor(np, @"CCUIContentModuleContentContainerView") && CGRectGetWidth(view.bounds) >= 60.0 && CGRectGetWidth(np.bounds) >= 230.0) {
-            CGFloat r = MIN(26.0, MAX(14.0, floor(CGRectGetWidth(view.bounds) * 0.2)));
-            view.layer.cornerRadius = r; view.layer.cornerCurve = kCACornerCurveContinuous; view.layer.masksToBounds = YES;
-            for (UIView *c in view.subviews) { c.layer.cornerRadius = r; c.layer.cornerCurve = kCACornerCurveContinuous; c.layer.masksToBounds = YES; }
-        }
-        return;
-    }
+    if (!PACCMediaMode(view)) return;
     CGFloat radius = view.layer.cornerRadius;
     for (UIView *child in view.subviews) {
         if (fabs(CGRectGetWidth(child.bounds) - CGRectGetWidth(view.bounds)) > 1.0 ||
@@ -1287,8 +1126,7 @@ static void PACCCenterExpanded(UIViewController *vc, int attempt) {
             sExpandedVC = vc0;
             PACCNoteExpandedModule(vc0, YES, nil);
             gCCAModuleExpanded = YES;
-            if (!gPACCMusic42Open && PACCModuleHas42Music(vc0)) gPACCMusic42Open = YES;
-            PACCSizeLog([NSString stringWithFormat:@"expanded module opened (container layout) music42 %d", (int)gPACCMusic42Open]);
+            PACCSizeLog(@"expanded module opened (container layout)");
             PACCTrackExpansion(vc0);
             PACCCenterExpanded(vc0, 0);
         } else if (!exp0 && sExpandedVC == vc0) {
@@ -1298,11 +1136,9 @@ static void PACCCenterExpanded(UIViewController *vc, int attempt) {
             UIViewController *ovc = OverlayIn(UIApplication.sharedApplication.keyWindow.rootViewController);
             PACCNoteExpandedModule(vc0, NO, ovc);
             PACCSizeLog(@"expanded module closed (container layout)");
-            if (gEnabled && gPACCMusic42Open) PACCMusic42Settle(UIApplication.sharedApplication.keyWindow, CACurrentMediaTime() + 2.5);
             gPACCExpandTop = -1.0;
             if (fabs(gPACCExpandShift) > 0.01) { gPACCExpandShift = 0.0; PACCApplyExpandShift(); }
         }
-        if (exp0 && gPACCMusic42Open && gEnabled) PACCMusic42Sweep(vc0.view);
     } @catch (__unused NSException *e) {}
     @try {
         UIViewController *me = (UIViewController *)self;
