@@ -46,6 +46,20 @@ static BOOL PACCModuleHas42Music(UIViewController *vc) {
     return NO;
 }
 
+static void PACCKillShapeAnims(CALayer *l) {
+    for (NSString *k in l.animationKeys) {
+        CAAnimation *a = [l animationForKey:k];
+        if ([a isKindOfClass:CAPropertyAnimation.class]) {
+            NSString *kp = ((CAPropertyAnimation *)a).keyPath;
+            if ([kp isEqualToString:@"cornerRadius"] || [kp isEqualToString:@"path"] || [kp isEqualToString:@"shadowPath"]) [l removeAnimationForKey:k];
+        }
+    }
+}
+static CGFloat PACCShownRadius(CALayer *l) {
+    CALayer *p = l.presentationLayer;
+    return MAX(l.cornerRadius, p ? p.cornerRadius : 0.0);
+}
+
 static void PACCMusic42Settle(UIView *root, double until) {
     if (!root) return;
     __weak UIView *wr = root;
@@ -62,17 +76,21 @@ static void PACCMusic42Settle(UIView *root, double until) {
             if (z.width < 300.0 || z.width > 370.0 || z.height < 140.0 || z.height > 200.0) continue;
             NSString *cn = NSStringFromClass(v.class);
             if ([v isKindOfClass:NSClassFromString(@"PACBigMusic")]) continue;
-            if (v.layer.cornerRadius > 31.0) {
-                [found appendFormat:@" %@ r%.1f", cn, v.layer.cornerRadius];
+            [CATransaction begin]; [CATransaction setDisableActions:YES];
+            if (PACCShownRadius(v.layer) > 31.0) {
+                [found appendFormat:@" %@ r%.1f", cn, PACCShownRadius(v.layer)];
                 if ([cn hasPrefix:@"LG"]) PACBigFixLGRadius(v, 30.0);
                 else { v.layer.cornerRadius = 30.0; v.layer.cornerCurve = kCACornerCurveContinuous; }
+                PACCKillShapeAnims(v.layer);
             }
             for (CALayer *sl in v.layer.sublayers) {
-                if (sl.cornerRadius > 31.0 && fabs(sl.bounds.size.width - z.width) < 4.0 && fabs(sl.bounds.size.height - z.height) < 4.0) {
-                    [found appendFormat:@" layer(%@ in %@) r%.1f", NSStringFromClass(sl.class), cn, sl.cornerRadius];
+                if (PACCShownRadius(sl) > 31.0 && fabs(sl.bounds.size.width - z.width) < 4.0 && fabs(sl.bounds.size.height - z.height) < 4.0) {
+                    [found appendFormat:@" layer(%@ in %@) r%.1f", NSStringFromClass(sl.class), cn, PACCShownRadius(sl)];
                     sl.cornerRadius = 30.0; sl.cornerCurve = kCACornerCurveContinuous;
+                    PACCKillShapeAnims(sl);
                 }
             }
+            [CATransaction commit];
         }
         if (found.length) { static NSString *lastF; if (![found isEqualToString:lastF]) { lastF = [found copy]; PACCSizeLog([NSString stringWithFormat:@"music2x4 settle fixed:%@", found]); } }
     }];
